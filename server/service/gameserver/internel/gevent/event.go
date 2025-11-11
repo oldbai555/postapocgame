@@ -1,10 +1,4 @@
-/**
- * @Author: zjj
- * @Date: 2025/11/10
- * @Desc:
-**/
-
-package devent
+package gevent
 
 import (
 	"context"

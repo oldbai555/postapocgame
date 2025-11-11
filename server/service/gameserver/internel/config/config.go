@@ -9,6 +9,7 @@ package config
 import (
 	"os"
 	"path"
+	"postapocgame/server/internal/actor"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/tool"
 )
@@ -24,9 +25,9 @@ type ServerConfig struct {
 	GatewayAllowIPs []string `json:"gateway_allow_ips"` // 允许连接的网关IP列表
 
 	// Actor配置
-	ActorMode        int `json:"actor_mode"`         // Actor类型: 0=Single, 1=PerPlayer
-	ActorPoolSize    int `json:"actor_pool_size"`    // Actor池大小
-	ActorMailboxSize int `json:"actor_mailbox_size"` // Actor邮箱大小
+	ActorMode        actor.ActorMode `json:"actor_mode"`         // Actor类型: 0=Single, 1=PerPlayer
+	ActorPoolSize    int             `json:"actor_pool_size"`    // Actor池大小
+	ActorMailboxSize int             `json:"actor_mailbox_size"` // Actor邮箱大小
 
 	// DungeonServer配置
 	DungeonServerAddrMap map[uint8]string `json:"dungeon_server_addr_map"` // DungeonServer地址映射 [srvType]addr

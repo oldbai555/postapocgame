@@ -2,14 +2,14 @@ package entitysystem
 
 import (
 	"fmt"
-	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/custom_id"
+	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
-	"postapocgame/server/service/gameserver/internel/actorprotocol"
 	"postapocgame/server/service/gameserver/internel/iface"
+	"postapocgame/server/service/gameserver/internel/playeractor/clientprotocol"
 	"sync/atomic"
 	"time"
 )
@@ -201,7 +201,7 @@ func (s *MailSys) DeleteAllReadMails() error {
 	return nil
 }
 
-func handleReadMail(playerRole iface.IPlayerRole, msg *actor.Message) error {
+func handleReadMail(playerRole iface.IPlayerRole, msg *network.ClientMessage) error {
 	// 解析请求
 	var req struct {
 		MailID uint64 `json:"mailId"`
@@ -229,7 +229,7 @@ func handleReadMail(playerRole iface.IPlayerRole, msg *actor.Message) error {
 
 	return nil
 }
-func handleDeleteMail(playerRole iface.IPlayerRole, msg *actor.Message) error {
+func handleDeleteMail(playerRole iface.IPlayerRole, msg *network.ClientMessage) error {
 	// 解析请求
 	var req struct {
 		MailID uint64 `json:"mailId"`
@@ -257,7 +257,7 @@ func handleDeleteMail(playerRole iface.IPlayerRole, msg *actor.Message) error {
 
 	return nil
 }
-func handleReceiveMailReward(playerRole iface.IPlayerRole, msg *actor.Message) error {
+func handleReceiveMailReward(playerRole iface.IPlayerRole, msg *network.ClientMessage) error {
 	// 解析请求
 	var req struct {
 		MailID uint64 `json:"mailId"`
@@ -291,7 +291,7 @@ func init() {
 	RegisterSystemFactory(custom_id.SysMail, func(role iface.IPlayerRole) iface.ISystem {
 		return NewMailSys(role)
 	})
-	actorprotocol.Register(1, 6, handleReadMail)
-	actorprotocol.Register(1, 7, handleDeleteMail)
-	actorprotocol.Register(1, 8, handleReceiveMailReward)
+	clientprotocol.Register(1, 6, handleReadMail)
+	clientprotocol.Register(1, 7, handleDeleteMail)
+	clientprotocol.Register(1, 8, handleReceiveMailReward)
 }

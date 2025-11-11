@@ -11,23 +11,25 @@ import (
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
-	"postapocgame/server/pkg/customerr"
+	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
+	"postapocgame/server/service/base"
 	"postapocgame/server/service/dungeonserver/internel/devent"
-	"postapocgame/server/service/dungeonserver/internel/dungeonactor"
+	"postapocgame/server/service/dungeonserver/internel/dshare"
 	"postapocgame/server/service/dungeonserver/internel/entity"
 )
 
 func init() {
-	devent.Subscribe(1, func(ctx context.Context, event *event.Event) error {
-		dungeonactor.RegisterFunc(protocol.RPC_EnterDungeon, func(msg *actor.Message) error {
+	devent.Subscribe(devent.OnSrvStart, func(ctx context.Context, event *event.Event) {
+		dshare.RegisterHandler(protocol.RPC_EnterDungeon, func(message actor.IActorMessage) {
+			msg := message.(*base.SessionMessage)
 			if msg.SessionId == "" {
-				return customerr.NewCustomErr("not found session")
+				return
 			}
 			var roleInfo protocol.RoleInfo
 			err := tool.JsonUnmarshal(msg.Data, &roleInfo)
 			if err != nil {
-				return customerr.Wrap(err)
+				return
 			}
 			roleEntity := entity.NewRoleEntity(msg.SessionId, &roleInfo)
 			resp := protocol.EnterSceneResponse{
@@ -38,11 +40,14 @@ func init() {
 			}
 			bytes, err := tool.JsonMarshal(resp)
 			if err != nil {
-				return customerr.Wrap(err)
+				return
 			}
-			return roleEntity.SendMessage(1, 3, bytes)
+			err = roleEntity.SendMessage(1, 3, bytes)
+			if err != nil {
+				log.Errorf("err:%v", err)
+				return
+			}
 		})
-		return nil
 	})
 
 }

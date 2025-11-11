@@ -6,8 +6,8 @@
 
 package event
 
+import "context"
+
 type Type uint32
 
-const (
-	EtPlayerRoleEvent = iota + 1 // 玩家事件
-)
+type Handler func(ctx context.Context, event *Event)

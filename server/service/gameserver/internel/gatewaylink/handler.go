@@ -6,6 +6,7 @@ import (
 	"postapocgame/server/internal/network"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/base"
 	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/iface"
 	"sync"
@@ -89,7 +90,7 @@ func (h *NetworkHandler) handleSessionClose(event *network.SessionEvent) error {
 	h.sessionsMu.Unlock()
 
 	// 移除玩家Actor
-	err := gshare.PlayerRoleRemovePerPlayerActorFunc(event.SessionId)
+	err := gshare.PlayerRemoveActor(event.SessionId)
 	if err != nil {
 		return customerr.Wrap(err)
 	}
@@ -112,11 +113,16 @@ func (h *NetworkHandler) handleClientMsg(msg *network.Message) error {
 		return customerr.Wrap(err)
 	}
 
-	log.Debugf("ClientMsg: SessionId=%s, MsgId=%d, DataLen=%d",
-		fwdMsg.SessionId, clientMsg.MsgId, len(clientMsg.Data))
+	log.Debugf("ClientMsg: SessionId=%s, MsgId=%d, DataLen=%d", fwdMsg.SessionId, clientMsg.MsgId, len(clientMsg.Data))
+
+	message := base.NewSessionMessage()
+	message.SessionId = fwdMsg.SessionId
+	message.Data = fwdMsg.Payload
+	message.MsgId = gshare.DoNetWorkMsg
+	message.Context = context.Background()
 
 	// 发送到Actor系统处理
-	if err := gshare.PlayerRoleSendFunc(fwdMsg.SessionId, clientMsg.MsgId, clientMsg.Data); err != nil {
+	if err := gshare.PlayerSendMessageAsync(fwdMsg.SessionId, message); err != nil {
 		return customerr.Wrap(err)
 	}
 

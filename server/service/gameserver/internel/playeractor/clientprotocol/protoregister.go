@@ -1,7 +1,7 @@
-package actorprotocol
+package clientprotocol
 
 import (
-	"postapocgame/server/internal/actor"
+	"postapocgame/server/internal/network"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/iface"
 )
@@ -11,12 +11,19 @@ var (
 	ProtoTbl = make(map[uint16]Func)
 )
 
-type Func func(actor iface.IPlayerRole, msg *actor.Message) error
+type Func func(actor iface.IPlayerRole, msg *network.ClientMessage) error
 
 func Register(protoIdH, protoIdL uint16, f Func) {
 	protoId := protoIdH<<8 | protoIdL
 	if _, ok := ProtoTbl[protoId]; ok {
-		log.Stackf("proto sysId:%d, cmdId:%d register repeat.", protoIdH, protoIdL)
+		log.Stackf("cmdId:%d %d register repeat.", protoIdH, protoIdL)
+		return
+	}
+	ProtoTbl[protoId] = f
+}
+func RegisterProtoId(protoId uint16, f Func) {
+	if _, ok := ProtoTbl[protoId]; ok {
+		log.Stackf("cmdId:%d register repeat.", protoId)
 		return
 	}
 	ProtoTbl[protoId] = f

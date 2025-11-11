@@ -62,3 +62,14 @@ func (m *PlayerRoleManager) GetAll() []iface.IPlayerRole {
 	}
 	return roles
 }
+
+func (m *PlayerRoleManager) GetBySession(sessionId string) iface.IPlayerRole {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for _, role := range m.roleMgr {
+		if role.GetSessionId() == sessionId {
+			return role
+		}
+	}
+	return nil
+}

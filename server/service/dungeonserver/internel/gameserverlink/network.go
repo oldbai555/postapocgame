@@ -2,11 +2,11 @@ package gameserverlink
 
 import (
 	"context"
-	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/service/dungeonserver/internel/dungeonactor"
+	"postapocgame/server/service/base"
+	"postapocgame/server/service/dungeonserver/internel/dshare"
 )
 
 // NetworkHandler 网络消息处理器（优化版）
@@ -30,7 +30,7 @@ func (h *NetworkHandler) HandleMessage(ctx context.Context, conn network.IConnec
 	case network.MsgTypeRPCRequest:
 		return h.handleRPCRequest(ctx, conn, msg)
 	case network.MsgTypeClient:
-		return h.handleClientMsg(msg)
+		return h.handleClientMsg(ctx, msg)
 	case network.MsgTypeHeartbeat:
 		return h.handleHeartbeat(conn, msg)
 	default:
@@ -74,16 +74,14 @@ func (h *NetworkHandler) handleRPCRequest(ctx context.Context, conn network.ICon
 		}
 	}
 
-	// 创建Actor消息
-	actorMsg := &actor.Message{
-		SessionId: req.SessionId,
-		MsgId:     req.MsgId,
-		Data:      req.Data,
-		Context:   ctx,
-	}
+	message := base.NewSessionMessage()
+	message.SessionId = req.SessionId
+	message.MsgId = req.MsgId
+	message.Data = req.Data
+	message.Context = ctx
 
 	// 发送到Actor系统处理
-	if err := dungeonactor.SendFunc(actorMsg.SessionId, actorMsg.MsgId, actorMsg.Data); err != nil {
+	if err := dshare.SendMessageAsync(req.SessionId, message); err != nil {
 		log.Errorf("send to actor failed: %v", err)
 		return err
 	}
@@ -91,7 +89,7 @@ func (h *NetworkHandler) handleRPCRequest(ctx context.Context, conn network.ICon
 }
 
 // handleClientMsg 处理客户端消息
-func (h *NetworkHandler) handleClientMsg(msg *network.Message) error {
+func (h *NetworkHandler) handleClientMsg(ctx context.Context, msg *network.Message) error {
 	fwdMsg, err := h.codec.DecodeForwardMessage(msg.Payload)
 	if err != nil {
 		return customerr.Wrap(err)
@@ -104,11 +102,17 @@ func (h *NetworkHandler) handleClientMsg(msg *network.Message) error {
 		return customerr.Wrap(err)
 	}
 
-	// 发送到Actor系统处理
-	if err := dungeonactor.SendFunc(fwdMsg.SessionId, clientMsg.MsgId, clientMsg.Data); err != nil {
-		return customerr.Wrap(err)
-	}
+	message := base.NewSessionMessage()
+	message.SessionId = fwdMsg.SessionId
+	message.MsgId = clientMsg.MsgId
+	message.Data = clientMsg.Data
+	message.Context = ctx
 
+	// 发送到Actor系统处理
+	if err := dshare.SendMessageAsync(fwdMsg.SessionId, message); err != nil {
+		log.Errorf("send to actor failed: %v", err)
+		return err
+	}
 	return nil
 }
 

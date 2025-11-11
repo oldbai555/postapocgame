@@ -27,8 +27,7 @@ func main() {
 	// 创建
 	ds := engine.NewDungeonServer(serverConfig)
 
-	actorSystem := dungeonactor.NewActorSystem()
-	actorSystem.Init()
+	dungeonActor := dungeonactor.NewDungeonActor(actor.ModeSingle)
 
 	fbMgr := fbmgr.GetFuBenMgr()
 	err = fbMgr.CreateDefaultFuBen()
@@ -40,7 +39,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	if err := actorSystem.Start(ctx); err != nil {
+	if err := dungeonActor.Start(ctx); err != nil {
 		log.Fatalf("Start dungeon actor failed: %v", err)
 	}
 
@@ -50,14 +49,7 @@ func main() {
 		log.Fatalf("Start DungeonServer failed: %v", err)
 	}
 
-	err = devent.Publish(ctx, event.NewEvent(1, "main"))
-	if err != nil {
-		log.Fatalf("Start DungeonServer failed: %v", err)
-		return
-	}
-
-	// 监控
-	actor.GetActorMonitor().Start(ctx, time.Hour)
+	devent.Publish(ctx, event.NewEvent(devent.OnSrvStart))
 
 	// 等待退出信号
 	sigChan := make(chan os.Signal, 1)
@@ -65,11 +57,15 @@ func main() {
 	<-sigChan
 
 	log.Infof("Shutting down DungeonServer...")
-	actor.GetActorMonitor().Stop()
 
 	// 停止DungeonServer
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
+
+	if err := dungeonActor.Stop(shutdownCtx); err != nil {
+		log.Errorf("Stop dungeonActor failed: %v", err)
+		os.Exit(1)
+	}
 
 	if err := ds.Stop(shutdownCtx); err != nil {
 		log.Errorf("Stop DungeonServer failed: %v", err)

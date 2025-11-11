@@ -1,70 +1,36 @@
-package playeractor
+/**
+ * @Author: zjj
+ * @Date: 2025/11/11
+ * @Desc:
+**/
+
+package entity
 
 import (
 	"context"
 	"postapocgame/server/internal/actor"
+	"postapocgame/server/internal/event"
+	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
-	"postapocgame/server/service/gameserver/internel/actorprotocol"
+	"postapocgame/server/service/base"
 	"postapocgame/server/service/gameserver/internel/dungeonserverlink"
-	"postapocgame/server/service/gameserver/internel/entity"
 	"postapocgame/server/service/gameserver/internel/gatewaylink"
+	"postapocgame/server/service/gameserver/internel/gevent"
+	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/manager"
+	"postapocgame/server/service/gameserver/internel/playeractor/clientprotocol"
 	"time"
 )
 
-// PlayerHandler 玩家消息处理器
-type PlayerHandler struct {
-	actor.BaseActorMsgHandler
-}
-
-// NewPlayerHandler 创建玩家消息处理器
-func NewPlayerHandler() *PlayerHandler {
-	return &PlayerHandler{}
-}
-
-func (h *PlayerHandler) HandleActorMessage(msg *actor.Message) error {
-	session := gatewaylink.GetSession(msg.SessionId)
-	if session == nil {
-		return customerr.NewCustomErr("not found %s session", msg.SessionId)
-	}
-	msgId := msg.MsgId
-	switch msgId {
-	case protocol.C2S_Verify:
-		return h.handleVerify(msg)
-	case protocol.C2S_QueryRoles:
-		return h.handleQueryRoles(msg)
-	case protocol.C2S_CreateRole:
-		return h.handleCreateRole(msg)
-	case protocol.C2S_EnterGame:
-		return h.handleEnterGame(msg)
-	case protocol.C2S_Reconnect:
-		return h.handleReconnect(msg)
-	default:
-		roleId := session.GetRoleId()
-		if roleId > 0 {
-			playerRole := manager.GetPlayerRole(roleId)
-			if playerRole == nil {
-				return customerr.NewCustomErr("not found %s session %d player role %d", msg.SessionId, roleId)
-			}
-			var protoIdH, protoIdL = msgId >> 8, msgId & 0xff
-			getFunc := actorprotocol.GetFunc(protoIdH, protoIdL)
-			if getFunc == nil {
-				return customerr.NewCustomErr("not found %d %d handler", protoIdH, protoIdL)
-			}
-			return getFunc(playerRole, msg)
-		}
-	}
+func handleVerify(sessionId string, msg *network.ClientMessage) error {
 	return nil
 }
 
-func (h *PlayerHandler) handleVerify(msg *actor.Message) error {
-	return nil
-}
-func (h *PlayerHandler) handleQueryRoles(msg *actor.Message) error {
-	log.Infof("handleQueryRoles: SessionId=%s", msg.SessionId)
+func handleQueryRoles(sessionId string, msg *network.ClientMessage) error {
+	log.Infof("handleQueryRoles: SessionId=%s", sessionId)
 
 	// 模拟返回固定的两个角色
 	roleList := &protocol.RoleListResponse{
@@ -93,11 +59,11 @@ func (h *PlayerHandler) handleQueryRoles(msg *actor.Message) error {
 	}
 
 	// 发送给客户端
-	return gatewaylink.SendToSession(msg.SessionId, protocol.S2C_RoleList, jsonData)
+	return gatewaylink.SendToSession(sessionId, protocol.S2C_RoleList, jsonData)
 }
 
-func (h *PlayerHandler) handleEnterGame(msg *actor.Message) error {
-	log.Infof("handleSelectRole: SessionId=%s", msg.SessionId)
+func handleEnterGame(sessionId string, msg *network.ClientMessage) error {
+	log.Infof("handleSelectRole: SessionId=%s", sessionId)
 
 	// 解析选择角色请求
 	req, err := protocol.UnmarshalSelectRoleRequest(msg.Data)
@@ -131,7 +97,7 @@ func (h *PlayerHandler) handleEnterGame(msg *actor.Message) error {
 	log.Infof("Selected player role: RoleId=%d, Name=%s", selectedRole.RoleId, selectedRole.Name)
 
 	// 进入游戏
-	err = h.enterGame(msg.SessionId, selectedRole)
+	err = enterGame(sessionId, selectedRole)
 	if err != nil {
 		log.Errorf("err:%v", err)
 		return err
@@ -139,12 +105,12 @@ func (h *PlayerHandler) handleEnterGame(msg *actor.Message) error {
 	return nil
 }
 
-func (h *PlayerHandler) handleReconnect(msg *actor.Message) error {
+func handleReconnect(sessionId string, msg *network.ClientMessage) error {
 	return nil
 }
 
-func (h *PlayerHandler) handleCreateRole(msg *actor.Message) error {
-	log.Infof("handleCreateRole: SessionId=%s", msg.SessionId)
+func handleCreateRole(sessionId string, msg *network.ClientMessage) error {
+	log.Infof("handleCreateRole: SessionId=%s", sessionId)
 
 	// 解析创建角色请求
 	var req protocol.CreateRoleRequest
@@ -178,7 +144,7 @@ func (h *PlayerHandler) handleCreateRole(msg *actor.Message) error {
 	}
 
 	// 发送给客户端
-	if err := gatewaylink.SendToSession(msg.SessionId, protocol.S2C_CreateRoleResult, jsonData); err != nil {
+	if err := gatewaylink.SendToSession(sessionId, protocol.S2C_CreateRoleResult, jsonData); err != nil {
 		return customerr.Wrap(err)
 	}
 
@@ -186,11 +152,11 @@ func (h *PlayerHandler) handleCreateRole(msg *actor.Message) error {
 }
 
 // enterGame 进入游戏
-func (h *PlayerHandler) enterGame(sessionId string, roleInfo *protocol.RoleInfo) error {
+func enterGame(sessionId string, roleInfo *protocol.RoleInfo) error {
 	log.Infof("enterGame: SessionId=%s, RoleId=%d", sessionId, roleInfo.RoleId)
 
 	// 创建PlayerRole实例
-	playerRole := entity.NewPlayerRole(sessionId, roleInfo)
+	playerRole := NewPlayerRole(sessionId, roleInfo)
 
 	// 添加到PlayerRole管理器
 	manager.GetPlayerRoleManager().Add(playerRole)
@@ -216,4 +182,60 @@ func (h *PlayerHandler) enterGame(sessionId string, roleInfo *protocol.RoleInfo)
 	}
 
 	return nil
+}
+
+func handleDoNetWorkMsg(message actor.IActorMessage) {
+	msg, ok := message.(*base.SessionMessage)
+	if !ok {
+		return
+	}
+
+	sessionId := msg.SessionId
+
+	session := gatewaylink.GetSession(sessionId)
+	if session == nil {
+		return
+	}
+
+	cliMsg, err := network.DefaultCodec().DecodeClientMessage(message.GetData())
+	if err != nil {
+		log.Errorf("err:%v", err)
+		return
+	}
+
+	switch cliMsg.MsgId {
+	case protocol.C2S_Verify:
+		err = handleVerify(sessionId, cliMsg)
+	case protocol.C2S_QueryRoles:
+		err = handleQueryRoles(sessionId, cliMsg)
+	case protocol.C2S_CreateRole:
+		err = handleCreateRole(sessionId, cliMsg)
+	case protocol.C2S_EnterGame:
+		err = handleEnterGame(sessionId, cliMsg)
+	case protocol.C2S_Reconnect:
+		err = handleReconnect(sessionId, cliMsg)
+	default:
+		roleId := session.GetRoleId()
+		if roleId > 0 {
+			playerRole := manager.GetPlayerRole(roleId)
+			if playerRole != nil {
+				var protoIdH, protoIdL = cliMsg.MsgId >> 8, cliMsg.MsgId & 0xff
+				getFunc := clientprotocol.GetFunc(protoIdH, protoIdL)
+				if getFunc != nil {
+					err = getFunc(playerRole, cliMsg)
+				}
+			}
+		}
+	}
+	if err != nil {
+		log.Errorf("err:%v", err)
+		return
+	}
+	return
+}
+
+func init() {
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
+		gshare.PlayerRegisterHandler(gshare.DoNetWorkMsg, handleDoNetWorkMsg)
+	})
 }

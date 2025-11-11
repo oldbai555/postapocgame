@@ -2,9 +2,7 @@ package entitysystem
 
 import (
 	"postapocgame/server/internal/custom_id"
-	"postapocgame/server/internal/event"
 	protocol2 "postapocgame/server/internal/protocol"
-	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
 	"postapocgame/server/service/gameserver/internel/iface"
 )
@@ -54,10 +52,7 @@ func (s *LevelSys) AddExp(exp uint64) {
 
 	// 如果升级了，发布升级事件
 	if s.level > oldLevel {
-		err := s.GetRole().Publish(event.EventRoleUpLv, oldLevel, s.level)
-		if err != nil {
-			log.Errorf("err:%v", err)
-		}
+
 	}
 
 	s.SendData()
