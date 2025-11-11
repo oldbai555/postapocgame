@@ -1,0 +1,152 @@
+[
+  {
+    "buffId": 2001,
+    "name": "攻击增益",
+    "type": 1,
+    "duration": 10000,
+    "stackLimit": 3,
+    "effects": [
+      {
+        "attrType": 3,
+        "addType": 2,
+        "value": 20
+      }
+    ],
+    "description": "攻击力提升20%"
+  },
+  {
+    "buffId": 2002,
+    "name": "防御增益",
+    "type": 1,
+    "duration": 10000,
+    "stackLimit": 3,
+    "effects": [
+      {
+        "attrType": 4,
+        "addType": 2,
+        "value": 20
+      }
+    ],
+    "description": "防御力提升20%"
+  },
+  {
+    "buffId": 2003,
+    "name": "速度增益",
+    "type": 1,
+    "duration": 15000,
+    "stackLimit": 1,
+    "effects": [
+      {
+        "attrType": 5,
+        "addType": 2,
+        "value": 30
+      }
+    ],
+    "description": "速度提升30%"
+  },
+  {
+    "buffId": 2004,
+    "name": "生命恢复",
+    "type": 1,
+    "duration": 10000,
+    "stackLimit": 1,
+    "effects": [
+      {
+        "attrType": 1,
+        "addType": 1,
+        "value": 100
+      }
+    ],
+    "description": "每秒恢复100点生命值,持续10秒"
+  },
+  {
+    "buffId": 3001,
+    "name": "减速",
+    "type": 2,
+    "duration": 5000,
+    "stackLimit": 1,
+    "effects": [
+      {
+        "attrType": 5,
+        "addType": 2,
+        "value": -30
+      }
+    ],
+    "description": "速度降低30%"
+  },
+  {
+    "buffId": 3002,
+    "name": "中毒",
+    "type": 2,
+    "duration": 10000,
+    "stackLimit": 5,
+    "effects": [
+      {
+        "attrType": 1,
+        "addType": 1,
+        "value": -50
+      }
+    ],
+    "description": "每秒受到50点毒素伤害"
+  },
+  {
+    "buffId": 3003,
+    "name": "虚弱",
+    "type": 2,
+    "duration": 8000,
+    "stackLimit": 1,
+    "effects": [
+      {
+        "attrType": 3,
+        "addType": 2,
+        "value": -25
+      }
+    ],
+    "description": "攻击力降低25%"
+  },
+  {
+    "buffId": 3004,
+    "name": "破甲",
+    "type": 2,
+    "duration": 6000,
+    "stackLimit": 3,
+    "effects": [
+      {
+        "attrType": 4,
+        "addType": 2,
+        "value": -15
+      }
+    ],
+    "description": "防御力降低15%"
+  },
+  {
+    "buffId": 3005,
+    "name": "灼烧",
+    "type": 2,
+    "duration": 5000,
+    "stackLimit": 1,
+    "effects": [
+      {
+        "attrType": 1,
+        "addType": 1,
+        "value": -80
+      }
+    ],
+    "description": "每秒受到80点火焰伤害"
+  },
+  {
+    "buffId": 3006,
+    "name": "冰冻",
+    "type": 2,
+    "duration": 3000,
+    "stackLimit": 1,
+    "effects": [
+      {
+        "attrType": 5,
+        "addType": 2,
+        "value": -50
+      }
+    ],
+    "description": "速度降低50%,几乎无法移动"
+  }
+]

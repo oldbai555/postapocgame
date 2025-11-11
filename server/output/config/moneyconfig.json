@@ -1,0 +1,23 @@
+[
+  {
+    "moneyId": 1,
+    "name": "金币",
+    "icon": "gold_icon",
+    "maxAmount": 999999999,
+    "description": "游戏中的基础货币,可用于购买物品和装备"
+  },
+  {
+    "moneyId": 2,
+    "name": "钻石",
+    "icon": "diamond_icon",
+    "maxAmount": 99999999,
+    "description": "珍贵的高级货币,可用于购买稀有物品"
+  },
+  {
+    "moneyId": 3,
+    "name": "铜币",
+    "icon": "copper_icon",
+    "maxAmount": 9999999999,
+    "description": "最基础的货币,用于日常交易"
+  }
+]

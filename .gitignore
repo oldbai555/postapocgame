@@ -1,0 +1,15 @@
+/.idea/inspectionProfiles/Project_Default.xml
+/.idea/jsLibraryMappings.xml
+/.idea/*
+/.idea/**
+/.idea
+
+
+/files.zip
+/files*.zip
+/server/output/*.exe
+/server/output/log/
+/Claude*framework_*.json
+/.claude/
+/.vscode/
+/server/output/*.panic

@@ -1,0 +1,132 @@
+[
+  {
+    "level": 1,
+    "expNeeded": 100,
+    "rewards": [],
+    "hpBonus": 100,
+    "mpBonus": 50,
+    "attackBonus": 10,
+    "defenseBonus": 5
+  },
+  {
+    "level": 2,
+    "expNeeded": 300,
+    "rewards": [
+      {
+        "itemId": 1001,
+        "type": 4,
+        "count": 5
+      }
+    ],
+    "hpBonus": 120,
+    "mpBonus": 60,
+    "attackBonus": 12,
+    "defenseBonus": 6
+  },
+  {
+    "level": 3,
+    "expNeeded": 600,
+    "rewards": [
+      {
+        "itemId": 1001,
+        "type": 4,
+        "count": 10
+      }
+    ],
+    "hpBonus": 140,
+    "mpBonus": 70,
+    "attackBonus": 14,
+    "defenseBonus": 7
+  },
+  {
+    "level": 4,
+    "expNeeded": 1000,
+    "rewards": [
+      {
+        "itemId": 1002,
+        "type": 4,
+        "count": 5
+      }
+    ],
+    "hpBonus": 160,
+    "mpBonus": 80,
+    "attackBonus": 16,
+    "defenseBonus": 8
+  },
+  {
+    "level": 5,
+    "expNeeded": 1500,
+    "rewards": [
+      {
+        "itemId": 1002,
+        "type": 4,
+        "count": 10
+      },
+      {
+        "itemId": 3001,
+        "type": 2,
+        "count": 1
+      }
+    ],
+    "hpBonus": 200,
+    "mpBonus": 100,
+    "attackBonus": 20,
+    "defenseBonus": 10
+  },
+  {
+    "level": 6,
+    "expNeeded": 2100,
+    "rewards": [],
+    "hpBonus": 220,
+    "mpBonus": 110,
+    "attackBonus": 22,
+    "defenseBonus": 11
+  },
+  {
+    "level": 7,
+    "expNeeded": 2800,
+    "rewards": [],
+    "hpBonus": 240,
+    "mpBonus": 120,
+    "attackBonus": 24,
+    "defenseBonus": 12
+  },
+  {
+    "level": 8,
+    "expNeeded": 3600,
+    "rewards": [],
+    "hpBonus": 260,
+    "mpBonus": 130,
+    "attackBonus": 26,
+    "defenseBonus": 13
+  },
+  {
+    "level": 9,
+    "expNeeded": 4500,
+    "rewards": [],
+    "hpBonus": 280,
+    "mpBonus": 140,
+    "attackBonus": 28,
+    "defenseBonus": 14
+  },
+  {
+    "level": 10,
+    "expNeeded": 5500,
+    "rewards": [
+      {
+        "itemId": 1003,
+        "type": 4,
+        "count": 10
+      },
+      {
+        "itemId": 3002,
+        "type": 2,
+        "count": 1
+      }
+    ],
+    "hpBonus": 300,
+    "mpBonus": 150,
+    "attackBonus": 30,
+    "defenseBonus": 15
+  }
+]

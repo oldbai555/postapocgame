@@ -1,0 +1,110 @@
+[
+  {
+    "itemId": 1001,
+    "name": "初级生命药水",
+    "type": 4,
+    "quality": 1,
+    "maxStack": 99,
+    "canUse": true,
+    "canSell": true,
+    "sellPrice": 10,
+    "description": "恢复100点生命值",
+    "useEffect": {
+      "effectType": 1,
+      "value": 100
+    }
+  },
+  {
+    "itemId": 1002,
+    "name": "中级生命药水",
+    "type": 4,
+    "quality": 2,
+    "maxStack": 99,
+    "canUse": true,
+    "canSell": true,
+    "sellPrice": 50,
+    "description": "恢复500点生命值",
+    "useEffect": {
+      "effectType": 1,
+      "value": 500
+    }
+  },
+  {
+    "itemId": 1003,
+    "name": "高级生命药水",
+    "type": 4,
+    "quality": 3,
+    "maxStack": 99,
+    "canUse": true,
+    "canSell": true,
+    "sellPrice": 200,
+    "description": "恢复2000点生命值",
+    "useEffect": {
+      "effectType": 1,
+      "value": 2000
+    }
+  },
+  {
+    "itemId": 2001,
+    "name": "初级魔法药水",
+    "type": 4,
+    "quality": 1,
+    "maxStack": 99,
+    "canUse": true,
+    "canSell": true,
+    "sellPrice": 10,
+    "description": "恢复50点魔法值",
+    "useEffect": {
+      "effectType": 2,
+      "value": 50
+    }
+  },
+  {
+    "itemId": 3001,
+    "name": "新手长剑",
+    "type": 2,
+    "quality": 1,
+    "maxStack": 1,
+    "canUse": false,
+    "canSell": true,
+    "sellPrice": 100,
+    "description": "攻击力+10"
+  },
+  {
+    "itemId": 3002,
+    "name": "精钢长剑",
+    "type": 2,
+    "quality": 2,
+    "maxStack": 1,
+    "canUse": false,
+    "canSell": true,
+    "sellPrice": 500,
+    "description": "攻击力+30"
+  },
+  {
+    "itemId": 4001,
+    "name": "铁矿石",
+    "type": 3,
+    "quality": 1,
+    "maxStack": 999,
+    "canUse": false,
+    "canSell": true,
+    "sellPrice": 5,
+    "description": "用于锻造的基础材料"
+  },
+  {
+    "itemId": 5001,
+    "name": "经验卷轴",
+    "type": 4,
+    "quality": 2,
+    "maxStack": 99,
+    "canUse": true,
+    "canSell": false,
+    "sellPrice": 0,
+    "description": "使用后获得1000点经验",
+    "useEffect": {
+      "effectType": 3,
+      "value": 1000
+    }
+  }
+]

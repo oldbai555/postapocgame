@@ -1,0 +1,47 @@
+package dungeonserverlink
+
+import (
+	"context"
+	"postapocgame/server/pkg/customerr"
+	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/config"
+)
+
+var dungeonRPC *DungeonClient
+
+func StartDungeonClient(ctx context.Context, config *config.ServerConfig) {
+	dungeonRPC = NewDungeonClient(config)
+
+	// 连接到DungeonServer
+	for srvType, addr := range config.DungeonServerAddrMap {
+		if err := dungeonRPC.Connect(ctx, srvType, addr); err != nil {
+			log.Errorf("connect to dungeon service failed: srvType=%d, addr=%s, err=%v", srvType, addr, err)
+		}
+	}
+}
+
+// Stop 停止DungeonClient
+func Stop() {
+	if dungeonRPC == nil {
+		return
+	}
+	err := dungeonRPC.Close()
+	if err != nil {
+		log.Errorf("err:%v", err)
+	}
+}
+
+func AsyncCall(ctx context.Context, srvType uint8, sessionId string, msgId uint16, data []byte) error {
+	if dungeonRPC == nil {
+		return customerr.NewCustomErr("dungeonRPC not initialized")
+	}
+	return dungeonRPC.AsyncCall(ctx, srvType, sessionId, msgId, data)
+}
+
+func RegisterRPCHandler(msgId uint16, handler RPCHandler) {
+	if dungeonRPC == nil {
+		log.Errorf("dungeonRPC not initialized, cannot register handler for msgId=%d", msgId)
+		return
+	}
+	dungeonRPC.RegisterRPCHandler(msgId, handler)
+}

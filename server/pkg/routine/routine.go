@@ -6,7 +6,6 @@ import (
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"runtime/debug"
-	"strings"
 )
 
 func Go(ctx context.Context, logic func(ctx context.Context) error) {
@@ -49,10 +48,7 @@ func CatchPanic(panicCallback func(err interface{})) {
 		st := debug.Stack()
 		if len(st) > 0 {
 			log.Errorf("dump stack (%s):", err)
-			lines := strings.Split(string(st), "\n")
-			for _, line := range lines {
-				log.Errorf("%s", line)
-			}
+			log.Errorf("%s", string(st))
 		} else {
 			log.Errorf("stack is empty (%s)", err)
 		}

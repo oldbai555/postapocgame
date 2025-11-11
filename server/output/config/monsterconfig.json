@@ -1,0 +1,161 @@
+[
+  {
+    "monsterId": 10001,
+    "name": "史莱姆",
+    "level": 1,
+    "type": 1,
+    "hp": 500,
+    "mp": 0,
+    "attack": 30,
+    "defense": 10,
+    "speed": 5,
+    "skillIds": [],
+    "dropItems": [
+      {
+        "itemId": 4001,
+        "dropRate": 0.3,
+        "minCount": 1,
+        "maxCount": 3
+      },
+      {
+        "itemId": 1001,
+        "dropRate": 0.1,
+        "minCount": 1,
+        "maxCount": 1
+      }
+    ],
+    "expReward": 50
+  },
+  {
+    "monsterId": 10002,
+    "name": "哥布林",
+    "level": 5,
+    "type": 1,
+    "hp": 1200,
+    "mp": 0,
+    "attack": 60,
+    "defense": 25,
+    "speed": 8,
+    "skillIds": [],
+    "dropItems": [
+      {
+        "itemId": 4001,
+        "dropRate": 0.5,
+        "minCount": 2,
+        "maxCount": 5
+      },
+      {
+        "itemId": 1002,
+        "dropRate": 0.15,
+        "minCount": 1,
+        "maxCount": 2
+      },
+      {
+        "itemId": 3001,
+        "dropRate": 0.02,
+        "minCount": 1,
+        "maxCount": 1
+      }
+    ],
+    "expReward": 200
+  },
+  {
+    "monsterId": 10003,
+    "name": "森林狼",
+    "level": 8,
+    "type": 1,
+    "hp": 2000,
+    "mp": 0,
+    "attack": 90,
+    "defense": 40,
+    "speed": 12,
+    "skillIds": [1001],
+    "dropItems": [
+      {
+        "itemId": 4001,
+        "dropRate": 0.6,
+        "minCount": 3,
+        "maxCount": 8
+      },
+      {
+        "itemId": 1002,
+        "dropRate": 0.2,
+        "minCount": 2,
+        "maxCount": 3
+      }
+    ],
+    "expReward": 500
+  },
+  {
+    "monsterId": 20001,
+    "name": "哥布林首领",
+    "level": 10,
+    "type": 2,
+    "hp": 5000,
+    "mp": 200,
+    "attack": 150,
+    "defense": 60,
+    "speed": 10,
+    "skillIds": [1001, 1002],
+    "dropItems": [
+      {
+        "itemId": 3002,
+        "dropRate": 0.5,
+        "minCount": 1,
+        "maxCount": 1
+      },
+      {
+        "itemId": 1003,
+        "dropRate": 0.3,
+        "minCount": 3,
+        "maxCount": 5
+      },
+      {
+        "itemId": 2,
+        "dropRate": 1.0,
+        "minCount": 10,
+        "maxCount": 20
+      }
+    ],
+    "expReward": 2000
+  },
+  {
+    "monsterId": 30001,
+    "name": "森林守护者",
+    "level": 15,
+    "type": 3,
+    "hp": 15000,
+    "mp": 1000,
+    "attack": 250,
+    "defense": 100,
+    "speed": 15,
+    "skillIds": [1001, 1002, 1003],
+    "dropItems": [
+      {
+        "itemId": 3002,
+        "dropRate": 1.0,
+        "minCount": 1,
+        "maxCount": 1
+      },
+      {
+        "itemId": 1003,
+        "dropRate": 1.0,
+        "minCount": 10,
+        "maxCount": 20
+      },
+      {
+        "itemId": 2,
+        "dropRate": 1.0,
+        "minCount": 50,
+        "maxCount": 100
+      },
+      {
+        "itemId": 5001,
+        "dropRate": 0.5,
+        "minCount": 1,
+        "maxCount": 3
+      }
+    ],
+    "expReward": 10000
+  }
+]

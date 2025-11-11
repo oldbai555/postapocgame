@@ -1,5 +1,13 @@
 {
-  "address": "0.0.0.0",
-  "port": 3001,
-  "dungeonSrv": "0.0.0.0:4001"
+  "app_Id": 1001,
+  "platform_Id": 1,
+  "srv_Id": 1,
+  "tcp_addr": "0.0.0.0:3011",
+  "actor_mode": 0,
+  "actor_pool_size": 3,
+  "actor_mailbox_size": 2000,
+  "gateway_allow_ips": [],
+  "dungeon_server_addr_map": {
+    "1": "0.0.0.0:4011"
+  }
 }

@@ -1,0 +1,180 @@
+[
+  {
+    "skillId": 1001,
+    "name": "火球术",
+    "type": 1,
+    "targetType": 1,
+    "coolDown": 3000,
+    "manaCost": 50,
+    "damage": 150,
+    "damageType": 2,
+    "range": 10.0,
+    "effects": [
+      {
+        "type": 1,
+        "value": 150,
+        "duration": 0,
+        "rate": 1.0
+      },
+      {
+        "type": 3,
+        "value": 3001,
+        "duration": 3000,
+        "rate": 0.3
+      }
+    ],
+    "description": "发射一颗火球,造成150点魔法伤害,30%概率灼烧目标3秒"
+  },
+  {
+    "skillId": 1002,
+    "name": "冰箭",
+    "type": 1,
+    "targetType": 1,
+    "coolDown": 2000,
+    "manaCost": 30,
+    "damage": 80,
+    "damageType": 2,
+    "range": 12.0,
+    "effects": [
+      {
+        "type": 1,
+        "value": 80,
+        "duration": 0,
+        "rate": 1.0
+      },
+      {
+        "type": 3,
+        "value": 3001,
+        "duration": 5000,
+        "rate": 0.5
+      }
+    ],
+    "description": "发射一支冰箭,造成80点魔法伤害,50%概率减速目标5秒"
+  },
+  {
+    "skillId": 1003,
+    "name": "雷击",
+    "type": 1,
+    "targetType": 1,
+    "coolDown": 5000,
+    "manaCost": 100,
+    "damage": 300,
+    "damageType": 2,
+    "range": 15.0,
+    "effects": [
+      {
+        "type": 1,
+        "value": 300,
+        "duration": 0,
+        "rate": 1.0
+      }
+    ],
+    "description": "召唤雷电攻击目标,造成300点魔法伤害"
+  },
+  {
+    "skillId": 2001,
+    "name": "治疗术",
+    "type": 1,
+    "targetType": 3,
+    "coolDown": 4000,
+    "manaCost": 60,
+    "damage": 0,
+    "damageType": 0,
+    "range": 8.0,
+    "effects": [
+      {
+        "type": 2,
+        "value": 200,
+        "duration": 0,
+        "rate": 1.0
+      }
+    ],
+    "description": "治疗友方目标200点生命值"
+  },
+  {
+    "skillId": 2002,
+    "name": "神圣护盾",
+    "type": 1,
+    "targetType": 2,
+    "coolDown": 10000,
+    "manaCost": 80,
+    "damage": 0,
+    "damageType": 0,
+    "range": 0,
+    "effects": [
+      {
+        "type": 3,
+        "value": 2002,
+        "duration": 10000,
+        "rate": 1.0
+      }
+    ],
+    "description": "为自己施加护盾,提升20%防御力,持续10秒"
+  },
+  {
+    "skillId": 3001,
+    "name": "狂暴",
+    "type": 1,
+    "targetType": 2,
+    "coolDown": 15000,
+    "manaCost": 50,
+    "damage": 0,
+    "damageType": 0,
+    "range": 0,
+    "effects": [
+      {
+        "type": 3,
+        "value": 2001,
+        "duration": 10000,
+        "rate": 1.0
+      }
+    ],
+    "description": "进入狂暴状态,提升20%攻击力,持续10秒"
+  },
+  {
+    "skillId": 3002,
+    "name": "旋风斩",
+    "type": 1,
+    "targetType": 1,
+    "coolDown": 6000,
+    "manaCost": 70,
+    "damage": 200,
+    "damageType": 1,
+    "range": 5.0,
+    "effects": [
+      {
+        "type": 1,
+        "value": 200,
+        "duration": 0,
+        "rate": 1.0
+      }
+    ],
+    "description": "挥舞武器进行旋转攻击,对范围内所有敌人造成200点物理伤害"
+  },
+  {
+    "skillId": 4001,
+    "name": "潜行",
+    "type": 2,
+    "targetType": 2,
+    "coolDown": 0,
+    "manaCost": 0,
+    "damage": 0,
+    "damageType": 0,
+    "range": 0,
+    "effects": [],
+    "description": "被动技能:提升10%闪避率"
+  },
+  {
+    "skillId": 4002,
+    "name": "致命一击",
+    "type": 2,
+    "targetType": 2,
+    "coolDown": 0,
+    "manaCost": 0,
+    "damage": 0,
+    "damageType": 0,
+    "range": 0,
+    "effects": [],
+    "description": "被动技能:提升15%暴击率"
+  }
+]

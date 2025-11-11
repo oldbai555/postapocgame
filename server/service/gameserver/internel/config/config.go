@@ -1,0 +1,50 @@
+/**
+ * @Author: zjj
+ * @Date: 2025/11/6
+ * @Desc:
+**/
+
+package config
+
+import (
+	"os"
+	"path"
+	"postapocgame/server/pkg/customerr"
+	"postapocgame/server/pkg/tool"
+)
+
+// ServerConfig GameServer配置
+type ServerConfig struct {
+	AppID      uint32 `json:"app_id"`      // 应用ID
+	PlatformID uint32 `json:"platform_id"` // 平台ID
+	SrvId      uint32 `json:"srv_id"`      // 区服ID
+
+	// TCP配置
+	TCPAddr         string   `json:"tcp_addr"`          // TCP监听地址
+	GatewayAllowIPs []string `json:"gateway_allow_ips"` // 允许连接的网关IP列表
+
+	// Actor配置
+	ActorMode        int `json:"actor_mode"`         // Actor类型: 0=Single, 1=PerPlayer
+	ActorPoolSize    int `json:"actor_pool_size"`    // Actor池大小
+	ActorMailboxSize int `json:"actor_mailbox_size"` // Actor邮箱大小
+
+	// DungeonServer配置
+	DungeonServerAddrMap map[uint8]string `json:"dungeon_server_addr_map"` // DungeonServer地址映射 [srvType]addr
+}
+
+func LoadServerConfig(confPath string) (*ServerConfig, error) {
+	if confPath == "" {
+		confPath = path.Join(tool.GetCurDir(), "gamesrv.json")
+	}
+	bytes, err := os.ReadFile(confPath)
+	if err != nil {
+		return nil, customerr.Wrap(err)
+	}
+	var conf ServerConfig
+	err = tool.JsonUnmarshal(bytes, &conf)
+	if err != nil {
+		return nil, customerr.Wrap(err)
+	}
+
+	return &conf, nil
+}
