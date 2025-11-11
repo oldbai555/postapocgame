@@ -1,10 +1,8 @@
 package entitysystem
 
 import (
-	"context"
 	"fmt"
 	"postapocgame/server/internal/custom_id"
-	role2 "postapocgame/server/internal/event"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/routine"
 	"postapocgame/server/service/gameserver/internel/iface"
@@ -67,7 +65,7 @@ func (m *SysMgr) onRoleLogin() error {
 }
 
 // onRoleLogout 角色登出事件处理
-func (m *SysMgr) onRoleLogout(ctx context.Context, event *role2.Event) error {
+func (m *SysMgr) onRoleLogout() error {
 	m.EachOpenSystem(func(system iface.ISystem) {
 		system.OnRoleLogout()
 	})

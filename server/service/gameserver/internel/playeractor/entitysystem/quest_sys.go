@@ -3,7 +3,7 @@ package entitysystem
 import (
 	"fmt"
 	"postapocgame/server/internal/custom_id"
-	protocol2 "postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/tool"
 	"postapocgame/server/service/gameserver/internel/iface"
 )
@@ -17,14 +17,14 @@ var (
 // QuestSys 任务系统
 type QuestSys struct {
 	*BaseSystem
-	quests map[uint32]*protocol2.Quest // questID -> Quest
+	quests map[uint32]*protocol.Quest // questID -> Quest
 }
 
 // NewQuestSys 创建任务系统
 func NewQuestSys(role iface.IPlayerRole) *QuestSys {
 	sys := &QuestSys{
 		BaseSystem: NewBaseSystem(custom_id.SysQuest, role),
-		quests:     make(map[uint32]*protocol2.Quest),
+		quests:     make(map[uint32]*protocol.Quest),
 	}
 	return sys
 }
@@ -36,16 +36,16 @@ func (s *QuestSys) OnRoleLogin() {
 
 // SendData 下发任务数据
 func (s *QuestSys) SendData() error {
-	quests := make([]protocol2.Quest, 0, len(s.quests))
+	quests := make([]protocol.Quest, 0, len(s.quests))
 	for _, quest := range s.quests {
 		quests = append(quests, *quest)
 	}
 
-	data := &protocol2.QuestData{
+	data := &protocol.QuestData{
 		Quests: quests,
 	}
 	jsonData, _ := tool.JsonMarshal(data)
-	return s.role.SendMessage(1, 5, jsonData)
+	return s.role.SendMessage(protocol.S2C_QuestData, jsonData)
 }
 
 // AcceptQuest 接取任务
@@ -54,7 +54,7 @@ func (s *QuestSys) AcceptQuest(questId uint32) error {
 		return ErrQuestAlreadyAccepted
 	}
 
-	quest := &protocol2.Quest{
+	quest := &protocol.Quest{
 		QuestId:  questId,
 		Progress: 0,
 		Status:   1, // 进行中

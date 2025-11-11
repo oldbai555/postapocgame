@@ -1,6 +1,7 @@
 package entity
 
 import (
+	"context"
 	"fmt"
 	"postapocgame/server/internal/custom_id"
 	"postapocgame/server/internal/event"
@@ -9,8 +10,9 @@ import (
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
 	"postapocgame/server/service/gameserver/internel/gatewaylink"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/iface"
-	entitysystem2 "postapocgame/server/service/gameserver/internel/playeractor/entitysystem"
+	"postapocgame/server/service/gameserver/internel/playeractor/entitysystem"
 	"time"
 )
 
@@ -25,11 +27,11 @@ type PlayerRole struct {
 	IsOnline     bool      `json:"isOnline"`
 	DisconnectAt time.Time `json:"disconnectAt"`
 
-	// 事件总线
+	// 事件总线（每个玩家独立的事件总线）
 	eventBus *event.Bus
 
 	// 系统管理器
-	sysMgr *entitysystem2.SysMgr
+	sysMgr *entitysystem.SysMgr
 }
 
 // NewPlayerRole 创建玩家角色
@@ -38,12 +40,13 @@ func NewPlayerRole(sessionId string, roleInfo *protocol.RoleInfo) *PlayerRole {
 		SessionId:    sessionId,
 		RoleInfo:     roleInfo,
 		IsOnline:     true,
-		eventBus:     event.NewEventBus(),
 		ReconnectKey: generateReconnectKey(sessionId, roleInfo.RoleId),
+		// 从全局模板克隆独立的事件总线
+		eventBus: gevent.ClonePlayerEventBus(),
 	}
 
 	// 创建系统管理器
-	pr.sysMgr = entitysystem2.NewSysMgr(pr)
+	pr.sysMgr = entitysystem.NewSysMgr(pr)
 
 	return pr
 }
@@ -60,6 +63,9 @@ func (pr *PlayerRole) OnLogin() error {
 		log.Errorf("Send reconnect key failed: %v", err)
 	}
 
+	// 发布玩家登录事件（在当前玩家的事件总线上）
+	pr.Publish(gevent.OnPlayerLogin)
+
 	pr.sysMgr.EachOpenSystem(func(system iface.ISystem) {
 		system.OnRoleLogin()
 	})
@@ -72,6 +78,10 @@ func (pr *PlayerRole) OnLogout() error {
 	log.Infof("[PlayerRole] OnLogout: RoleId=%d", pr.RoleInfo.RoleId)
 
 	pr.IsOnline = false
+
+	// 发布玩家登出事件
+	pr.Publish(gevent.OnPlayerLogout)
+
 	return nil
 }
 
@@ -88,6 +98,9 @@ func (pr *PlayerRole) OnReconnect(newSessionId string) error {
 	if err := pr.sendReconnectKey(); err != nil {
 		log.Errorf("Send reconnect key failed: %v", err)
 	}
+
+	// 发布玩家重连事件
+	pr.Publish(gevent.OnPlayerReconnect)
 
 	// 调用系统管理器的重连方法
 	return pr.sysMgr.OnReconnect()
@@ -131,7 +144,7 @@ func (pr *PlayerRole) GiveAwards(awards []protocol.Item) error {
 			// 货币加入MoneySys
 			moneySys := pr.sysMgr.GetSystem(custom_id.SysMoney)
 			if moneySys != nil {
-				if ms, ok := moneySys.(*entitysystem2.MoneySys); ok {
+				if ms, ok := moneySys.(*entitysystem.MoneySys); ok {
 					if err := ms.AddMoney(item.ItemId, item.Count); err != nil {
 						return customerr.Wrap(err)
 					}
@@ -141,7 +154,7 @@ func (pr *PlayerRole) GiveAwards(awards []protocol.Item) error {
 			// 其他道具加入BagSys
 			bagSys := pr.sysMgr.GetSystem(custom_id.SysBag)
 			if bagSys != nil {
-				if bs, ok := bagSys.(*entitysystem2.BagSys); ok {
+				if bs, ok := bagSys.(*entitysystem.BagSys); ok {
 					if err := bs.AddItem(item); err != nil {
 						return fmt.Errorf("add item to bag failed: %w", err)
 					}
@@ -160,7 +173,7 @@ func (pr *PlayerRole) Consume(items []protocol.Item) error {
 		case protocol.ItemTypeMoney:
 			moneySys := pr.sysMgr.GetSystem(custom_id.SysMoney)
 			if moneySys != nil {
-				if ms, ok := moneySys.(*entitysystem2.MoneySys); ok {
+				if ms, ok := moneySys.(*entitysystem.MoneySys); ok {
 					if !ms.HasEnough(item.ItemId, item.Count) {
 						return fmt.Errorf("money not enough: itemId=%d", item.ItemId)
 					}
@@ -169,7 +182,7 @@ func (pr *PlayerRole) Consume(items []protocol.Item) error {
 		default:
 			bagSys := pr.sysMgr.GetSystem(custom_id.SysBag)
 			if bagSys != nil {
-				if bs, ok := bagSys.(*entitysystem2.BagSys); ok {
+				if bs, ok := bagSys.(*entitysystem.BagSys); ok {
 					if !bs.HasEnough(item.ItemId, item.Count) {
 						return fmt.Errorf("item not enough: itemId=%d", item.ItemId)
 					}
@@ -184,14 +197,14 @@ func (pr *PlayerRole) Consume(items []protocol.Item) error {
 		case protocol.ItemTypeMoney:
 			moneySys := pr.sysMgr.GetSystem(custom_id.SysMoney)
 			if moneySys != nil {
-				if ms, ok := moneySys.(*entitysystem2.MoneySys); ok {
+				if ms, ok := moneySys.(*entitysystem.MoneySys); ok {
 					ms.ConsumeMoney(item.ItemId, item.Count)
 				}
 			}
 		default:
 			bagSys := pr.sysMgr.GetSystem(custom_id.SysBag)
 			if bagSys != nil {
-				if bs, ok := bagSys.(*entitysystem2.BagSys); ok {
+				if bs, ok := bagSys.(*entitysystem.BagSys); ok {
 					bs.ConsumeItem(item.ItemId, item.Count)
 				}
 			}
@@ -205,7 +218,7 @@ func (pr *PlayerRole) Consume(items []protocol.Item) error {
 func (pr *PlayerRole) AddExp(exp uint64) {
 	levelSys := pr.sysMgr.GetSystem(custom_id.SysLevel)
 	if levelSys != nil {
-		if ls, ok := levelSys.(*entitysystem2.LevelSys); ok {
+		if ls, ok := levelSys.(*entitysystem.LevelSys); ok {
 			ls.AddExp(exp)
 		}
 	}
@@ -253,6 +266,13 @@ func (pr *PlayerRole) sendReconnectKey() error {
 	}
 
 	return pr.SendMessage(protocol.S2C_ReconnectKey, data)
+}
+
+// Publish 发布事件（在当前玩家的事件总线上）
+func (pr *PlayerRole) Publish(typ event.Type, args ...interface{}) {
+	ev := event.NewEvent(typ, args...)
+	pr.eventBus.Publish(context.Background(), ev)
+	return
 }
 
 func init() {

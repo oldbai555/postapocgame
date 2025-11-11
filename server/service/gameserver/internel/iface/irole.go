@@ -37,5 +37,5 @@ type IPlayerRole interface {
 }
 
 type IPlayerEvent interface {
-	Publish(typ event.Type, args ...interface{}) error
+	Publish(typ event.Type, args ...interface{})
 }

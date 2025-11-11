@@ -55,7 +55,7 @@ func (s *MailSys) SendMailList() error {
 		Mails: mails,
 	}
 	jsonData, _ := tool.JsonMarshal(data)
-	return s.role.SendMessage(1, 11, jsonData)
+	return s.role.SendMessage(protocol.S2C_MailList, jsonData)
 }
 
 // SendMailDetail 下发邮件详情
@@ -69,7 +69,7 @@ func (s *MailSys) SendMailDetail(mailID uint64) error {
 		Mail: *mail,
 	}
 	jsonData, _ := tool.JsonMarshal(data)
-	return s.role.SendMessage(1, 12, jsonData)
+	return s.role.SendMessage(protocol.S2C_MailDetail, jsonData)
 }
 
 // AddMail 添加邮件

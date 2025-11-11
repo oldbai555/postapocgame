@@ -1,10 +1,14 @@
 package entitysystem
 
 import (
+	"context"
 	"fmt"
 	"postapocgame/server/internal/custom_id"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/iface"
 )
 
@@ -42,7 +46,7 @@ func (s *BagSys) SendData() error {
 		Items:    items,
 	}
 	jsonData, _ := tool.JsonMarshal(data)
-	return s.role.SendMessage(1, 7, jsonData)
+	return s.role.SendMessage(protocol.S2C_BagData, jsonData)
 }
 
 // AddItem 添加道具
@@ -57,6 +61,9 @@ func (s *BagSys) AddItem(item protocol.Item) error {
 	} else {
 		s.items[item.ItemId] = &item
 	}
+
+	// 发布道具添加事件
+	s.role.Publish(gevent.OnItemAdd, item.ItemId, item.Count)
 
 	return s.SendData()
 }
@@ -77,6 +84,9 @@ func (s *BagSys) ConsumeItem(itemID uint32, count uint32) error {
 		delete(s.items, itemID)
 	}
 
+	// 发布道具移除事件
+	s.role.Publish(gevent.OnItemRemove, itemID, count)
+
 	return s.SendData()
 }
 
@@ -91,6 +101,10 @@ func (s *BagSys) HasEnough(itemID uint32, count uint32) bool {
 // ExpandCapacity 扩展容量
 func (s *BagSys) ExpandCapacity(add uint32) {
 	s.capacity += add
+
+	// 发布背包扩展事件
+	s.role.Publish(gevent.OnBagExpand, s.capacity, add)
+
 	s.SendData()
 }
 
@@ -111,6 +125,36 @@ func (s *BagSys) GetItemCount(itemID uint32) uint32 {
 func init() {
 	RegisterSystemFactory(custom_id.SysBag, func(role iface.IPlayerRole) iface.ISystem {
 		return NewBagSys(role)
+	})
+
+	// 注册玩家级别的事件处理器
+	gevent.SubscribePlayerEvent(gevent.OnItemAdd, func(ctx context.Context, ev *event.Event) {
+		if len(ev.Data) >= 2 {
+			itemID, _ := ev.Data[0].(uint32)
+			count, _ := ev.Data[1].(uint32)
+			log.Infof("[BagSys Event] Item added: itemID=%d, count=%d (source: %s)", itemID, count, ev.Source)
+
+			// 这里可以处理道具添加后的逻辑，比如：
+			// 1. 检查是否完成任务目标
+			// 2. 触发成就系统
+			// 3. 发送道具获得通知
+		}
+	})
+
+	gevent.SubscribePlayerEvent(gevent.OnItemRemove, func(ctx context.Context, ev *event.Event) {
+		if len(ev.Data) >= 2 {
+			itemID, _ := ev.Data[0].(uint32)
+			count, _ := ev.Data[1].(uint32)
+			log.Infof("[BagSys Event] Item removed: itemID=%d, count=%d (source: %s)", itemID, count, ev.Source)
+		}
+	})
+
+	gevent.SubscribePlayerEventL(gevent.OnBagExpand, func(ctx context.Context, ev *event.Event) {
+		if len(ev.Data) >= 2 {
+			newCapacity, _ := ev.Data[0].(uint32)
+			added, _ := ev.Data[1].(uint32)
+			log.Infof("[BagSys Event] Bag expanded: newCapacity=%d, added=%d (source: %s)", newCapacity, added, ev.Source)
+		}
 	})
 }
 

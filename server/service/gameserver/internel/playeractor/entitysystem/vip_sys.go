@@ -2,7 +2,7 @@ package entitysystem
 
 import (
 	"postapocgame/server/internal/custom_id"
-	protocol2 "postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/tool"
 	"postapocgame/server/service/gameserver/internel/iface"
 )
@@ -27,12 +27,12 @@ func (s *VipSys) OnRoleLogin() {
 }
 
 func (s *VipSys) SendData() error {
-	data := &protocol2.VipData{
+	data := &protocol.VipData{
 		VipLevel: s.vipLevel,
 		VipExp:   s.vipExp,
 	}
 	jsonData, _ := tool.JsonMarshal(data)
-	return s.role.SendMessage(1, 8, jsonData)
+	return s.role.SendMessage(protocol.S2C_VipData, jsonData)
 }
 
 func (s *VipSys) AddVipExp(exp uint64) {

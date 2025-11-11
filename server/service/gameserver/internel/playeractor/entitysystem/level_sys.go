@@ -1,9 +1,13 @@
 package entitysystem
 
 import (
+	"context"
 	"postapocgame/server/internal/custom_id"
-	protocol2 "postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/event"
+	"postapocgame/server/internal/protocol"
+	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/iface"
 )
 
@@ -31,12 +35,12 @@ func (s *LevelSys) OnRoleLogin() {
 
 // SendData 下发等级数据
 func (s *LevelSys) SendData() error {
-	data := &protocol2.LevelData{
+	data := &protocol.LevelData{
 		Level: s.level,
 		Exp:   s.exp,
 	}
 	jsonData, _ := tool.JsonMarshal(data)
-	return s.role.SendMessage(1, 6, jsonData)
+	return s.role.SendMessage(protocol.S2C_LevelData, jsonData)
 }
 
 // AddExp 增加经验
@@ -50,9 +54,13 @@ func (s *LevelSys) AddExp(exp uint64) {
 		s.level++
 	}
 
+	// 发布经验变化事件
+	s.role.Publish(gevent.OnPlayerExpChange, s.exp)
+
 	// 如果升级了，发布升级事件
 	if s.level > oldLevel {
-
+		s.role.Publish(gevent.OnPlayerLevelUp, oldLevel, s.level)
+		log.Infof("Player %d level up: %d -> %d", s.role.GetPlayerRoleId(), oldLevel, s.level)
 	}
 
 	s.SendData()
@@ -72,5 +80,26 @@ func (s *LevelSys) GetExp() uint64 {
 func init() {
 	RegisterSystemFactory(custom_id.SysLevel, func(role iface.IPlayerRole) iface.ISystem {
 		return NewLevelSys(role)
+	})
+
+	// 注册玩家级别的事件处理器（这些会被克隆到每个玩家）
+	gevent.SubscribePlayerEventH(gevent.OnPlayerLevelUp, func(ctx context.Context, ev *event.Event) {
+		if len(ev.Data) >= 2 {
+			oldLevel, _ := ev.Data[0].(uint32)
+			newLevel, _ := ev.Data[1].(uint32)
+			log.Infof("[LevelSys Event] Player level up: %d -> %d (source: %s)", oldLevel, newLevel, ev.Source)
+
+			// 这里可以处理升级后的逻辑，比如：
+			// 1. 发放升级奖励
+			// 2. 解锁新功能
+			// 3. 发送升级通知
+		}
+	})
+
+	gevent.SubscribePlayerEventH(gevent.OnPlayerExpChange, func(ctx context.Context, ev *event.Event) {
+		if len(ev.Data) >= 1 {
+			exp, _ := ev.Data[0].(uint64)
+			log.Debugf("[LevelSys Event] Player exp changed: %d (source: %s)", exp, ev.Source)
+		}
 	})
 }
