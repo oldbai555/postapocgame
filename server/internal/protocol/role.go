@@ -32,14 +32,14 @@ type CreateRoleResponse struct {
 type EnterSceneResponse struct {
 	SceneId  uint32    `json:"sceneId"`  // 场景Id
 	RoleInfo *RoleInfo `json:"roleInfo"` // 角色信息
-	PosX     float32   `json:"posX"`     // X坐标
-	PosY     float32   `json:"posY"`     // Y坐标
+	PosX     uint32    `json:"posX"`     // X坐标
+	PosY     uint32    `json:"posY"`     // Y坐标
 }
 
 // MoveRequest 移动请求
 type MoveRequest struct {
-	TargetX float32 `json:"targetX"` // 目标X坐标
-	TargetY float32 `json:"targetY"` // 目标Y坐标
+	TargetX uint32 `json:"targetX"` // 目标X坐标
+	TargetY uint32 `json:"targetY"` // 目标Y坐标
 }
 
 // ErrorResponse 错误响应

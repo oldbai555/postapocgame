@@ -97,15 +97,10 @@ func (h *NetworkHandler) handleClientMsg(ctx context.Context, msg *network.Messa
 
 	log.Debugf("Received Forward Message: SessionId=%s", fwdMsg.SessionId)
 
-	clientMsg, err := h.codec.DecodeClientMessage(fwdMsg.Payload)
-	if err != nil {
-		return customerr.Wrap(err)
-	}
-
 	message := base.NewSessionMessage()
 	message.SessionId = fwdMsg.SessionId
-	message.MsgId = clientMsg.MsgId
-	message.Data = clientMsg.Data
+	message.MsgId = dshare.DoNetWorkMsg
+	message.Data = fwdMsg.Payload
 	message.Context = ctx
 
 	// 发送到Actor系统处理

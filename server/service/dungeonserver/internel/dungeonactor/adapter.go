@@ -30,10 +30,10 @@ func NewDungeonActor(mode actor.ActorMode) *DungeonActor {
 	handler := actor.NewBaseActorHandler()
 	d := &DungeonActor{
 		actorMgr: actor.NewActorManager(mode, 1000, func() actor.IActorHandler {
-			return actor.NewBaseActorHandler()
+			return handler
 		}),
 		mode:             mode,
-		baseActorHandler: actor.NewBaseActorHandler(),
+		baseActorHandler: handler,
 	}
 	dshare.RegisterHandler = handler.RegisterMessageHandler
 	dshare.SendMessageAsync = d.actorMgr.SendMessageAsync

@@ -215,23 +215,36 @@ func handleDoNetWorkMsg(message actor.IActorMessage) {
 	case protocol.C2S_Reconnect:
 		err = handleReconnect(sessionId, cliMsg)
 	default:
-		roleId := session.GetRoleId()
-		if roleId > 0 {
+		var doClientProtocol = func(roleId uint64) error {
+			if roleId == 0 {
+				return customerr.NewCustomErr("roleId is zero")
+			}
 			playerRole := manager.GetPlayerRole(roleId)
 			if playerRole != nil {
-				var protoIdH, protoIdL = cliMsg.MsgId >> 8, cliMsg.MsgId & 0xff
-				getFunc := clientprotocol.GetFunc(protoIdH, protoIdL)
-				if getFunc != nil {
-					err = getFunc(playerRole, cliMsg)
-				}
+				return customerr.NewCustomErr("not found %d player role", roleId)
 			}
+			var protoIdH, protoIdL = cliMsg.MsgId >> 8, cliMsg.MsgId & 0xff
+			getFunc := clientprotocol.GetFunc(protoIdH, protoIdL)
+			if getFunc == nil {
+				return customerr.NewCustomErr("not found %d %d handler", protoIdH, protoIdL)
+			}
+			return getFunc(playerRole, cliMsg)
 		}
+		roleId := session.GetRoleId()
+		err = doClientProtocol(roleId)
 	}
-	if err != nil {
-		log.Errorf("err:%v", err)
+	if err == nil {
 		return
 	}
-	return
+
+	log.Errorf("handleDoNetWorkMsg failed, err:%v", err)
+	err = gatewaylink.SendToSessionJSON(sessionId, protocol.S2C_Error, &protocol.ErrorResponse{
+		Code:   -1,
+		ErrMsg: err.Error(),
+	})
+	if err != nil {
+		log.Errorf("err:%v", err)
+	}
 }
 
 func init() {

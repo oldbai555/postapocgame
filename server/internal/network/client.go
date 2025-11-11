@@ -119,6 +119,7 @@ func (c *TCPClient) connectWithReconnect(ctx context.Context) error {
 
 	c.wg.Add(1)
 	routine.GoV2(func() error {
+		defer c.wg.Done() // ✅ 确保 wg 减一
 		c.healthCheck()
 		return nil
 	})
@@ -137,7 +138,11 @@ func (c *TCPClient) doConnect(ctx context.Context) error {
 	c.mu.Unlock()
 
 	if c.config.HandshakeEnable && c.config.Handshake != nil {
-		if err := c.sendHandshake(ctx); err != nil {
+		// ✅ 添加握手超时
+		handshakeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
+		if err := c.sendHandshake(handshakeCtx); err != nil {
 			c.conn.Close()
 			c.mu.Lock()
 			c.conn = nil
@@ -175,6 +180,7 @@ func (c *TCPClient) startReceiveLoop() {
 
 	c.wg.Add(1)
 	routine.GoV2(func() error {
+		defer c.wg.Done() // ✅ 确保 wg 减一
 		c.receiveLoop(c.receiveCtx)
 		return nil
 	})
@@ -195,7 +201,6 @@ func (c *TCPClient) stopReceiveLoop() {
 }
 
 func (c *TCPClient) receiveLoop(ctx context.Context) {
-	defer c.wg.Done()
 	defer log.Debugf("receive loop exited for %s", c.addr)
 
 	for {
@@ -219,7 +224,11 @@ func (c *TCPClient) receiveLoop(ctx context.Context) {
 			return
 		}
 
-		msg, err := conn.ReceiveMessage(ctx)
+		// ✅ 添加接收超时
+		msgCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		msg, err := conn.ReceiveMessage(msgCtx)
+		cancel()
+
 		if err != nil {
 			if err == context.Canceled || err == context.DeadlineExceeded {
 				continue
@@ -229,9 +238,12 @@ func (c *TCPClient) receiveLoop(ctx context.Context) {
 			return
 		}
 
-		if err := c.handler.HandleMessage(ctx, conn, msg); err != nil {
+		// ✅ 添加处理超时
+		handleCtx, handleCancel := context.WithTimeout(ctx, 10*time.Second)
+		if err := c.handler.HandleMessage(handleCtx, conn, msg); err != nil {
 			log.Errorf("handle message failed: %v", err)
 		}
+		handleCancel()
 	}
 }
 
@@ -249,8 +261,6 @@ func (c *TCPClient) sendHandshake(ctx context.Context) error {
 }
 
 func (c *TCPClient) healthCheck() {
-	defer c.wg.Done()
-
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
@@ -321,13 +331,13 @@ func (c *TCPClient) startReconnect() {
 
 	c.wg.Add(1)
 	routine.GoV2(func() error {
+		defer c.wg.Done() // ✅ 确保 wg 减一
 		c.reconnectLoop()
 		return nil
 	})
 }
 
 func (c *TCPClient) reconnectLoop() {
-	defer c.wg.Done()
 	defer c.reconnecting.Store(false)
 
 	if c.config.ReconnectConfig == nil {
@@ -377,6 +387,7 @@ func (c *TCPClient) reconnectLoop() {
 
 		c.wg.Add(1)
 		routine.GoV2(func() error {
+			defer c.wg.Done() // ✅ 确保 wg 减一
 			c.healthCheck()
 			return nil
 		})

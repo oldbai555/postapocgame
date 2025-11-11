@@ -52,8 +52,9 @@ func (b *BaseActorHandler) RegisterMessageHandler(msgId uint16, f HandlerMessage
 
 func (b *BaseActorHandler) HandleMessage(msg IActorMessage) {
 	b.rw.RLock()
-	defer b.rw.RLock()
 	f := b.handlerMap[msg.GetMsgId()]
+	b.rw.RUnlock() // ✅ 修复：RLock 后应该 RUnlock
+
 	if f == nil {
 		log.Errorf("msgId %d not found handler", msg.GetMsgId())
 		return
@@ -61,7 +62,6 @@ func (b *BaseActorHandler) HandleMessage(msg IActorMessage) {
 	routine.Run(func() {
 		f(msg)
 	})
-	return
 }
 
 func (b *BaseActorHandler) Loop() {}

@@ -232,8 +232,11 @@ func (pr *PlayerRole) GetSystem(sysId custom_id.SystemId) iface.ISystem {
 }
 
 // SendMessage 发送消息给客户端
-func (pr *PlayerRole) SendMessage(protoIdH uint16, protoIdL uint16, data []byte) error {
+func (pr *PlayerRole) SendMessageHL(protoIdH uint16, protoIdL uint16, data []byte) error {
 	protoId := protoIdH<<8 | protoIdL
+	return pr.SendMessage(protoId, data)
+}
+func (pr *PlayerRole) SendMessage(protoId uint16, data []byte) error {
 	return gatewaylink.SendToSession(pr.SessionId, protoId, data)
 }
 
@@ -249,7 +252,7 @@ func (pr *PlayerRole) sendReconnectKey() error {
 		return customerr.Wrap(err)
 	}
 
-	return pr.SendMessage(1, 13, data)
+	return pr.SendMessage(protocol.S2C_ReconnectKey, data)
 }
 
 func init() {

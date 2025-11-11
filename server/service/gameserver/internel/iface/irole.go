@@ -21,7 +21,8 @@ type IPlayerRole interface {
 	OnLogin() error
 	OnLogout() error
 
-	SendMessage(protoIdH uint16, protoIdL uint16, data []byte) error
+	SendMessage(protoId uint16, data []byte) error
+	SendMessageHL(protoIdH uint16, protoIdL uint16, data []byte) error
 
 	GiveAwards(awards []protocol.Item) error
 	Consume(items []protocol.Item) error

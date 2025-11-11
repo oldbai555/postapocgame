@@ -48,6 +48,7 @@ func (bp *BufferPool) Get(size int) []byte {
 }
 
 // Put 归还缓冲区
+// ✅ 改进：使用范围匹配而非严格相等
 func (bp *BufferPool) Put(buf []byte) {
 	if buf == nil {
 		return
@@ -55,10 +56,10 @@ func (bp *BufferPool) Put(buf []byte) {
 
 	capacity := cap(buf)
 
-	// 找到对应的池
+	// ✅ 改进：找到最接近的池大小
 	for i, poolSize := range bp.sizes {
-		if capacity == poolSize {
-			// 重置长度到容量
+		// 如果容量在合理范围内（50%-100%），可以放入该池
+		if capacity >= poolSize/2 && capacity <= poolSize {
 			fullBuf := buf[:capacity]
 			bp.pools[i].Put(&fullBuf)
 			return

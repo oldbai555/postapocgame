@@ -7,6 +7,7 @@
 package actor
 
 import (
+	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/routine"
 	"sync"
 	"sync/atomic"
@@ -21,6 +22,9 @@ type actorContext struct {
 	wg       sync.WaitGroup
 
 	data interface{}
+
+	// ✅ 新增：消息丢弃计数
+	droppedCount atomic.Int64
 }
 
 func newActorContext(id string, mailboxSize int, opts ...ContextOption) *actorContext {
@@ -49,8 +53,11 @@ func (a *actorContext) ExecuteAsync(message IActorMessage) {
 	case <-a.stopChan:
 		return
 	default:
-		// 邮箱满了，丢弃消息
-		// 业务层可以通过日志等方式处理
+		// ✅ 改进：记录丢弃的消息
+		dropped := a.droppedCount.Add(1)
+		if dropped%100 == 1 { // 每100条记录一次
+			log.Warnf("Actor %s mailbox full, dropped %d messages", a.id, dropped)
+		}
 	}
 }
 
@@ -89,6 +96,11 @@ func (a *actorContext) stop() {
 	}
 	close(a.stopChan)
 	a.wg.Wait()
+
+	// ✅ 记录最终丢弃数
+	if dropped := a.droppedCount.Load(); dropped > 0 {
+		log.Warnf("Actor %s stopped with %d dropped messages", a.id, dropped)
+	}
 }
 
 func (a *actorContext) loop() {
