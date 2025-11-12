@@ -4,7 +4,7 @@
  * @Desc:
 **/
 
-package etsystem
+package entitysystem
 
 import (
 	"postapocgame/server/internal/argsdef"
@@ -22,7 +22,6 @@ type FightSys struct {
 	passivitySkills map[uint32]*skill.Skill //被动技能列表
 
 	CommonCd map[uint32]int64 // 技能组公共CD
-
 }
 
 func NewFightSys() *FightSys {

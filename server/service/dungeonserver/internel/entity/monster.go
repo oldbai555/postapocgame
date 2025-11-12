@@ -22,7 +22,7 @@ type MonsterEntity struct {
 }
 
 // NewMonsterEntity 创建怪物实体
-func NewMonsterEntity(hdl uint64, monsterId uint32, name string, level uint32) *MonsterEntity {
+func NewMonsterEntity(monsterId uint32, name string, level uint32) *MonsterEntity {
 	entity := &MonsterEntity{
 		BaseEntity: NewBaseEntity(uint64(monsterId), uint32(protocol.EntityType_EtMonster)),
 		monsterId:  monsterId,
@@ -31,6 +31,7 @@ func NewMonsterEntity(hdl uint64, monsterId uint32, name string, level uint32) *
 	}
 
 	// TODO: 从配置读取怪物属性
+
 	// 临时硬编码
 	entity.GetAttrSys().SetAttrValue(attrdef.AttrMaxHP, attrdef.AttrValue(2000+level*200))
 	entity.GetAttrSys().SetAttrValue(attrdef.AttrHP, attrdef.AttrValue(2000+level*200))

@@ -17,7 +17,7 @@ type Skill struct {
 	cd    int64  //技能cd
 }
 
-func NewSkill(et iface.IEntity, id, level uint32) *Skill {
+func NewSkill(id, level uint32) *Skill {
 	skill := new(Skill)
 	skill.Id = id
 	skill.Level = level

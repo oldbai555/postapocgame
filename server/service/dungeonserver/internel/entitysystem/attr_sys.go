@@ -4,7 +4,7 @@
  * @Desc: 属性系统实现
 **/
 
-package etsystem
+package entitysystem
 
 import (
 	"postapocgame/server/internal/attrcalc"

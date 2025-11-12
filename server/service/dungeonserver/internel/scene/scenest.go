@@ -205,12 +205,8 @@ func (s *SceneSt) EntityMove(hdl uint64, newX, newY uint32) error {
 
 // SpawnMonster 生成怪物
 func (s *SceneSt) SpawnMonster(monsterId uint32, name string, level uint32, x, y uint32) (*entity.MonsterEntity, error) {
-	// 生成唯一hdl
-	entityMgr := entitymgr.GetEntityMgr()
-	hdl := entityMgr.GenHdl()
-
 	// 创建怪物实体
-	monster := entity.NewMonsterEntity(hdl, monsterId, name, level)
+	monster := entity.NewMonsterEntity(monsterId, name, level)
 	monster.SetPosition(x, y)
 
 	// 添加到场景
@@ -220,11 +216,10 @@ func (s *SceneSt) SpawnMonster(monsterId uint32, name string, level uint32, x, y
 
 	// 添加到怪物列表
 	s.monsterMu.Lock()
-	s.monsters[hdl] = monster
+	s.monsters[monster.GetHdl()] = monster
 	s.monsterMu.Unlock()
 
-	log.Infof("Monster spawned: hdl=%d, monsterId=%d, name=%s, pos=(%d,%d)",
-		hdl, monsterId, name, x, y)
+	log.Infof("Monster spawned: hdl=%d, monsterId=%d, name=%s, pos=(%d,%d)", monster.GetHdl(), monsterId, name, x, y)
 
 	return monster, nil
 }

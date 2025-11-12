@@ -24,6 +24,7 @@ type IEntity interface {
 	GetLevel() uint32
 
 	SendMessage(protoId uint16, data []byte) error
+	SendJsonMessage(protoId uint16, v interface{}) error
 
 	// 属性相关
 	GetHP() int64

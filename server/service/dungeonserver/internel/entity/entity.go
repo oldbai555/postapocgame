@@ -4,7 +4,7 @@ import (
 	"postapocgame/server/internal/argsdef"
 	"postapocgame/server/internal/attrdef"
 	"postapocgame/server/service/dungeonserver/internel/entitymgr"
-	"postapocgame/server/service/dungeonserver/internel/etsystem"
+	"postapocgame/server/service/dungeonserver/internel/entitysystem"
 	"postapocgame/server/service/dungeonserver/internel/iface"
 	"sync"
 )
@@ -20,10 +20,10 @@ type BaseEntity struct {
 	fuBenId    uint32
 
 	// 使用新的属性系统替代旧的attr
-	AttrSys  *etsystem.AttrSys
-	aoi      *etsystem.AOI
-	FightSys *etsystem.FightSys
-	BuffSys  *etsystem.BuffSys
+	AttrSys  *entitysystem.AttrSys
+	aoi      *entitysystem.AOI
+	FightSys *entitysystem.FightSys
+	BuffSys  *entitysystem.BuffSys
 
 	// 状态标记
 	isDead       bool
@@ -46,12 +46,12 @@ func NewBaseEntity(Id uint64, entityType uint32) *BaseEntity {
 		cannotMove:   false,
 	}
 
-	entity.FightSys = etsystem.NewFightSys()
-	entity.BuffSys = etsystem.NewBuffSystem()
-	entity.AttrSys = etsystem.NewAttrSys()
+	entity.FightSys = entitysystem.NewFightSys()
+	entity.BuffSys = entitysystem.NewBuffSystem()
+	entity.AttrSys = entitysystem.NewAttrSys()
 
 	// 创建AOI
-	entity.aoi = etsystem.NewAOI(entity)
+	entity.aoi = entitysystem.NewAOI(entity)
 
 	return entity
 }
@@ -225,5 +225,9 @@ func (e *BaseEntity) OnMove(newX, newY uint32) {
 }
 
 func (e *BaseEntity) SendMessage(protoId uint16, data []byte) error {
+	return nil
+}
+
+func (e *BaseEntity) SendJsonMessage(protoId uint16, v interface{}) error {
 	return nil
 }

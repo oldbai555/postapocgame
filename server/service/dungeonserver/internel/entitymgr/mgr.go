@@ -4,15 +4,12 @@ import (
 	"fmt"
 	"postapocgame/server/service/dungeonserver/internel/iface"
 	"sync"
-	"sync/atomic"
 )
 
 // EntityMgr 全局实体管理器
 type EntityMgr struct {
 	mu       sync.RWMutex
 	entities map[uint64]iface.IEntity // hdl -> entity
-
-	nextHdl uint64 // 下一个句柄
 }
 
 var (
@@ -25,15 +22,9 @@ func GetEntityMgr() *EntityMgr {
 	entityMgrOnce.Do(func() {
 		globalEntityMgr = &EntityMgr{
 			entities: make(map[uint64]iface.IEntity),
-			nextHdl:  100000, // 从100000开始
 		}
 	})
 	return globalEntityMgr
-}
-
-// GenHdl 生成唯一句柄
-func (m *EntityMgr) GenHdl() uint64 {
-	return atomic.AddUint64(&m.nextHdl, 1)
 }
 
 // Register 注册实体

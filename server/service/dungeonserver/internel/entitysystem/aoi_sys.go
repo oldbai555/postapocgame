@@ -1,4 +1,4 @@
-package etsystem
+package entitysystem
 
 import (
 	"postapocgame/server/internal/argsdef"
