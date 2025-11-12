@@ -15,7 +15,7 @@ import (
 type IPlayerRole interface {
 	IPlayerEvent
 
-	BuildContext(parentCtx context.Context) context.Context
+	WithContext(parentCtx context.Context) context.Context
 
 	Close() error
 	OnReconnect(newSessionId string) error
@@ -24,13 +24,18 @@ type IPlayerRole interface {
 	OnLogout() error
 
 	SendMessage(protoId uint16, data []byte) error
-	SendMessageHL(protoIdH uint16, protoIdL uint16, data []byte) error
+	SendJsonMessage(protoId uint16, v interface{}) error
 
 	GetPlayerRoleId() uint64
 	GetReconnectKey() string
 	GetSessionId() string
-	GetPlayerRoleData() *protocol.PlayerRoleData
+	GetBinaryData() *protocol.PlayerRoleBinaryData
+
+	GetSysMgr() ISystemMgr
 	GetSystem(sysId uint32) ISystem
+	GetSysStatus(sysId uint32) bool
+	GetSysStatusData() map[uint32]uint32
+	SetSysStatus(sysId uint32, isOpen bool)
 }
 
 type IPlayerEvent interface {

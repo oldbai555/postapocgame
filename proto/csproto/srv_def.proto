@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package pb3;
+
+option go_package = "server/internal/protocol";
+
+enum SrvType {
+    SrvTypeNil = 0;
+    SrvTypeGateway = 1;
+    SrvTypeGameServer = 2;
+    SrvTypeDungeonServer = 3;
+}

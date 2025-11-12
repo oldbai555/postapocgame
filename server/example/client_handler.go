@@ -25,7 +25,8 @@ func NewClientHandler() *ClientHandler {
 	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CError), h.handleError)
 	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CRoleList), h.handleRoleList)
 	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CEnterScene), h.handleEnterScene)
-	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CReconnectKey), h.handleReconnectKey)
+	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CLoginSuccess), h.handleReconnectSuccess)
+	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CReconnectSuccess), h.handleReconnectSuccess)
 
 	return h
 }
@@ -108,10 +109,18 @@ func (h *ClientHandler) handleEnterScene(msg actor.IActorMessage) {
 	log.Infof("  角色: %s (Lv.%d)\n", entityData.ShowName, entityData.Level)
 }
 
-func (h *ClientHandler) handleReconnectKey(msg actor.IActorMessage) {
+func (h *ClientHandler) handleLoginSuccess(msg actor.IActorMessage) {
 	var resp protocol.S2CLoginSuccessReq
 	if err := tool.JsonUnmarshal(msg.GetData(), &resp); err != nil {
-		log.Errorf("LoginSuccessResponse: %v", err)
+		log.Errorf("S2CLoginSuccessReq: %v", err)
+		return
+	}
+	log.Infof("ReconnectKey:%s, roleInfo:%+v", resp.ReconnectKey, resp.RoleData)
+}
+func (h *ClientHandler) handleReconnectSuccess(msg actor.IActorMessage) {
+	var resp protocol.S2CReconnectSuccessReq
+	if err := tool.JsonUnmarshal(msg.GetData(), &resp); err != nil {
+		log.Errorf("S2CReconnectSuccessReq: %v", err)
 		return
 	}
 	log.Infof("ReconnectKey:%s, roleInfo:%+v", resp.ReconnectKey, resp.RoleData)

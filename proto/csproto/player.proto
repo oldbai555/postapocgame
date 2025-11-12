@@ -10,11 +10,34 @@ package pb3;
 
 option go_package = "server/internal/protocol";
 
-// 玩家信息
-message PlayerRoleData {
+import "system.proto";
+
+message PlayerSimpleData {
     uint64 role_id = 1;
     uint32 job = 2;
     uint32 sex = 3;
     uint32 level = 4;
     string role_name = 5;
+}
+
+// 玩家信息
+message PlayerRoleData {
+    PlayerRoleMainData main_data = 1; // 主要的数据
+    PlayerRoleBinaryData binary_data = 2;// 二进制数据
+}
+
+message PlayerRoleMainData {
+    uint64 role_id = 1;
+    uint32 job = 2;
+    uint32 sex = 3;
+    uint32 level = 4;
+    string role_name = 5;
+}
+
+message PlayerRoleBinaryData {
+    map<uint32, uint32> sys_open_status = 1;// 功能开启
+    SiLevelData level_data = 2;
+    SiBagData bag_data = 3;
+    SiVipData vip_data = 4;
+    SiMoneyData money_data = 5;
 }

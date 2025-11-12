@@ -26,11 +26,11 @@ enum C2SProtocol{
 message C2SVerifyReq {}
 
 message C2SQueryRolesReq {
-    repeated PlayerRoleData role_list = 1;
+    repeated PlayerSimpleData role_list = 1;
 }
 
 message C2SCreateRoleReq {
-    PlayerRoleData role_data = 1;
+    PlayerSimpleData role_data = 1;
 }
 
 message C2SEnterGameReq {

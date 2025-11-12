@@ -16,12 +16,12 @@ import (
 type RoleEntity struct {
 	*BaseEntity
 	sessionId     string
-	roleInfo      *protocol.PlayerRoleData
+	roleInfo      *protocol.PlayerSimpleData
 	learnedSkills map[uint32]bool // 已学习的技能
 }
 
 // NewRoleEntity 创建角色实体
-func NewRoleEntity(sessionId string, roleInfo *protocol.PlayerRoleData) *RoleEntity {
+func NewRoleEntity(sessionId string, roleInfo *protocol.PlayerSimpleData) *RoleEntity {
 	entity := &RoleEntity{
 		BaseEntity:    NewBaseEntity(roleInfo.RoleId, uint32(protocol.EntityType_EtRole)),
 		sessionId:     sessionId,
@@ -43,10 +43,6 @@ func NewRoleEntity(sessionId string, roleInfo *protocol.PlayerRoleData) *RoleEnt
 
 func (r *RoleEntity) GetSessionId() string {
 	return r.sessionId
-}
-
-func (r *RoleEntity) GetRoleInfo() *protocol.PlayerRoleData {
-	return r.roleInfo
 }
 
 func (r *RoleEntity) HasLearnedSkill(skillId uint32) bool {

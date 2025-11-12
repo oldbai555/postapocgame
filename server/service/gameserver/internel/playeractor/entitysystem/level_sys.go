@@ -4,6 +4,7 @@ import (
 	"context"
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/iface"
 )
@@ -17,6 +18,25 @@ type LevelSys struct {
 func NewLevelSys() *LevelSys {
 	sys := &LevelSys{
 		BaseSystem: NewBaseSystem(uint32(protocol.SystemId_SysLevel)),
+	}
+	return sys
+}
+
+func GetLevelSys(ctx context.Context) *LevelSys {
+	playerRole, err := GetIPlayerRoleByContext(ctx)
+	if err != nil {
+		log.Errorf("get player role error:%v", err)
+		return nil
+	}
+	system := playerRole.GetSystem(uint32(protocol.SystemId_SysLevel))
+	if system == nil {
+		log.Errorf("not found system [%v] error:%v", protocol.SystemId_SysLevel, err)
+		return nil
+	}
+	sys := system.(*LevelSys)
+	if sys == nil || !sys.IsOpened() {
+		log.Errorf("get player role system [%v] error:%v", protocol.SystemId_SysLevel, err)
+		return nil
 	}
 	return sys
 }

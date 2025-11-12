@@ -4,6 +4,7 @@ import (
 	"context"
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/iface"
 )
@@ -21,9 +22,23 @@ func NewBagSys() *BagSys {
 	return sys
 }
 
-// OnRoleLogin 角色登录时下发背包数据
-func (s *BagSys) OnRoleLogin() {
-	return
+func GetBagSys(ctx context.Context) *BagSys {
+	playerRole, err := GetIPlayerRoleByContext(ctx)
+	if err != nil {
+		log.Errorf("get player role error:%v", err)
+		return nil
+	}
+	system := playerRole.GetSystem(uint32(protocol.SystemId_SysBag))
+	if system == nil {
+		log.Errorf("not found system [%v] error:%v", protocol.SystemId_SysBag, err)
+		return nil
+	}
+	sys := system.(*BagSys)
+	if sys == nil || !sys.IsOpened() {
+		log.Errorf("get player role system [%v] error:%v", protocol.SystemId_SysBag, err)
+		return nil
+	}
+	return sys
 }
 
 // 注册系统工厂

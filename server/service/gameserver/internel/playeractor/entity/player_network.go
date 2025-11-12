@@ -34,7 +34,7 @@ func handleQueryRoles(ctx context.Context, msg *network.ClientMessage) error {
 
 	// 模拟返回固定的两个角色
 	roleList := &protocol.S2CRoleListReq{
-		RoleList: []*protocol.PlayerRoleData{
+		RoleList: []*protocol.PlayerSimpleData{
 			{
 				RoleId:   10001,
 				Job:      1,
@@ -75,9 +75,9 @@ func handleEnterGame(ctx context.Context, msg *network.ClientMessage) error {
 	}
 
 	// 从模拟数据中查找角色
-	var selectedRole *protocol.PlayerRoleData
+	var selectedRole *protocol.PlayerSimpleData
 	if req.RoleId == 10001 {
-		selectedRole = &protocol.PlayerRoleData{
+		selectedRole = &protocol.PlayerSimpleData{
 			RoleId:   10001,
 			Job:      1,
 			Sex:      1,
@@ -85,7 +85,7 @@ func handleEnterGame(ctx context.Context, msg *network.ClientMessage) error {
 			Level:    10,
 		}
 	} else if req.RoleId == 10002 {
-		selectedRole = &protocol.PlayerRoleData{
+		selectedRole = &protocol.PlayerSimpleData{
 			RoleId:   10002,
 			Job:      2,
 			Sex:      0,
@@ -116,7 +116,7 @@ func handleCreateRole(ctx context.Context, msg *network.ClientMessage) error {
 }
 
 // enterGame 进入游戏
-func enterGame(sessionId string, roleInfo *protocol.PlayerRoleData) error {
+func enterGame(sessionId string, roleInfo *protocol.PlayerSimpleData) error {
 	log.Infof("enterGame: SessionId=%s, RoleId=%d", sessionId, roleInfo.RoleId)
 
 	// 创建PlayerRole实例
@@ -127,11 +127,6 @@ func enterGame(sessionId string, roleInfo *protocol.PlayerRoleData) error {
 	session := gatewaylink.GetSession(sessionId)
 	session.SetRoleId(playerRole.GetPlayerRoleId())
 
-	// 调用OnLogin，触发所有系统数据下发
-	if err := playerRole.OnLogin(); err != nil {
-		log.Errorf("PlayerRole.OnLogin failed, err:%v", err)
-	}
-
 	// 构造进入副本请求
 	reqData, err := tool.JsonMarshal(roleInfo)
 	if err != nil {
@@ -139,9 +134,14 @@ func enterGame(sessionId string, roleInfo *protocol.PlayerRoleData) error {
 	}
 
 	// 使用带SessionId的异步RPC调用
-	err = dungeonserverlink.AsyncCall(context.Background(), 1, sessionId, uint16(protocol.G2DRpcProtocol_G2DEnterDungeon), reqData)
+	err = dungeonserverlink.AsyncCall(context.Background(), uint8(protocol.SrvType_SrvTypeDungeonServer), sessionId, uint16(protocol.G2DRpcProtocol_G2DEnterDungeon), reqData)
 	if err != nil {
 		log.Errorf("call dungeon service enter scene failed: %v", err)
+		return customerr.Wrap(err)
+	}
+
+	err = playerRole.OnLogin()
+	if err != nil {
 		return customerr.Wrap(err)
 	}
 
@@ -176,7 +176,7 @@ func handleDoNetWorkMsg(message actor.IActorMessage) {
 		if pr != nil {
 			return ctx
 		}
-		return pr.BuildContext(ctx)
+		return pr.WithContext(ctx)
 	}
 	getFunc := clientprotocol.GetFunc(cliMsg.MsgId)
 	if getFunc == nil {

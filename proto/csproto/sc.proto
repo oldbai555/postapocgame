@@ -28,12 +28,12 @@ enum S2CProtocol{
     S2CAttrData = 10;// 属性数据
     S2CMailList = 11;// 邮件列表
     S2CMailDetail = 12;// 邮件详情
-    S2CReconnectKey = 13;// 重连密钥
+    S2CReconnectSuccess = 13;// 重连密钥
     S2CLoginSuccess = 14;// 登录成功
 }
 
 message S2CRoleListReq {
-    repeated PlayerRoleData role_list = 1;
+    repeated PlayerSimpleData role_list = 1;
 }
 
 message S2CCreateRoleResultReq {
@@ -78,11 +78,12 @@ message S2CMailDetailReq {
     MailSt mail = 1;
 }
 
-message S2CReconnectKeyReq {
+message S2CReconnectSuccessReq {
     string reconnect_key = 1;
+    PlayerSimpleData role_data = 2;
 }
 
 message S2CLoginSuccessReq {
-    PlayerRoleData role_data = 1;
-    string reconnect_key = 2;
+    string reconnect_key = 1;
+    PlayerSimpleData role_data = 2;
 }

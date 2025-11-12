@@ -2,22 +2,18 @@ package entitysystem
 
 import (
 	"context"
-	"fmt"
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/routine"
 	"postapocgame/server/service/gameserver/internel/gevent"
-	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/iface"
 )
 
 // SysMgr 系统管理器
 type SysMgr struct {
-	role          iface.IPlayerRole
-	sysList       []iface.ISystem                // 系统列表（按系统ID索引）
-	sysOpenStatus map[uint32]bool                // 系统开启状态
-	factories     map[uint32]iface.SystemFactory // 系统工厂
+	factories map[uint32]iface.SystemFactory // 系统工厂
+	sysList   []iface.ISystem                // 系统列表（按系统ID索引）
 }
 
 var (
@@ -30,33 +26,44 @@ func RegisterSystemFactory(sysId uint32, factory iface.SystemFactory) {
 }
 
 // NewSysMgr 创建系统管理器
-func NewSysMgr(role iface.IPlayerRole) *SysMgr {
+func NewSysMgr() iface.ISystemMgr {
 	mgr := &SysMgr{
-		role:          role,
-		sysList:       make([]iface.ISystem, protocol.SystemId_SysIdMax),
-		sysOpenStatus: make(map[uint32]bool),
-		factories:     make(map[uint32]iface.SystemFactory),
+		sysList:   make([]iface.ISystem, protocol.SystemId_SysIdMax),
+		factories: make(map[uint32]iface.SystemFactory),
 	}
-
 	// 复制全局工厂
 	for sysId, factory := range globalFactories {
 		mgr.factories[sysId] = factory
 	}
+	return mgr
+}
 
-	// 按系统ID从小到大的顺序初始化
+func (m *SysMgr) OnInit(ctx context.Context) error {
 	for sysId := uint32(1); sysId < uint32(protocol.SystemId_SysIdMax); sysId++ {
-		factory, ok := mgr.factories[sysId]
-		if !ok {
-			log.Warnf("System factory not found: sysId=%d", sysId)
+		factory := m.factories[sysId]
+		if factory == nil {
+			log.Errorf("sys:%d not found system factory", sysId)
 			continue
 		}
-
 		system := factory()
-		mgr.sysList[sysId] = system
-		mgr.sysOpenStatus[sysId] = true // 默认都开启
+		system.OnInit(ctx)
+		system.SetOpened(true)
+		m.sysList[sysId] = system
 	}
+	return nil
+}
 
-	return mgr
+func (m *SysMgr) OnRoleLogin(ctx context.Context) {
+	m.CheckAllSysOpen(ctx)
+	m.EachOpenSystem(func(system iface.ISystem) {
+		system.OnRoleLogin(ctx)
+	})
+}
+
+func (m *SysMgr) OnRoleReconnect(ctx context.Context) {
+	m.EachOpenSystem(func(system iface.ISystem) {
+		system.OnRoleReconnect(ctx)
+	})
 }
 
 // GetSystem 获取系统
@@ -67,45 +74,23 @@ func (m *SysMgr) GetSystem(sysId uint32) iface.ISystem {
 	return m.sysList[sysId]
 }
 
-// OpenSystem 开启系统
-func (m *SysMgr) OpenSystem(sysId uint32) error {
-	system := m.GetSystem(sysId)
-	if system == nil {
-		return fmt.Errorf("system not found: sysId=%d", sysId)
+func (m *SysMgr) CheckAllSysOpen(ctx context.Context) {
+	iPlayerRole, err := GetIPlayerRoleByContext(ctx)
+	if err != nil {
+		log.Errorf("get player role error:%v", err)
+		return
 	}
-
-	if m.IsSystemOpened(sysId) {
-		return nil // 已经开启
-	}
-
-	system.OnOpen()
-
-	m.sysOpenStatus[sysId] = true
-	log.Infof("System opened: sysId=%d", sysId)
-	return nil
-}
-
-// IsSystemOpened 检查系统是否开启
-func (m *SysMgr) IsSystemOpened(sysId uint32) bool {
-	opened, ok := m.sysOpenStatus[sysId]
-	if !ok {
-		return true // 默认开启
-	}
-	return opened
-}
-
-// GetOpenedSystems 获取所有已开启的系统
-func (m *SysMgr) GetOpenedSystems() []iface.ISystem {
-	var systems []iface.ISystem
 	for _, system := range m.sysList {
 		if system == nil {
 			continue
 		}
-		if m.IsSystemOpened(system.GetId()) {
-			systems = append(systems, system)
+		if !system.IsOpened() {
+			continue
 		}
+		iPlayerRole.SetSysStatus(system.GetId(), true)
+		system.SetOpened(true)
 	}
-	return systems
+	return
 }
 
 func (m *SysMgr) EachOpenSystem(f func(system iface.ISystem)) {
@@ -125,13 +110,27 @@ func (m *SysMgr) EachOpenSystem(f func(system iface.ISystem)) {
 	}
 }
 
+func handleSysMgrOnPlayerLogin(ctx context.Context, _ *event.Event) {
+	iPlayerRole, err := GetIPlayerRoleByContext(ctx)
+	if err != nil {
+		log.Errorf("get player role error:%v", err)
+		return
+	}
+	mgr := iPlayerRole.GetSysMgr().(*SysMgr)
+	mgr.OnRoleLogin(ctx)
+}
+
+func handleSysMgrOnRoleReconnect(ctx context.Context, _ *event.Event) {
+	iPlayerRole, err := GetIPlayerRoleByContext(ctx)
+	if err != nil {
+		log.Errorf("get player role error:%v", err)
+		return
+	}
+	mgr := iPlayerRole.GetSysMgr().(*SysMgr)
+	mgr.OnRoleReconnect(ctx)
+}
+
 func init() {
-	gevent.SubscribePlayerEvent(gevent.OnPlayerLogin, func(ctx context.Context, event *event.Event) {
-		playerRole, ok := ctx.Value(gshare.ContextKeyRole).(iface.IPlayerRole)
-		if !ok {
-			log.Errorf("ctx not found player role")
-			return
-		}
-		log.Infof("system mgr subscribe player %d login", playerRole.GetPlayerRoleId())
-	})
+	gevent.SubscribePlayerEvent(gevent.OnPlayerLogin, handleSysMgrOnPlayerLogin)
+	gevent.SubscribePlayerEvent(gevent.OnPlayerReconnect, handleSysMgrOnRoleReconnect)
 }

@@ -26,7 +26,7 @@ func init() {
 			if msg.SessionId == "" {
 				return
 			}
-			var roleInfo protocol.PlayerRoleData
+			var roleInfo protocol.PlayerSimpleData
 			err := tool.JsonUnmarshal(msg.Data, &roleInfo)
 			if err != nil {
 				return
