@@ -107,7 +107,7 @@ func (pr *PlayerRole) OnReconnect(newSessionId string) error {
 	pr.Publish(gevent.OnPlayerReconnect)
 
 	// 调用系统管理器的重连方法
-	return pr.sysMgr.OnReconnect()
+	return nil
 }
 
 // OnDisconnect 断线回调
@@ -127,16 +127,6 @@ func (pr *PlayerRole) Close() error {
 	if err != nil {
 		log.Errorf("err:%v", err)
 	}
-
-	// 调用系统管理器的关闭方法
-	err = pr.sysMgr.OnClose()
-	if err != nil {
-		log.Errorf("err:%v", err)
-	}
-
-	// 可以在这里保存数据到数据库
-	// TODO: Save to database
-
 	return nil
 }
 
@@ -186,7 +176,9 @@ func (pr *PlayerRole) sendReconnectKey() error {
 // Publish 发布事件（在当前玩家的事件总线上）
 func (pr *PlayerRole) Publish(typ event.Type, args ...interface{}) {
 	ev := event.NewEvent(typ, args...)
-	pr.eventBus.Publish(context.Background(), ev)
+	ctx := context.Background()
+	context.WithValue(ctx, "playerRoleId", pr.GetPlayerRoleId())
+	pr.eventBus.Publish(ctx, ev)
 	return
 }
 

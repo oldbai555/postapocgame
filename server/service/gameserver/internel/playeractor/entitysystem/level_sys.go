@@ -26,11 +26,6 @@ func init() {
 	RegisterSystemFactory(uint32(protocol.SystemId_SysLevel), func() iface.ISystem {
 		return NewLevelSys()
 	})
-
-	// 注册玩家级别的事件处理器（这些会被克隆到每个玩家）
-	gevent.SubscribePlayerEventH(gevent.OnPlayerLevelUp, func(ctx context.Context, ev *event.Event) {
-	})
-
-	gevent.SubscribePlayerEventH(gevent.OnPlayerExpChange, func(ctx context.Context, ev *event.Event) {
-	})
+	gevent.SubscribePlayerEventH(gevent.OnPlayerLevelUp, func(ctx context.Context, ev *event.Event) {})
+	gevent.SubscribePlayerEventH(gevent.OnPlayerExpChange, func(ctx context.Context, ev *event.Event) {})
 }

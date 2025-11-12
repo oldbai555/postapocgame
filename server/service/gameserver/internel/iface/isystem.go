@@ -2,7 +2,7 @@ package iface
 
 // ISystem 系统接口
 type ISystem interface {
-	GetID() uint32
+	GetId() uint32
 	OnOpen()
 	OnRoleLogin()
 	OnRoleReconnect()

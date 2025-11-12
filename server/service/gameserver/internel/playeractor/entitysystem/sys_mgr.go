@@ -21,8 +21,8 @@ var (
 )
 
 // RegisterSystemFactory 注册系统工厂（全局注册）
-func RegisterSystemFactory(sysID uint32, factory iface.SystemFactory) {
-	globalFactories[sysID] = factory
+func RegisterSystemFactory(sysId uint32, factory iface.SystemFactory) {
+	globalFactories[sysId] = factory
 }
 
 // NewSysMgr 创建系统管理器
@@ -35,108 +35,55 @@ func NewSysMgr(role iface.IPlayerRole) *SysMgr {
 	}
 
 	// 复制全局工厂
-	for sysID, factory := range globalFactories {
-		mgr.factories[sysID] = factory
+	for sysId, factory := range globalFactories {
+		mgr.factories[sysId] = factory
 	}
 
 	// 按系统ID从小到大的顺序初始化
-	for sysID := uint32(1); sysID < uint32(protocol.SystemId_SysIdMax); sysID++ {
-		factory, ok := mgr.factories[sysID]
+	for sysId := uint32(1); sysId < uint32(protocol.SystemId_SysIdMax); sysId++ {
+		factory, ok := mgr.factories[sysId]
 		if !ok {
-			log.Warnf("System factory not found: sysID=%d", sysID)
+			log.Warnf("System factory not found: sysId=%d", sysId)
 			continue
 		}
 
 		system := factory()
-		mgr.sysList[sysID] = system
-		mgr.sysOpenStatus[sysID] = true // 默认都开启
+		mgr.sysList[sysId] = system
+		mgr.sysOpenStatus[sysId] = true // 默认都开启
 	}
 
 	return mgr
 }
 
-// onRoleLogin 角色登录事件处理
-func (m *SysMgr) onRoleLogin() error {
-	m.EachOpenSystem(func(system iface.ISystem) {
-		system.OnOpen()
-	})
-
-	return nil
-}
-
-// onRoleLogout 角色登出事件处理
-func (m *SysMgr) onRoleLogout() error {
-	m.EachOpenSystem(func(system iface.ISystem) {
-		system.OnRoleLogout()
-	})
-	return nil
-}
-
-// OnReconnect 重连时调用所有系统的 OnRoleReconnect
-func (m *SysMgr) OnReconnect() error {
-	for _, system := range m.sysList {
-		if system == nil {
-			continue
-		}
-
-		if !m.IsSystemOpened(system.GetID()) {
-			continue
-		}
-
-		system.OnRoleReconnect()
-	}
-
-	return nil
-}
-
-// OnClose 关闭时调用所有系统的 OnRoleClose
-func (m *SysMgr) OnClose() error {
-	for _, system := range m.sysList {
-		if system == nil {
-			continue
-		}
-
-		system.OnRoleClose()
-	}
-
-	return nil
-}
-
 // GetSystem 获取系统
-func (m *SysMgr) GetSystem(sysID uint32) iface.ISystem {
-	if sysID <= 0 || sysID >= uint32(protocol.SystemId_SysIdMax) {
+func (m *SysMgr) GetSystem(sysId uint32) iface.ISystem {
+	if sysId <= 0 || sysId >= uint32(protocol.SystemId_SysIdMax) {
 		return nil
 	}
-	return m.sysList[sysID]
+	return m.sysList[sysId]
 }
 
 // OpenSystem 开启系统
-func (m *SysMgr) OpenSystem(sysID uint32) error {
-	system := m.GetSystem(sysID)
+func (m *SysMgr) OpenSystem(sysId uint32) error {
+	system := m.GetSystem(sysId)
 	if system == nil {
-		return fmt.Errorf("system not found: sysID=%d", sysID)
+		return fmt.Errorf("system not found: sysId=%d", sysId)
 	}
 
-	if m.IsSystemOpened(sysID) {
+	if m.IsSystemOpened(sysId) {
 		return nil // 已经开启
 	}
 
 	system.OnOpen()
 
-	m.sysOpenStatus[sysID] = true
-	log.Infof("System opened: sysID=%d", sysID)
+	m.sysOpenStatus[sysId] = true
+	log.Infof("System opened: sysId=%d", sysId)
 	return nil
 }
 
-// CloseSystem 关闭系统
-func (m *SysMgr) CloseSystem(sysID uint32) {
-	m.sysOpenStatus[sysID] = false
-	log.Infof("System closed: sysID=%d", sysID)
-}
-
 // IsSystemOpened 检查系统是否开启
-func (m *SysMgr) IsSystemOpened(sysID uint32) bool {
-	opened, ok := m.sysOpenStatus[sysID]
+func (m *SysMgr) IsSystemOpened(sysId uint32) bool {
+	opened, ok := m.sysOpenStatus[sysId]
 	if !ok {
 		return true // 默认开启
 	}
@@ -150,7 +97,7 @@ func (m *SysMgr) GetOpenedSystems() []iface.ISystem {
 		if system == nil {
 			continue
 		}
-		if m.IsSystemOpened(system.GetID()) {
+		if m.IsSystemOpened(system.GetId()) {
 			systems = append(systems, system)
 		}
 	}
