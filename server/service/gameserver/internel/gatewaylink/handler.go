@@ -90,7 +90,7 @@ func (h *NetworkHandler) handleSessionClose(event *network.SessionEvent) error {
 	h.sessionsMu.Unlock()
 
 	// 移除玩家Actor
-	err := gshare.PlayerRemoveActor(event.SessionId)
+	err := gshare.RemoveActor(event.SessionId)
 	if err != nil {
 		return customerr.Wrap(err)
 	}
@@ -122,7 +122,7 @@ func (h *NetworkHandler) handleClientMsg(msg *network.Message) error {
 	message.Context = context.Background()
 
 	// 发送到Actor系统处理
-	if err := gshare.PlayerSendMessageAsync(fwdMsg.SessionId, message); err != nil {
+	if err := gshare.SendMessageAsync(fwdMsg.SessionId, message); err != nil {
 		return customerr.Wrap(err)
 	}
 

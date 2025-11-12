@@ -2,7 +2,7 @@ package entitysystem
 
 import (
 	"fmt"
-	"postapocgame/server/internal/custom_id"
+	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/routine"
 	"postapocgame/server/service/gameserver/internel/iface"
@@ -11,17 +11,17 @@ import (
 // SysMgr 系统管理器
 type SysMgr struct {
 	role          iface.IPlayerRole
-	sysList       []iface.ISystem                            // 系统列表（按系统ID索引）
-	sysOpenStatus map[custom_id.SystemId]bool                // 系统开启状态
-	factories     map[custom_id.SystemId]iface.SystemFactory // 系统工厂
+	sysList       []iface.ISystem                // 系统列表（按系统ID索引）
+	sysOpenStatus map[uint32]bool                // 系统开启状态
+	factories     map[uint32]iface.SystemFactory // 系统工厂
 }
 
 var (
-	globalFactories = make(map[custom_id.SystemId]iface.SystemFactory)
+	globalFactories = make(map[uint32]iface.SystemFactory)
 )
 
 // RegisterSystemFactory 注册系统工厂（全局注册）
-func RegisterSystemFactory(sysID custom_id.SystemId, factory iface.SystemFactory) {
+func RegisterSystemFactory(sysID uint32, factory iface.SystemFactory) {
 	globalFactories[sysID] = factory
 }
 
@@ -29,9 +29,9 @@ func RegisterSystemFactory(sysID custom_id.SystemId, factory iface.SystemFactory
 func NewSysMgr(role iface.IPlayerRole) *SysMgr {
 	mgr := &SysMgr{
 		role:          role,
-		sysList:       make([]iface.ISystem, custom_id.SysIdMax),
-		sysOpenStatus: make(map[custom_id.SystemId]bool),
-		factories:     make(map[custom_id.SystemId]iface.SystemFactory),
+		sysList:       make([]iface.ISystem, protocol.SystemId_SysIdMax),
+		sysOpenStatus: make(map[uint32]bool),
+		factories:     make(map[uint32]iface.SystemFactory),
 	}
 
 	// 复制全局工厂
@@ -40,14 +40,14 @@ func NewSysMgr(role iface.IPlayerRole) *SysMgr {
 	}
 
 	// 按系统ID从小到大的顺序初始化
-	for sysID := custom_id.SystemId(1); sysID < custom_id.SysIdMax; sysID++ {
+	for sysID := uint32(1); sysID < uint32(protocol.SystemId_SysIdMax); sysID++ {
 		factory, ok := mgr.factories[sysID]
 		if !ok {
 			log.Warnf("System factory not found: sysID=%d", sysID)
 			continue
 		}
 
-		system := factory(role)
+		system := factory()
 		mgr.sysList[sysID] = system
 		mgr.sysOpenStatus[sysID] = true // 默认都开启
 	}
@@ -103,15 +103,15 @@ func (m *SysMgr) OnClose() error {
 }
 
 // GetSystem 获取系统
-func (m *SysMgr) GetSystem(sysID custom_id.SystemId) iface.ISystem {
-	if sysID <= 0 || sysID >= custom_id.SysIdMax {
+func (m *SysMgr) GetSystem(sysID uint32) iface.ISystem {
+	if sysID <= 0 || sysID >= uint32(protocol.SystemId_SysIdMax) {
 		return nil
 	}
 	return m.sysList[sysID]
 }
 
 // OpenSystem 开启系统
-func (m *SysMgr) OpenSystem(sysID custom_id.SystemId) error {
+func (m *SysMgr) OpenSystem(sysID uint32) error {
 	system := m.GetSystem(sysID)
 	if system == nil {
 		return fmt.Errorf("system not found: sysID=%d", sysID)
@@ -129,13 +129,13 @@ func (m *SysMgr) OpenSystem(sysID custom_id.SystemId) error {
 }
 
 // CloseSystem 关闭系统
-func (m *SysMgr) CloseSystem(sysID custom_id.SystemId) {
+func (m *SysMgr) CloseSystem(sysID uint32) {
 	m.sysOpenStatus[sysID] = false
 	log.Infof("System closed: sysID=%d", sysID)
 }
 
 // IsSystemOpened 检查系统是否开启
-func (m *SysMgr) IsSystemOpened(sysID custom_id.SystemId) bool {
+func (m *SysMgr) IsSystemOpened(sysID uint32) bool {
 	opened, ok := m.sysOpenStatus[sysID]
 	if !ok {
 		return true // 默认开启

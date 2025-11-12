@@ -23,6 +23,12 @@ func NewNetworkHandler() *NetworkHandler {
 
 // HandleMessage 处理网络消息
 func (h *NetworkHandler) HandleMessage(ctx context.Context, conn network.IConnection, msg *network.Message) error {
+	// 🔧 移到开头，确保握手后立即注册
+	if msg.Type == network.MsgTypeHandshake {
+		// 握手消息已经在 TCPServer 中处理
+		return nil
+	}
+
 	// 注册GameServer连接
 	h.registerGameServer(conn)
 

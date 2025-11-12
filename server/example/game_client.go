@@ -85,7 +85,7 @@ func (c *GameClient) SendMessage(msgId uint16, data []byte) error {
 // QueryRoles 查询角色列表
 func (c *GameClient) QueryRoles() error {
 	log.Infof("[%s] 查询角色列表中...\n", c.playerID)
-	if err := c.SendMessage(protocol.C2S_QueryRoles, []byte{}); err != nil {
+	if err := c.SendMessage(uint16(protocol.C2SProtocol_C2SQueryRoles), []byte{}); err != nil {
 		return err
 	}
 	return nil

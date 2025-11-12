@@ -1,0 +1,33 @@
+/**
+ * @Author: zjj
+ * @Date: 2025/11/12
+ * @Desc:
+**/
+
+syntax = "proto3";
+
+package pb3;
+
+option go_package = "server/internal/protocol";
+
+enum SkillTargetType {
+    SkillTargetTypeNil = 0;
+
+    SkillTargetTypeSingle = 1;// 单体指向性
+    SkillTargetTypeAOE = 2;// AOE范围
+    SkillTargetTypeSelf = 3;// 自身
+}
+
+enum SkillUseErr {
+    SkillUseErrSuccess = 0;
+    ErrSkillNotLearned       = 1;// 未学习
+    ErrSkillInCooldown       = 2;// CD中
+    ErrSkillGroupCooldown    = 3;// 公共CD中
+    ErrSkillCasting          = 4;// 正在施法
+    ErrSkillTargetTooFar     = 5;// 目标过远
+    ErrSkillTargetInvalId    = 6;// 目标无效
+    ErrSkillTargetDead       = 7;// 目标已死亡
+    ErrSkillTargetInvincible = 8;// 目标无敌
+    ErrSkillCannotCast       = 9;// 无法释放
+    ErrSkillNotEnoughMP      = 10;// 魔法值不足
+}

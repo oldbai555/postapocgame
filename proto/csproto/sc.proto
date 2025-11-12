@@ -1,0 +1,88 @@
+/**
+ * @Author: zjj
+ * @Date: 2025/11/12
+ * @Desc: S -> C
+**/
+
+syntax = "proto3";
+
+package pb3;
+
+option go_package = "server/internal/protocol";
+import "base.proto";
+import "player.proto";
+import "system.proto";
+
+enum S2CProtocol{
+    S2CError = 0;// 错误消息
+
+    S2CRoleList = 1;// 角色列表
+    S2CCreateRoleResult = 2;// 创建角色结果
+    S2CEnterScene = 3;// 进入场景
+    S2CUpdateBagData = 4;// 更新背包数据
+    S2CQuestData = 5;// 任务数据
+    S2CLevelData = 6;// 等级数据
+    S2CBagData = 7;// 背包数据
+    S2CVipData = 8;// VIP数据
+    S2CMoneyData = 9;// 货币数据
+    S2CAttrData = 10;// 属性数据
+    S2CMailList = 11;// 邮件列表
+    S2CMailDetail = 12;// 邮件详情
+    S2CReconnectKey = 13;// 重连密钥
+    S2CLoginSuccess = 14;// 登录成功
+}
+
+message S2CRoleListReq {
+    repeated PlayerRoleData role_list = 1;
+}
+
+message S2CCreateRoleResultReq {
+    uint32 job = 1;
+    uint32 sex = 2;
+    string role_name = 3;
+}
+
+message S2CEnterSceneReq {
+    EntitySt entity_data = 4;
+}
+
+message S2CUpdateBagDataReq {}
+
+message S2CQuestDataReq {
+    SiQuestData quest_data = 1;
+}
+
+message S2CLevelDataReq {
+    SiLevelData level_data =1;
+}
+
+message S2CBagDataReq {
+    SiBagData bag_data = 1;
+}
+
+message S2CVipDataReq {
+    SiVipData vip_data = 1;
+}
+
+message S2CMoneyDataReq {
+    SiMoneyData money_data = 1;
+}
+
+message S2CAttrDataReq {}
+
+message S2CMailListReq {
+    repeated MailSt mail_list = 1;
+}
+
+message S2CMailDetailReq {
+    MailSt mail = 1;
+}
+
+message S2CReconnectKeyReq {
+    string reconnect_key = 1;
+}
+
+message S2CLoginSuccessReq {
+    PlayerRoleData role_data = 1;
+    string reconnect_key = 2;
+}

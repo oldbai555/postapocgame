@@ -21,6 +21,7 @@ func Register(protoIdH, protoIdL uint16, f Func) {
 	}
 	ProtoTbl[protoId] = f
 }
+
 func RegisterProtoId(protoId uint16, f Func) {
 	if _, ok := ProtoTbl[protoId]; ok {
 		log.Stackf("cmdId:%d register repeat.", protoId)

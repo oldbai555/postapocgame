@@ -1,0 +1,19 @@
+/**
+ * @Author: zjj
+ * @Date: 2025/11/12
+ * @Desc:
+**/
+syntax = "proto3";
+
+package pb3;
+
+option go_package = "server/internal/protocol";
+
+enum ItemType {
+    ItemTypeNil = 0;
+
+    ItemTypeMoney = 1 ;// 货币
+    ItemTypeEquipment = 2 ;// 装备
+    ItemTypeMaterial = 3 ;// 材料
+    ItemTypeConsume = 4 ;// 消耗品
+}

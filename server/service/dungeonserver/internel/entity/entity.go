@@ -3,7 +3,6 @@ package entity
 import (
 	"postapocgame/server/internal/argsdef"
 	"postapocgame/server/internal/attrdef"
-	"postapocgame/server/internal/custom_id"
 	"postapocgame/server/service/dungeonserver/internel/entitymgr"
 	"postapocgame/server/service/dungeonserver/internel/etsystem"
 	"postapocgame/server/service/dungeonserver/internel/iface"
@@ -15,7 +14,7 @@ type BaseEntity struct {
 	mu         sync.RWMutex
 	hdl        uint64 // 全局唯一句柄
 	Id         uint64 // 实体Id(玩家Id/怪物Id)
-	entityType custom_id.EntityType
+	entityType uint32
 	position   argsdef.Position
 	sceneId    uint32
 	fuBenId    uint32
@@ -34,9 +33,9 @@ type BaseEntity struct {
 }
 
 // NewBaseEntity 创建基础实体
-func NewBaseEntity(Id uint64, entityType custom_id.EntityType) *BaseEntity {
+func NewBaseEntity(Id uint64, entityType uint32) *BaseEntity {
 	entity := &BaseEntity{
-		hdl:        entitymgr.CreateEntityHandle(uint32(entityType)),
+		hdl:        entitymgr.CreateEntityHandle(entityType),
 		Id:         Id,
 		entityType: entityType,
 		position:   argsdef.Position{X: 0, Y: 0},
@@ -65,7 +64,7 @@ func (e *BaseEntity) GetId() uint64 {
 	return e.Id
 }
 
-func (e *BaseEntity) GetEntityType() custom_id.EntityType {
+func (e *BaseEntity) GetEntityType() uint32 {
 	return e.entityType
 }
 
@@ -225,6 +224,6 @@ func (e *BaseEntity) OnMove(newX, newY uint32) {
 	}
 }
 
-func (e *BaseEntity) SendMessage(protoIdH uint16, protoIdL uint16, data []byte) error {
+func (e *BaseEntity) SendMessage(protoId uint16, data []byte) error {
 	return nil
 }

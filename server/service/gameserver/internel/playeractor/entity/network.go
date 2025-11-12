@@ -22,7 +22,6 @@ import (
 	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/manager"
 	"postapocgame/server/service/gameserver/internel/playeractor/clientprotocol"
-	"time"
 )
 
 func handleVerify(sessionId string, msg *network.ClientMessage) error {
@@ -33,21 +32,21 @@ func handleQueryRoles(sessionId string, msg *network.ClientMessage) error {
 	log.Infof("handleQueryRoles: SessionId=%s", sessionId)
 
 	// 模拟返回固定的两个角色
-	roleList := &protocol.RoleListResponse{
-		Roles: []*protocol.RoleInfo{
+	roleList := &protocol.S2CRoleListReq{
+		RoleList: []*protocol.PlayerRoleData{
 			{
-				RoleId: 10001,
-				Job:    1,
-				Sex:    1,
-				Name:   "战士001",
-				Level:  10,
+				RoleId:   10001,
+				Job:      1,
+				Sex:      1,
+				RoleName: "战士001",
+				Level:    10,
 			},
 			{
-				RoleId: 10002,
-				Job:    2,
-				Sex:    0,
-				Name:   "法师002",
-				Level:  15,
+				RoleId:   10002,
+				Job:      2,
+				Sex:      0,
+				RoleName: "法师002",
+				Level:    15,
 			},
 		},
 	}
@@ -59,42 +58,43 @@ func handleQueryRoles(sessionId string, msg *network.ClientMessage) error {
 	}
 
 	// 发送给客户端
-	return gatewaylink.SendToSession(sessionId, protocol.S2C_RoleList, jsonData)
+	return gatewaylink.SendToSession(sessionId, uint16(protocol.S2CProtocol_S2CRoleList), jsonData)
 }
 
 func handleEnterGame(sessionId string, msg *network.ClientMessage) error {
 	log.Infof("handleSelectRole: SessionId=%s", sessionId)
 
 	// 解析选择角色请求
-	req, err := protocol.UnmarshalSelectRoleRequest(msg.Data)
+	var req protocol.C2SEnterGameReq
+	err := tool.JsonUnmarshal(msg.Data, &req)
 	if err != nil {
 		log.Errorf("unmarshal select player role request failed: %v", err)
 		return err
 	}
 
 	// 从模拟数据中查找角色
-	var selectedRole *protocol.RoleInfo
+	var selectedRole *protocol.PlayerRoleData
 	if req.RoleId == 10001 {
-		selectedRole = &protocol.RoleInfo{
-			RoleId: 10001,
-			Job:    1,
-			Sex:    1,
-			Name:   "战士001",
-			Level:  10,
+		selectedRole = &protocol.PlayerRoleData{
+			RoleId:   10001,
+			Job:      1,
+			Sex:      1,
+			RoleName: "战士001",
+			Level:    10,
 		}
 	} else if req.RoleId == 10002 {
-		selectedRole = &protocol.RoleInfo{
-			RoleId: 10002,
-			Job:    2,
-			Sex:    0,
-			Name:   "法师002",
-			Level:  15,
+		selectedRole = &protocol.PlayerRoleData{
+			RoleId:   10002,
+			Job:      2,
+			Sex:      0,
+			RoleName: "法师002",
+			Level:    15,
 		}
 	} else {
 		return customerr.NewCustomErr("not found role Id")
 	}
 
-	log.Infof("Selected player role: RoleId=%d, Name=%s", selectedRole.RoleId, selectedRole.Name)
+	log.Infof("Selected player role: RoleId=%d, Name=%s", selectedRole.RoleId, selectedRole.RoleName)
 
 	// 进入游戏
 	err = enterGame(sessionId, selectedRole)
@@ -110,49 +110,11 @@ func handleReconnect(sessionId string, msg *network.ClientMessage) error {
 }
 
 func handleCreateRole(sessionId string, msg *network.ClientMessage) error {
-	log.Infof("handleCreateRole: SessionId=%s", sessionId)
-
-	// 解析创建角色请求
-	var req protocol.CreateRoleRequest
-	err := tool.JsonUnmarshal(msg.Data, &req)
-	if err != nil {
-		log.Errorf("unmarshal create player role request failed: %v", err)
-		return err
-	}
-
-	// 生成新角色
-	roleId := time.Now().UnixNano()
-	newRole := &protocol.RoleInfo{
-		RoleId: uint64(roleId),
-		Job:    req.Job,
-		Sex:    req.Sex,
-		Name:   req.Name,
-		Level:  1,
-	}
-
-	// 创建响应
-	resp := &protocol.CreateRoleResponse{
-		Success: true,
-		Role:    newRole,
-	}
-
-	// 序列化为JSON
-	jsonData, err := tool.JsonMarshal(resp)
-	if err != nil {
-		log.Errorf("marshal create player role response failed: %v", err)
-		return customerr.Wrap(err)
-	}
-
-	// 发送给客户端
-	if err := gatewaylink.SendToSession(sessionId, protocol.S2C_CreateRoleResult, jsonData); err != nil {
-		return customerr.Wrap(err)
-	}
-
 	return nil
 }
 
 // enterGame 进入游戏
-func enterGame(sessionId string, roleInfo *protocol.RoleInfo) error {
+func enterGame(sessionId string, roleInfo *protocol.PlayerRoleData) error {
 	log.Infof("enterGame: SessionId=%s, RoleId=%d", sessionId, roleInfo.RoleId)
 
 	// 创建PlayerRole实例
@@ -175,7 +137,7 @@ func enterGame(sessionId string, roleInfo *protocol.RoleInfo) error {
 	}
 
 	// 使用带SessionId的异步RPC调用
-	err = dungeonserverlink.AsyncCall(context.Background(), 1, sessionId, protocol.RPC_EnterDungeon, reqData)
+	err = dungeonserverlink.AsyncCall(context.Background(), 1, sessionId, uint16(protocol.G2DRpcProtocol_G2DEnterDungeon), reqData)
 	if err != nil {
 		log.Errorf("call dungeon service enter scene failed: %v", err)
 		return customerr.Wrap(err)
@@ -204,15 +166,15 @@ func handleDoNetWorkMsg(message actor.IActorMessage) {
 	}
 
 	switch cliMsg.MsgId {
-	case protocol.C2S_Verify:
+	case uint16(protocol.C2SProtocol_C2SVerify):
 		err = handleVerify(sessionId, cliMsg)
-	case protocol.C2S_QueryRoles:
+	case uint16(protocol.C2SProtocol_C2SQueryRoles):
 		err = handleQueryRoles(sessionId, cliMsg)
-	case protocol.C2S_CreateRole:
+	case uint16(protocol.C2SProtocol_C2SCreateRole):
 		err = handleCreateRole(sessionId, cliMsg)
-	case protocol.C2S_EnterGame:
+	case uint16(protocol.C2SProtocol_C2SEnterGame):
 		err = handleEnterGame(sessionId, cliMsg)
-	case protocol.C2S_Reconnect:
+	case uint16(protocol.C2SProtocol_C2SReconnect):
 		err = handleReconnect(sessionId, cliMsg)
 	default:
 		var doClientProtocol = func(roleId uint64) error {
@@ -238,9 +200,9 @@ func handleDoNetWorkMsg(message actor.IActorMessage) {
 	}
 
 	log.Errorf("handleDoNetWorkMsg failed, err:%v", err)
-	err = gatewaylink.SendToSessionJSON(sessionId, protocol.S2C_Error, &protocol.ErrorResponse{
-		Code:   -1,
-		ErrMsg: err.Error(),
+	err = gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
+		Code: -1,
+		Msg:  err.Error(),
 	})
 	if err != nil {
 		log.Errorf("err:%v", err)
@@ -249,6 +211,6 @@ func handleDoNetWorkMsg(message actor.IActorMessage) {
 
 func init() {
 	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
-		gshare.PlayerRegisterHandler(gshare.DoNetWorkMsg, handleDoNetWorkMsg)
+		gshare.RegisterHandler(gshare.DoNetWorkMsg, handleDoNetWorkMsg)
 	})
 }

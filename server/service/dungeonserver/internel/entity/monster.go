@@ -8,7 +8,7 @@ package entity
 
 import (
 	"postapocgame/server/internal/attrdef"
-	"postapocgame/server/internal/custom_id"
+	"postapocgame/server/internal/protocol"
 	"postapocgame/server/service/dungeonserver/internel/iface"
 )
 
@@ -24,7 +24,7 @@ type MonsterEntity struct {
 // NewMonsterEntity 创建怪物实体
 func NewMonsterEntity(hdl uint64, monsterId uint32, name string, level uint32) *MonsterEntity {
 	entity := &MonsterEntity{
-		BaseEntity: NewBaseEntity(uint64(monsterId), custom_id.EntityTypeMonster),
+		BaseEntity: NewBaseEntity(uint64(monsterId), uint32(protocol.EntityType_EtMonster)),
 		monsterId:  monsterId,
 		name:       name,
 		level:      level,

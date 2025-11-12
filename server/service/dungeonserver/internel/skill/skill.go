@@ -3,8 +3,8 @@ package skill
 import (
 	"math"
 	"postapocgame/server/internal/argsdef"
-	"postapocgame/server/internal/custom_id"
 	"postapocgame/server/internal/jsonconf"
+	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/dungeonserver/internel/entitymgr"
 	"postapocgame/server/service/dungeonserver/internel/iface"
@@ -41,33 +41,33 @@ func (s *Skill) FindSkillTargets(ctx *argsdef.SkillCastContext, caster iface.IEn
 	var targets []iface.IEntity
 	entityMgr := entitymgr.GetEntityMgr()
 
-	switch custom_id.SkillTargetType(skillCfg.TargetType) {
-	case custom_id.SkillTargetTypeSingle:
+	switch skillCfg.TargetType {
+	case uint32(protocol.SkillTargetType_SkillTargetTypeSingle):
 		// 单体指向性技能
 		target, ok := entityMgr.GetByHdl(ctx.TargetHdl)
 		if !ok {
-			return nil, custom_id.ErrSkillTargetInvalId
+			return nil, int(protocol.SkillUseErr_ErrSkillTargetInvalId)
 		}
 
 		// 检查距离
 		distance := s.calculateDistance(caster.GetPosition(), target.GetPosition())
 		if distance > skillCfg.Range {
-			return nil, custom_id.ErrSkillTargetTooFar
+			return nil, int(protocol.SkillUseErr_ErrSkillTargetTooFar)
 		}
 
 		targets = []iface.IEntity{target}
 
-	case custom_id.SkillTargetTypeAOE:
+	case uint32(protocol.SkillTargetType_SkillTargetTypeAOE):
 		// AOE技能，找范围内的实体
 		targets = s.findAOETargets(caster, ctx.PosX, ctx.PosY, skillCfg.Range, 5)
 
-	case custom_id.SkillTargetTypeSelf:
+	case uint32(protocol.SkillTargetType_SkillTargetTypeSelf):
 		// 自身
 		targets = []iface.IEntity{caster}
 	}
 
 	if len(targets) == 0 {
-		return nil, custom_id.ErrSkillTargetInvalId
+		return nil, int(protocol.SkillUseErr_ErrSkillTargetInvalId)
 	}
 
 	return targets, 0
@@ -151,7 +151,7 @@ func (s *Skill) checkHit(caster, target iface.IEntity) (bool, bool) {
 func (s *Skill) Use(ctx *argsdef.SkillCastContext, caster iface.IEntity) int {
 	// 找目标
 	targets, ret := s.FindSkillTargets(ctx, caster)
-	if ret != custom_id.ErrSkillSuccess {
+	if ret != int(protocol.SkillUseErr_SkillUseErrSuccess) {
 		return ret
 	}
 
@@ -159,12 +159,12 @@ func (s *Skill) Use(ctx *argsdef.SkillCastContext, caster iface.IEntity) int {
 	valIdTargets := s.CheckTargetsValId(targets)
 	if len(valIdTargets) == 0 {
 		log.Warnf("No valId targets after check")
-		return custom_id.ErrSkillTargetInvalId
+		return int(protocol.SkillUseErr_ErrSkillTargetInvalId)
 	}
 
 	skillCfg := s.GetConfig()
 	if skillCfg == nil {
-		return custom_id.ErrSkillNotLearned
+		return int(protocol.SkillUseErr_ErrSkillNotLearned)
 	}
 	result := &CastResult{
 		Success:    true,
@@ -231,28 +231,16 @@ func (s *Skill) Use(ctx *argsdef.SkillCastContext, caster iface.IEntity) int {
 		result.HitResults = append(result.HitResults, hitResult)
 	}
 
-	// 设置技能CD
-	s.SetCd(int64(time.Duration(skillCfg.CoolDown) * time.Millisecond))
+	// 🔧 修正：设置技能CD（传入未来的时间戳）
+	cdDuration := time.Duration(skillCfg.CoolDown) * time.Millisecond
+	s.SetCd(time.Now().Add(cdDuration).UnixMilli())
 
 	// 消耗魔法
-	mp := caster.GetMaxHP()
+	mp := caster.GetMP() // 🔧 修复：应该是 GetMP 而不是 GetMaxHP
 	if mp >= int64(skillCfg.ManaCost) {
 		mp -= int64(skillCfg.ManaCost)
 		caster.SetMP(mp)
 	}
-
-	// 9.1 通知施法者客户端
-	//dh.sendSkillCastResult(sessionId, req.SkillId, result)
-
-	// 9.2 AOI广播技能释放
-	//dh.broadcastSkillCast(scene, caster, req.SkillId, result)
-
-	// 9.3 广播伤害/治疗结果
-	//for _, hitResult := range result.HitResults {
-	//	if hitResult.IsHit {
-	//		dh.broadcastSkillHitResult(scene, caster.GetHdl(), hitResult)
-	//	}
-	//}
 
 	return result.ErrCode
 }

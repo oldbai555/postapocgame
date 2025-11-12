@@ -2,8 +2,8 @@ package fuben
 
 import (
 	"fmt"
-	"postapocgame/server/internal/custom_id"
 	"postapocgame/server/internal/jsonconf"
+	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/dungeonserver/internel/iface"
 	"postapocgame/server/service/dungeonserver/internel/scene"
@@ -16,8 +16,8 @@ import (
 type FuBenSt struct {
 	fbId   uint32
 	name   string
-	fbType custom_id.FuBenType
-	state  custom_id.FuBenState
+	fbType uint32
+	state  uint32
 
 	// 场景管理
 	sceneMgr *scenemgr.SceneStMgr
@@ -35,12 +35,12 @@ type FuBenSt struct {
 }
 
 // NewFuBenSt 创建副本
-func NewFuBenSt(fbId uint32, name string, fbType custom_id.FuBenType, maxPlayers int, maxDuration time.Duration) *FuBenSt {
+func NewFuBenSt(fbId uint32, name string, fbType uint32, maxPlayers int, maxDuration time.Duration) *FuBenSt {
 	fb := &FuBenSt{
 		fbId:        fbId,
 		name:        name,
 		fbType:      fbType,
-		state:       custom_id.FuBenStateNormal,
+		state:       uint32(protocol.FuBenState_FuBenStateNormal),
 		sceneMgr:    scenemgr.NewSceneStMgr(),
 		createTime:  time.Now(),
 		maxPlayers:  maxPlayers,
@@ -49,7 +49,7 @@ func NewFuBenSt(fbId uint32, name string, fbType custom_id.FuBenType, maxPlayers
 	}
 
 	// 如果是限时副本，设置过期时间
-	if fbType == custom_id.FuBenTypeTimed || fbType == custom_id.FuBenTypeTimedSingle || fbType == custom_id.FuBenTypeTimedMulti {
+	if fbType == uint32(protocol.FuBenType_FuBenTypeTimed) || fbType == uint32(protocol.FuBenType_FuBenTypeTimedSingle) || fbType == uint32(protocol.FuBenType_FuBenTypeTimedMulti) {
 		if maxDuration > 0 {
 			fb.expireTime = fb.createTime.Add(maxDuration)
 		}
@@ -90,7 +90,7 @@ func (fb *FuBenSt) CanEnter() bool {
 	defer fb.mu.RUnlock()
 
 	// 检查副本状态
-	if fb.state != custom_id.FuBenStateNormal {
+	if fb.state != uint32(protocol.FuBenState_FuBenStateNormal) {
 		return false
 	}
 
@@ -112,7 +112,7 @@ func (fb *FuBenSt) OnPlayerEnter() error {
 	fb.mu.Lock()
 	defer fb.mu.Unlock()
 
-	if fb.state != custom_id.FuBenStateNormal {
+	if fb.state != uint32(protocol.FuBenState_FuBenStateNormal) {
 		return fmt.Errorf("fuben is not available")
 	}
 
@@ -138,8 +138,8 @@ func (fb *FuBenSt) OnPlayerLeave() {
 	log.Infof("Player left FuBen %d, current players: %d", fb.fbId, fb.playerCount)
 
 	// 如果是单人副本且没人了，标记为可关闭
-	if fb.fbType == custom_id.FuBenTypeTimedSingle && fb.playerCount == 0 {
-		fb.state = custom_id.FuBenStateClosing
+	if fb.fbType == uint32(protocol.FuBenType_FuBenTypeTimedSingle) && fb.playerCount == 0 {
+		fb.state = uint32(protocol.FuBenState_FuBenStateClosing)
 	}
 }
 
@@ -167,7 +167,7 @@ func (fb *FuBenSt) Close() {
 	fb.mu.Lock()
 	defer fb.mu.Unlock()
 
-	fb.state = custom_id.FuBenStateClosed
+	fb.state = uint32(protocol.FuBenState_FuBenStateClosed)
 
 	// TODO: 踢出所有玩家
 	// TODO: 清理场景数据
@@ -186,12 +186,12 @@ func (fb *FuBenSt) GetName() string {
 }
 
 // GetFbType 获取副本类型
-func (fb *FuBenSt) GetFbType() custom_id.FuBenType {
+func (fb *FuBenSt) GetFbType() uint32 {
 	return fb.fbType
 }
 
 // GetState 获取副本状态
-func (fb *FuBenSt) GetState() custom_id.FuBenState {
+func (fb *FuBenSt) GetState() uint32 {
 	fb.mu.RLock()
 	defer fb.mu.RUnlock()
 	return fb.state

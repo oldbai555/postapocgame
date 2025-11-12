@@ -9,8 +9,8 @@ package fbmgr
 import (
 	"context"
 	"fmt"
-	"postapocgame/server/internal/custom_id"
 	"postapocgame/server/internal/jsonconf"
+	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/routine"
 	"postapocgame/server/service/dungeonserver/internel/fuben"
@@ -51,7 +51,7 @@ func GetFuBenMgr() *FuBenMgr {
 // CreateDefaultFuBen 创建默认副本
 func (m *FuBenMgr) CreateDefaultFuBen() error {
 	// 创建 fbId=0 的默认副本
-	defaultFuBen := fuben.NewFuBenSt(0, "默认副本", custom_id.FuBenTypePermanent, 0, 0)
+	defaultFuBen := fuben.NewFuBenSt(0, "默认副本", uint32(protocol.FuBenType_FuBenTypePermanent), 0, 0)
 
 	// 初始化场景
 	sceneConfigs := []jsonconf.SceneConfig{
@@ -115,7 +115,7 @@ func (m *FuBenMgr) CreateTimedFuBenForPlayer(sessionId string, name string, maxD
 	m.mu.Unlock()
 
 	// 创建限时单人副本
-	fb := fuben.NewFuBenSt(fbId, name, custom_id.FuBenTypeTimedSingle, 1, maxDuration)
+	fb := fuben.NewFuBenSt(fbId, name, uint32(protocol.FuBenType_FuBenTypeTimedSingle), 1, maxDuration)
 
 	// TODO: 根据配置初始化场景
 
@@ -142,8 +142,8 @@ func (m *FuBenMgr) CleanupExpiredFubens() {
 	toRemove := make([]uint32, 0)
 
 	for fbId, fb := range m.fubens {
-		if fb.GetFbType() != custom_id.FuBenTypePermanent {
-			if fb.IsExpired() || fb.GetState() == custom_id.FuBenStateClosing {
+		if fb.GetFbType() != uint32(protocol.FuBenType_FuBenTypePermanent) {
+			if fb.IsExpired() || fb.GetState() == uint32(protocol.FuBenState_FuBenStateClosing) {
 				if fb.GetPlayerCount() == 0 {
 					toRemove = append(toRemove, fbId)
 				}

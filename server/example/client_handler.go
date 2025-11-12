@@ -22,19 +22,19 @@ func NewClientHandler() *ClientHandler {
 	h.OnInit()
 
 	// 注册消息处理器
-	h.RegisterMessageHandler(protocol.S2C_Error, h.handleError)
-	h.RegisterMessageHandler(protocol.S2C_RoleList, h.handleRoleList)
-	h.RegisterMessageHandler(protocol.S2C_EnterScene, h.handleEnterScene)
-	h.RegisterMessageHandler(protocol.S2C_ReconnectKey, h.handleReconnectKey)
+	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CError), h.handleError)
+	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CRoleList), h.handleRoleList)
+	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CEnterScene), h.handleEnterScene)
+	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CReconnectKey), h.handleReconnectKey)
 
 	return h
 }
 
 // handleError 处理错误消息
 func (h *ClientHandler) handleError(msg actor.IActorMessage) {
-	var errResp protocol.ErrorResponse
+	var errResp protocol.ErrorData
 	if err := tool.JsonUnmarshal(msg.GetData(), &errResp); err == nil {
-		log.Infof("\n⚠️ 服务器错误: %s\n> ", errResp.ErrMsg)
+		log.Infof("\n⚠️ 服务器错误: %s\n> ", errResp.Msg)
 	}
 }
 
@@ -53,31 +53,31 @@ func (h *ClientHandler) handleRoleList(msg actor.IActorMessage) {
 		return
 	}
 
-	var resp protocol.RoleListResponse
+	var resp protocol.S2CRoleListReq
 	if err := tool.JsonUnmarshal(msg.GetData(), &resp); err != nil {
 		log.Errorf("解析角色列表失败: %v", err)
 		return
 	}
 
 	log.Infof("\n[%s] 📜 角色列表:\n", client.GetPlayerID())
-	for i, role := range resp.Roles {
+	for i, role := range resp.RoleList {
 		log.Infof("  [%d] 角色ID: %d, 名字: %s, 职业: %d, 等级: %d\n",
-			i+1, role.RoleId, role.Name, role.Job, role.Level)
+			i+1, role.RoleId, role.RoleName, role.Job, role.Level)
 	}
 
 	// 自动选择第一个角色进入游戏
-	if len(resp.Roles) > 0 {
-		selectedRole := resp.Roles[0]
+	if len(resp.RoleList) > 0 {
+		selectedRole := resp.RoleList[0]
 		log.Infof("[%s] 🎮 自动进入游戏: RoleID=%d\n", client.GetPlayerID(), selectedRole.RoleId)
 
-		req := protocol.SelectRoleRequest{RoleId: selectedRole.RoleId}
-		reqData, err := tool.JsonMarshal(req)
+		req := protocol.C2SEnterGameReq{RoleId: selectedRole.RoleId}
+		reqData, err := tool.JsonMarshal(&req)
 		if err != nil {
 			log.Errorf("序列化失败: %v", err)
 			return
 		}
 
-		if err := client.SendMessage(protocol.C2S_EnterGame, reqData); err != nil {
+		if err := client.SendMessage(uint16(protocol.C2SProtocol_C2SEnterGame), reqData); err != nil {
 			log.Errorf("发送进入游戏消息失败: %v", err)
 		}
 	}
@@ -97,26 +97,24 @@ func (h *ClientHandler) handleEnterScene(msg actor.IActorMessage) {
 		return
 	}
 
-	var resp protocol.EnterSceneResponse
+	var resp protocol.S2CEnterSceneReq
 	if err := tool.JsonUnmarshal(msg.GetData(), &resp); err != nil {
 		log.Errorf("解析进入场景响应失败: %v", err)
 		return
 	}
-
-	log.Infof("\n[%s] 🌍 成功进入场景 %d\n", client.GetPlayerID(), resp.SceneId)
-	log.Infof("  位置: (%v, %v)\n", resp.PosX, resp.PosY)
-	if resp.RoleInfo != nil {
-		log.Infof("  角色: %s (Lv.%d)\n", resp.RoleInfo.Name, resp.RoleInfo.Level)
-	}
+	entityData := resp.EntityData
+	log.Infof("\n[%s] 🌍 成功进入场景 %d\n", client.GetPlayerID(), entityData.SceneId)
+	log.Infof("  位置: (%v, %v)\n", entityData.PosX, entityData.PosY)
+	log.Infof("  角色: %s (Lv.%d)\n", entityData.ShowName, entityData.Level)
 }
 
 func (h *ClientHandler) handleReconnectKey(msg actor.IActorMessage) {
-	var resp protocol.LoginSuccessResponse
+	var resp protocol.S2CLoginSuccessReq
 	if err := tool.JsonUnmarshal(msg.GetData(), &resp); err != nil {
 		log.Errorf("LoginSuccessResponse: %v", err)
 		return
 	}
-	log.Infof("ReconnectKey:%s, roleInfo:%+v", resp.ReconnectKey, resp.RoleInfo)
+	log.Infof("ReconnectKey:%s, roleInfo:%+v", resp.ReconnectKey, resp.RoleData)
 }
 
 // NetworkMessageHandler 网络消息处理器（转发到Actor）

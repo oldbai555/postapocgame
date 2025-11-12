@@ -1,0 +1,20 @@
+/**
+ * @Author: zjj
+ * @Date: 2025/11/12
+ * @Desc: C -> S
+**/
+
+syntax = "proto3";
+
+package pb3;
+
+option go_package = "server/internal/protocol";
+import "base.proto";
+
+enum G2DRpcProtocol{
+    G2DRPCProtocolNil = 0;
+
+    G2DEnterDungeon = 1;// 进入副本
+}
+
+message G2DEnterDungeonReq {}

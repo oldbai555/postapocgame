@@ -19,6 +19,7 @@ var (
 type SessionManager struct {
 	sessions map[string]*Session
 	mu       sync.RWMutex
+
 	gsConn   IGameServerConnector
 	stopChan chan struct{}
 	wg       sync.WaitGroup
@@ -59,6 +60,7 @@ func (sm *SessionManager) CreateSession(conn IConnection) (*Session, error) {
 		ConnType:   conn.Type(),
 		State:      SessionStateConnected,
 		SendChan:   make(chan []byte, sm.sessionBufferSize),
+		stopChan:   make(chan struct{}), // 🔧 初始化停止信号
 		CreatedAt:  now,
 		LastActive: now,
 	}

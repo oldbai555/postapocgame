@@ -8,14 +8,13 @@ package iface
 
 import (
 	"postapocgame/server/internal/argsdef"
-	"postapocgame/server/internal/custom_id"
 )
 
 // IEntity 实体接口
 type IEntity interface {
 	GetHdl() uint64
 	GetId() uint64
-	GetEntityType() custom_id.EntityType
+	GetEntityType() uint32
 	GetPosition() *argsdef.Position
 	SetPosition(x, y uint32)
 	GetSceneId() uint32
@@ -24,7 +23,7 @@ type IEntity interface {
 	SetFuBenId(fuBenId uint32)
 	GetLevel() uint32
 
-	SendMessage(protoIdH uint16, protoIdL uint16, data []byte) error
+	SendMessage(protoId uint16, data []byte) error
 
 	// 属性相关
 	GetHP() int64

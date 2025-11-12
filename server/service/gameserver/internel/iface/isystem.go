@@ -1,12 +1,8 @@
 package iface
 
-import (
-	"postapocgame/server/internal/custom_id"
-)
-
 // ISystem 系统接口
 type ISystem interface {
-	GetID() custom_id.SystemId
+	GetID() uint32
 	OnOpen()
 	OnRoleLogin()
 	OnRoleReconnect()
@@ -17,4 +13,4 @@ type ISystem interface {
 }
 
 // SystemFactory 系统工厂函数
-type SystemFactory func(role IPlayerRole) ISystem
+type SystemFactory func() ISystem

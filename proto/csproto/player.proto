@@ -1,0 +1,20 @@
+/**
+ * @Author: zjj
+ * @Date: 2025/11/12
+ * @Desc: 通用 proto
+**/
+
+syntax = "proto3";
+
+package pb3;
+
+option go_package = "server/internal/protocol";
+
+// 玩家信息
+message PlayerRoleData {
+    uint64 role_id = 1;
+    uint32 job = 2;
+    uint32 sex = 3;
+    uint32 level = 4;
+    string role_name = 5;
+}

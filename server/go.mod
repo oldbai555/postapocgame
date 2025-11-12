@@ -9,6 +9,7 @@ require (
 	github.com/klauspost/compress v1.18.1
 	github.com/satori/go.uuid v1.2.0
 	github.com/stretchr/testify v1.3.0
+	google.golang.org/protobuf v1.36.10
 )
 
 require (

@@ -1,28 +1,21 @@
 package entitysystem
 
-import (
-	"postapocgame/server/internal/custom_id"
-	"postapocgame/server/service/gameserver/internel/iface"
-)
-
 // BaseSystem 系统基类
 type BaseSystem struct {
-	sysID  custom_id.SystemId
-	role   iface.IPlayerRole
+	sysID  uint32
 	opened bool
 }
 
 // NewBaseSystem 创建基础系统
-func NewBaseSystem(sysID custom_id.SystemId, role iface.IPlayerRole) *BaseSystem {
+func NewBaseSystem(sysID uint32) *BaseSystem {
 	return &BaseSystem{
 		sysID:  sysID,
-		role:   role,
 		opened: true, // 默认开启
 	}
 }
 
 // GetID 获取系统ID
-func (bs *BaseSystem) GetID() custom_id.SystemId {
+func (bs *BaseSystem) GetID() uint32 {
 	return bs.sysID
 }
 
@@ -61,9 +54,4 @@ func (bs *BaseSystem) IsOpened() bool {
 // SetOpened 设置开启状态
 func (bs *BaseSystem) SetOpened(opened bool) {
 	bs.opened = opened
-}
-
-// GetRole 获取角色引用
-func (bs *BaseSystem) GetRole() iface.IPlayerRole {
-	return bs.role
 }

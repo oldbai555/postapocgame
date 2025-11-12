@@ -1,0 +1,51 @@
+/**
+ * @Author: zjj
+ * @Date: 2025/11/12
+ * @Desc: 系统数据定义 proto
+**/
+
+syntax = "proto3";
+package pb3;
+option go_package = "server/internal/protocol";
+import "base.proto";
+
+enum SystemId {
+    SystemIdNil = 0;
+    SysQuest = 1;// 任务系统
+    SysLevel = 2;// 等级系统
+    SysBag = 3;// 背包系统
+    SysVip = 4;// VIP系统
+    SysMoney = 5;// 货币系统
+    SysAttr = 6;// 属性系统
+    SysOfflineMsg = 7;// 离线消息系统
+    SysMail = 8;// 邮件系统
+
+    SysIdMax = 9;// 最大系统ID 手动递增
+}
+
+// 任务系统
+message SiQuestData {
+    repeated QuestData quests = 1;
+}
+
+// 等级系统
+message SiLevelData {
+    uint32 level = 1;
+    int64 exp = 2;
+}
+
+// 背包系统
+message SiBagData {
+    repeated ItemSt items = 1;// 通用道具列表
+}
+
+// VIP 系统
+message SiVipData {
+    uint32 level = 1;
+    uint32 exp = 2;
+}
+
+// 货币系统
+message SiMoneyData {
+    map<uint32, int64> moneyMap = 1;// key: 货币类型,
+}

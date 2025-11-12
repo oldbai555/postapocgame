@@ -1,0 +1,43 @@
+/**
+ * @Author: zjj
+ * @Date: 2025/11/12
+ * @Desc: C -> S
+**/
+
+syntax = "proto3";
+
+package pb3;
+
+option go_package = "server/internal/protocol";
+import "base.proto";
+import "player.proto";
+
+enum C2SProtocol{
+    C2SProtocolNil = 0;
+
+    C2SVerify = 1;// 校验登陆
+    C2SQueryRoles = 2;// 查询角色列表
+    C2SCreateRole = 3;// 创建角色
+    C2SEnterGame = 4;// 进入游戏
+    C2SReconnect = 5;// 重连请求
+    C2SUseSkill = 6;// 使用技能
+}
+
+message C2SVerifyReq {}
+
+message C2SQueryRolesReq {
+    repeated PlayerRoleData role_list = 1;
+}
+
+message C2SCreateRoleReq {
+    PlayerRoleData role_data = 1;
+}
+
+message C2SEnterGameReq {
+    uint64 role_id = 1;
+}
+
+message C2SReconnectReq {
+    string reconnect_key = 1;
+}
+

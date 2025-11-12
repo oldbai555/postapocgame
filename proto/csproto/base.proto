@@ -1,0 +1,51 @@
+/**
+ * @Author: zjj
+ * @Date: 2025/11/12
+ * @Desc: 通用 proto
+**/
+
+syntax = "proto3";
+
+package pb3;
+
+option go_package = "server/internal/protocol";
+
+message ErrorData {
+    int32 code = 1;
+    string msg = 2;
+}
+
+message QuestData {
+    uint32 id = 1; //任务id
+    repeated uint32 progress = 2; //当前进度
+}
+
+message ItemSt {
+    uint32 item_id = 1;
+    uint32 count = 2;
+    uint32 bind = 3;
+}
+
+message MailSt {
+    uint64 mail_id = 1; //邮件id
+    uint32 conf_id = 2; //配置模版配表id
+    uint32 status = 3; //状态 (0:未读,1:已读,2:已读已领取)
+    uint32 create_at = 4; //邮件创建时间
+    string args = 5; //参数 json格式 根据confId 在mailargs.proto里面做约定
+    string files = 6; //邮件附件       id_count_bind|id_cound_bind|id_count_bind
+    string title = 7; //邮件标题-仅在confId 为0时有用
+    string content = 8; //邮件内容-仅在confId 为0时有用
+    ItemSt items = 9; //附件真实的道具
+}
+
+message EntitySt {
+    uint64 hdl = 1;
+    uint64 id = 2;
+    uint32 et = 3;// 实体类型
+    uint32 pos_x = 4;
+    uint32 pos_y = 5;
+    uint32 scene_id = 6;
+    uint32 fb_id = 7;
+    uint32 level = 8;
+    string show_name = 9;
+}

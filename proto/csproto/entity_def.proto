@@ -1,0 +1,18 @@
+/**
+ * @Author: zjj
+ * @Date: 2025/11/12
+ * @Desc:
+**/
+
+syntax = "proto3";
+
+package pb3;
+
+option go_package = "server/internal/protocol";
+
+enum EntityType {
+    EntityTypeNil = 0;
+
+    EtRole = 1;// 角色
+    EtMonster = 2;// 怪物
+}

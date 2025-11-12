@@ -13,6 +13,8 @@ import (
 	"sync/atomic"
 )
 
+type DropMessageCallback func(actorId string, message IActorMessage)
+
 type actorContext struct {
 	id       string
 	running  atomic.Bool
@@ -24,7 +26,8 @@ type actorContext struct {
 	data interface{}
 
 	// ✅ 新增：消息丢弃计数
-	droppedCount atomic.Int64
+	droppedCount  atomic.Int64
+	onDropMessage DropMessageCallback // 🔧 新增
 }
 
 func newActorContext(id string, mailboxSize int, opts ...ContextOption) *actorContext {
@@ -53,10 +56,14 @@ func (a *actorContext) ExecuteAsync(message IActorMessage) {
 	case <-a.stopChan:
 		return
 	default:
-		// ✅ 改进：记录丢弃的消息
 		dropped := a.droppedCount.Add(1)
-		if dropped%100 == 1 { // 每100条记录一次
+		if dropped%100 == 1 {
 			log.Warnf("Actor %s mailbox full, dropped %d messages", a.id, dropped)
+		}
+
+		// 🔧 通知上层
+		if a.onDropMessage != nil {
+			a.onDropMessage(a.id, message)
 		}
 	}
 }
@@ -143,5 +150,12 @@ type ContextOption func(actorCtx *actorContext)
 func WithIActorHandler(handler IActorHandler) ContextOption {
 	return func(actorCtx *actorContext) {
 		actorCtx.handler = handler
+	}
+}
+
+// 添加新的 Option
+func WithDropMessageCallback(callback DropMessageCallback) ContextOption {
+	return func(actorCtx *actorContext) {
+		actorCtx.onDropMessage = callback
 	}
 }

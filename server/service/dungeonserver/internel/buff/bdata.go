@@ -7,7 +7,6 @@
 package buff
 
 import (
-	"postapocgame/server/internal/custom_id"
 	"postapocgame/server/internal/jsonconf"
 	"time"
 )
@@ -15,7 +14,7 @@ import (
 type BData struct {
 	BuffId     uint32
 	BuffName   string
-	BuffType   custom_id.BuffType
+	BuffType   uint32
 	StackCount uint32
 	MaxStack   uint32
 	Duration   time.Duration

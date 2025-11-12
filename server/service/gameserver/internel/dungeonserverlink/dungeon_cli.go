@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"postapocgame/server/internal/network"
 	"postapocgame/server/pkg/log"
@@ -166,27 +167,45 @@ func (dc *DungeonClient) AsyncCall(ctx context.Context, srvType uint8, sessionId
 		return fmt.Errorf("dungeon service not connected: srvType=%d", srvType)
 	}
 
-	if !client.IsConnected() {
-		return fmt.Errorf("dungeon service not connected: srvType=%d", srvType)
+	// 🔧 添加重试逻辑
+	maxRetries := 3
+	for i := 0; i < maxRetries; i++ {
+		if !client.IsConnected() {
+			if i < maxRetries-1 {
+				time.Sleep(time.Millisecond * 100 * time.Duration(i+1))
+				continue
+			}
+			return fmt.Errorf("dungeon service not connected after %d retries: srvType=%d", maxRetries, srvType)
+		}
+
+		req := network.GetRPCRequest()
+		req.SessionId = sessionId
+		req.MsgId = msgId
+		req.Data = data
+
+		rpcBuf := dc.codec.EncodeRPCRequest(req)
+		msg := network.GetMessage()
+		msg.Type = network.MsgTypeRPCRequest
+		msg.Payload = rpcBuf
+
+		err := client.SendMessage(msg)
+
+		network.PutMessage(msg)
+		network.PutBuffer(rpcBuf)
+		network.PutRPCRequest(req)
+
+		if err == nil {
+			log.Debugf("Async RPC: MsgId=%d, SessionId=%s", msgId, sessionId)
+			return nil
+		}
+
+		if i < maxRetries-1 {
+			log.Warnf("Send RPC failed (attempt %d/%d): %v", i+1, maxRetries, err)
+			time.Sleep(time.Millisecond * 100 * time.Duration(i+1))
+		}
 	}
 
-	req := network.GetRPCRequest()
-	defer network.PutRPCRequest(req)
-
-	req.SessionId = sessionId
-	req.MsgId = msgId
-	req.Data = data
-
-	rpcBuf := dc.codec.EncodeRPCRequest(req)
-	defer network.PutBuffer(rpcBuf)
-
-	msg := network.GetMessage()
-	defer network.PutMessage(msg)
-	msg.Type = network.MsgTypeRPCRequest
-	msg.Payload = rpcBuf
-
-	log.Debugf("Async RPC: MsgId=%d, SessionId=%s", msgId, sessionId)
-	return client.SendMessage(msg)
+	return fmt.Errorf("failed to send RPC after %d retries", maxRetries)
 }
 
 // Close 关闭连接

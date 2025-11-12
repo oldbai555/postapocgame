@@ -8,7 +8,6 @@ package entity
 
 import (
 	"postapocgame/server/internal/attrdef"
-	"postapocgame/server/internal/custom_id"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/service/dungeonserver/internel/gameserverlink"
 )
@@ -17,14 +16,14 @@ import (
 type RoleEntity struct {
 	*BaseEntity
 	sessionId     string
-	roleInfo      *protocol.RoleInfo
+	roleInfo      *protocol.PlayerRoleData
 	learnedSkills map[uint32]bool // 已学习的技能
 }
 
 // NewRoleEntity 创建角色实体
-func NewRoleEntity(sessionId string, roleInfo *protocol.RoleInfo) *RoleEntity {
+func NewRoleEntity(sessionId string, roleInfo *protocol.PlayerRoleData) *RoleEntity {
 	entity := &RoleEntity{
-		BaseEntity:    NewBaseEntity(roleInfo.RoleId, custom_id.EntityTypeRole),
+		BaseEntity:    NewBaseEntity(roleInfo.RoleId, uint32(protocol.EntityType_EtRole)),
 		sessionId:     sessionId,
 		roleInfo:      roleInfo,
 		learnedSkills: make(map[uint32]bool),
@@ -46,7 +45,7 @@ func (r *RoleEntity) GetSessionId() string {
 	return r.sessionId
 }
 
-func (r *RoleEntity) GetRoleInfo() *protocol.RoleInfo {
+func (r *RoleEntity) GetRoleInfo() *protocol.PlayerRoleData {
 	return r.roleInfo
 }
 
@@ -69,6 +68,6 @@ func (r *RoleEntity) initSkills() {
 	r.learnedSkills[1002] = true // 冰箭
 }
 
-func (r *RoleEntity) SendMessage(protoIdH uint16, protoIdL uint16, data []byte) error {
-	return gameserverlink.SendToClient(r.sessionId, protoIdH<<8|protoIdL, data)
+func (r *RoleEntity) SendMessage(protoId uint16, data []byte) error {
+	return gameserverlink.SendToClient(r.sessionId, protoId, data)
 }

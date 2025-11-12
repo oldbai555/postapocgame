@@ -17,10 +17,8 @@ var _ IActorHandler = (*BaseActorHandler)(nil)
 type HandlerMessageFunc func(msg IActorMessage)
 
 type BaseActorHandler struct {
-	rw           sync.RWMutex
-	skipRegistry bool
-	handlerMap   map[uint16]HandlerMessageFunc
-	registry     []func(nb *BaseActorHandler)
+	rw         sync.RWMutex
+	handlerMap map[uint16]HandlerMessageFunc
 }
 
 func NewBaseActorHandler() *BaseActorHandler {
@@ -37,17 +35,6 @@ func (b *BaseActorHandler) RegisterMessageHandler(msgId uint16, f HandlerMessage
 		log.Fatalf("msgId %d already register", msgId)
 	}
 	b.handlerMap[msgId] = f
-
-	if b.skipRegistry {
-		return
-	}
-
-	// ✅ 修复闭包捕获问题
-	mid := msgId
-	fn := f
-	b.registry = append(b.registry, func(nb *BaseActorHandler) {
-		nb.RegisterMessageHandler(mid, fn)
-	})
 }
 
 func (b *BaseActorHandler) HandleMessage(msg IActorMessage) {
@@ -79,10 +66,13 @@ func (b *BaseActorHandler) OnStop() {}
 func (b *BaseActorHandler) Clone() *BaseActorHandler {
 	b.rw.Lock()
 	defer b.rw.Unlock()
+
 	handler := NewBaseActorHandler()
-	for _, f := range b.registry {
-		f(handler)
+
+	// 直接复制 handlerMap（高性能）
+	handler.handlerMap = make(map[uint16]HandlerMessageFunc, len(b.handlerMap))
+	for msgId, f := range b.handlerMap {
+		handler.handlerMap[msgId] = f
 	}
-	handler.skipRegistry = true
 	return handler
 }

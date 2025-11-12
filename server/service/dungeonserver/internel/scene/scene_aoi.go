@@ -61,11 +61,10 @@ func (am *AOIManager) RemoveEntity(entity iface.IEntity) {
 
 // UpdateEntity 更新实体位置
 func (am *AOIManager) UpdateEntity(entity iface.IEntity, oldPos, newPos *argsdef.Position) {
-	am.mu.Lock()
-	defer am.mu.Unlock()
-
 	oldGrIds := argsdef.GetNineGrIds(oldPos)
 	newGrIds := argsdef.GetNineGrIds(newPos)
+
+	am.mu.Lock()
 
 	// 找出需要离开的格子
 	for _, oldGrId := range oldGrIds {
@@ -77,7 +76,6 @@ func (am *AOIManager) UpdateEntity(entity iface.IEntity, oldPos, newPos *argsdef
 			}
 		}
 		if !found {
-			// 从旧格子移除
 			if entities, ok := am.grIds[oldGrId]; ok {
 				delete(entities, entity.GetId())
 				if len(entities) == 0 {
@@ -97,7 +95,6 @@ func (am *AOIManager) UpdateEntity(entity iface.IEntity, oldPos, newPos *argsdef
 			}
 		}
 		if !found {
-			// 加入新格子
 			if _, ok := am.grIds[newGrId]; !ok {
 				am.grIds[newGrId] = make(map[uint64]iface.IEntity)
 			}
@@ -105,7 +102,9 @@ func (am *AOIManager) UpdateEntity(entity iface.IEntity, oldPos, newPos *argsdef
 		}
 	}
 
-	// 更新可见列表
+	am.mu.Unlock() // 🔧 提前释放锁
+
+	// 🔧 在锁外更新可见列表（避免持有锁时间过长）
 	am.updateEntityVisibility(entity)
 }
 

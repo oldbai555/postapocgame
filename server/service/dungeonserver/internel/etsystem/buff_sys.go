@@ -1,8 +1,9 @@
 package etsystem
 
 import (
-	"postapocgame/server/internal/custom_id"
 	"postapocgame/server/internal/jsonconf"
+	"postapocgame/server/internal/protocol"
+	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/service/dungeonserver/internel/buff"
 	"sync"
 	"time"
@@ -34,7 +35,7 @@ func (bs *BuffSys) AddBuff(entityId uint64, buffId uint32, casterId uint64) erro
 	// TODO: 从配置中获取Buff信息
 	buffInfo := bs.getBuffInfo(buffId)
 	if buffInfo == nil {
-		return &BuffError{Code: custom_id.ErrBuffNotFound, Message: "buff not found"}
+		return customerr.NewCustomErr("%d %d %d buff not found", entityId, buffId, casterId)
 	}
 
 	// 获取实体的Buff列表
@@ -58,7 +59,7 @@ func (bs *BuffSys) AddBuff(entityId uint64, buffId uint32, casterId uint64) erro
 		buffInstance := &buff.BData{
 			BuffId:     buffId,
 			BuffName:   buffInfo.Name,
-			BuffType:   custom_id.BuffType(buffInfo.Type),
+			BuffType:   buffInfo.Type,
 			StackCount: 1,
 			MaxStack:   buffInfo.StackLimit,
 			Duration:   time.Duration(buffInfo.Duration) * time.Millisecond,
@@ -81,11 +82,11 @@ func (bs *BuffSys) RemoveBuff(entityId uint64, buffId uint32) error {
 
 	buffs, ok := bs.entityBuffs[entityId]
 	if !ok {
-		return &BuffError{Code: custom_id.ErrBuffNotFound, Message: "entity has no buffs"}
+		return customerr.NewCustomErr("entity has no buffs")
 	}
 
 	if _, ok := buffs[buffId]; !ok {
-		return &BuffError{Code: custom_id.ErrBuffNotFound, Message: "buff not found on entity"}
+		return customerr.NewCustomErr("buff not found on entity")
 	}
 
 	delete(buffs, buffId)
@@ -143,7 +144,7 @@ func (bs *BuffSys) ClearDeBuffs(entityId uint64) {
 	}
 
 	for buffId, buffInstance := range buffs {
-		if buffInstance.BuffType == custom_id.BuffTypeDebuff {
+		if buffInstance.BuffType == uint32(protocol.BuffType_BtDeBuff) {
 			delete(buffs, buffId)
 		}
 	}
@@ -251,14 +252,4 @@ func (bs *BuffSys) GetBuffEffect(entityId uint64, attrType uint32) int32 {
 	}
 
 	return totalEffect
-}
-
-// BuffError Buff错误
-type BuffError struct {
-	Code    int
-	Message string
-}
-
-func (e *BuffError) Error() string {
-	return e.Message
 }

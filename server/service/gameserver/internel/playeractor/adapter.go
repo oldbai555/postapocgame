@@ -23,10 +23,23 @@ func NewPlayerRoleActor(mode actor.ActorMode) *PlayerRoleActor {
 		playerHandler: defaultHandler,
 	}
 	p.actorMgr = actor.NewActorManager(mode, 1000, p.NewPlayerHandlerFactory)
-	gshare.PlayerRegisterHandler = defaultHandler.RegisterMessageHandler
-	gshare.PlayerSendMessageAsync = p.actorMgr.SendMessageAsync
-	gshare.PlayerRemoveActor = p.actorMgr.RemoveActor
+
+	// 🔧 使用接口方式注册
+	gshare.SetActorFacade(p)
+
 	return p
+}
+
+func (p *PlayerRoleActor) RegisterHandler(msgId uint16, f actor.HandlerMessageFunc) {
+	p.playerHandler.RegisterMessageHandler(msgId, f)
+}
+
+func (p *PlayerRoleActor) SendMessageAsync(key string, message actor.IActorMessage) error {
+	return p.actorMgr.SendMessageAsync(key, message)
+}
+
+func (p *PlayerRoleActor) RemoveActor(key string) error {
+	return p.actorMgr.RemoveActor(key)
 }
 
 func (p *PlayerRoleActor) Init() error {

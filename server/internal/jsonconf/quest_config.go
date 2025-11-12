@@ -6,8 +6,6 @@
 
 package jsonconf
 
-import "postapocgame/server/internal/protocol"
-
 // QuestConfig 任务配置
 type QuestConfig struct {
 	QuestId     uint32           `json:"questId"`     // 任务Id
@@ -17,7 +15,7 @@ type QuestConfig struct {
 	Level       uint32           `json:"level"`       // 需求等级
 	PreQuests   []uint32         `json:"preQuests"`   // 前置任务
 	Objectives  []QuestObjective `json:"objectives"`  // 任务目标
-	Rewards     []protocol.Item  `json:"rewards"`     // 任务奖励
+	Rewards     []ItemSt         `json:"rewards"`     // 任务奖励
 	ExpReward   uint64           `json:"expReward"`   // 经验奖励
 }
 

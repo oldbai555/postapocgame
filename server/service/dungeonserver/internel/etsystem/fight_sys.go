@@ -8,7 +8,7 @@ package etsystem
 
 import (
 	"postapocgame/server/internal/argsdef"
-	"postapocgame/server/internal/custom_id"
+	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/dungeonserver/internel/iface"
 	"postapocgame/server/service/dungeonserver/internel/skill"
@@ -44,20 +44,20 @@ func (s *FightSys) UseSkill(ctx *argsdef.SkillCastContext) int {
 	skillId := ctx.SkillId
 	sk := s.skills[skillId]
 	if sk == nil {
-		return custom_id.ErrSkillNotLearned
+		return int(protocol.SkillUseErr_ErrSkillNotLearned)
 	}
 
 	if !sk.CheckCd() {
-		return custom_id.ErrSkillInCooldown
+		return int(protocol.SkillUseErr_ErrSkillInCooldown)
 	}
 
 	skillCfg := sk.GetConfig()
 	if skillCfg == nil {
-		return custom_id.ErrSkillNotLearned
+		return int(protocol.SkillUseErr_ErrSkillNotLearned)
 	}
 
 	if caster.GetMP() < int64(skillCfg.ManaCost) {
-		return custom_id.ErrSkillNotEnoughMP
+		return int(protocol.SkillUseErr_ErrSkillNotEnoughMP)
 	}
 
 	return sk.Use(ctx, caster)

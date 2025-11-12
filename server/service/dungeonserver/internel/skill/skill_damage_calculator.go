@@ -2,7 +2,7 @@ package skill
 
 import (
 	"math/rand"
-	"postapocgame/server/internal/custom_id"
+	"postapocgame/server/internal/protocol"
 	"postapocgame/server/service/dungeonserver/internel/iface"
 )
 
@@ -81,12 +81,12 @@ func (dc *DamageCalculator) GetEntityAttr(ve iface.IEntity) *EntityAttr {
 
 	// 根据实体类型获取不同属性
 	switch ve.GetEntityType() {
-	case custom_id.EntityTypeRole:
+	case uint32(protocol.EntityType_EtRole):
 		// 从角色信息获取属性
 		// TODO: 根据等级和装备计算属性
 		attr.Attack = 100 + ve.GetLevel()*10
 		attr.Defense = 50 + ve.GetLevel()*5
-	case custom_id.EntityTypeMonster:
+	case uint32(protocol.EntityType_EtMonster):
 		// TODO: 从怪物配置获取属性
 		attr.HP = 2000
 		attr.Attack = 80

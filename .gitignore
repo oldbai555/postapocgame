@@ -13,3 +13,4 @@
 /.claude/
 /.vscode/
 /server/output/*.panic
+/server/internal/protocol/*.pb.go

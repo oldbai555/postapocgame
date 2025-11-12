@@ -10,16 +10,12 @@ import (
 func NewEventBus() *Bus {
 	return &Bus{
 		subscribers: make(map[Type][]handlerEntry),
-		registry:    make([]func(b *Bus), 0, 32),
 	}
 }
 
 type Bus struct {
 	mu          sync.RWMutex
 	subscribers map[Type][]handlerEntry
-
-	// 存储"重放"函数，用于克隆/重建
-	registry []func(b *Bus)
 }
 
 type handlerEntry struct {
@@ -47,11 +43,6 @@ func (eb *Bus) Subscribe(eventType Type, priority int, handler Handler) {
 	})
 
 	eb.subscribers[eventType] = list
-
-	// 保存到 registry 用于克隆
-	eb.registry = append(eb.registry, func(b *Bus) {
-		b.Subscribe(eventType, priority, handler)
-	})
 }
 
 // SubscribeWithDefaultPriority 使用默认优先级订阅
@@ -87,15 +78,16 @@ func (eb *Bus) Publish(ctx context.Context, event *Event) {
 // CloneByReplay 通过 registry 重建一个新的 EventBus
 // 用于为每个 actor 创建独立的 localBus
 func (eb *Bus) CloneByReplay() *Bus {
+	eb.mu.RLock()
+	defer eb.mu.RUnlock()
 	newBus := NewEventBus()
 
-	eb.mu.RLock()
-	regs := append([]func(b *Bus){}, eb.registry...)
-	eb.mu.RUnlock()
-
-	for _, reg := range regs {
-		reg(newBus)
+	newBus.subscribers = make(map[Type][]handlerEntry, len(eb.subscribers))
+	for typ, val := range eb.subscribers {
+		var list = val
+		var cpList = make([]handlerEntry, len(list))
+		copy(list, cpList)
+		newBus.subscribers[typ] = cpList
 	}
-
 	return newBus
 }

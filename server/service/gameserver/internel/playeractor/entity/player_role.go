@@ -2,8 +2,6 @@ package entity
 
 import (
 	"context"
-	"fmt"
-	"postapocgame/server/internal/custom_id"
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
@@ -19,8 +17,8 @@ import (
 // PlayerRole 玩家角色
 type PlayerRole struct {
 	// 基础信息
-	SessionId string             `json:"sessionId"`
-	RoleInfo  *protocol.RoleInfo `json:"roleInfo"`
+	SessionId string                   `json:"sessionId"`
+	RoleData  *protocol.PlayerRoleData `json:"roleInfo"`
 
 	// 重连相关
 	ReconnectKey string    `json:"reconnectKey"`
@@ -35,10 +33,10 @@ type PlayerRole struct {
 }
 
 // NewPlayerRole 创建玩家角色
-func NewPlayerRole(sessionId string, roleInfo *protocol.RoleInfo) *PlayerRole {
+func NewPlayerRole(sessionId string, roleInfo *protocol.PlayerRoleData) *PlayerRole {
 	pr := &PlayerRole{
 		SessionId:    sessionId,
-		RoleInfo:     roleInfo,
+		RoleData:     roleInfo,
 		IsOnline:     true,
 		ReconnectKey: generateReconnectKey(sessionId, roleInfo.RoleId),
 		// 从全局模板克隆独立的事件总线
@@ -53,7 +51,7 @@ func NewPlayerRole(sessionId string, roleInfo *protocol.RoleInfo) *PlayerRole {
 
 // OnLogin 登录回调
 func (pr *PlayerRole) OnLogin() error {
-	log.Infof("[PlayerRole] OnLogin: RoleId=%d, SessionId=%s", pr.RoleInfo.RoleId, pr.SessionId)
+	log.Infof("[PlayerRole] OnLogin: RoleId=%d, SessionId=%s", pr.RoleData.RoleId, pr.SessionId)
 
 	pr.IsOnline = true
 	pr.DisconnectAt = time.Time{}
@@ -63,9 +61,15 @@ func (pr *PlayerRole) OnLogin() error {
 		log.Errorf("Send reconnect key failed: %v", err)
 	}
 
-	// 发布玩家登录事件（在当前玩家的事件总线上）
+	// 🔧 先调用所有系统的 OnOpen（确保初始化完成）
+	pr.sysMgr.EachOpenSystem(func(system iface.ISystem) {
+		system.OnOpen()
+	})
+
+	// 发布玩家登录事件
 	pr.Publish(gevent.OnPlayerLogin)
 
+	// 🔧 再调用 OnRoleLogin（此时所有系统已准备就绪）
 	pr.sysMgr.EachOpenSystem(func(system iface.ISystem) {
 		system.OnRoleLogin()
 	})
@@ -75,7 +79,7 @@ func (pr *PlayerRole) OnLogin() error {
 
 // OnLogout 登出回调
 func (pr *PlayerRole) OnLogout() error {
-	log.Infof("[PlayerRole] OnLogout: RoleId=%d", pr.RoleInfo.RoleId)
+	log.Infof("[PlayerRole] OnLogout: RoleId=%d", pr.RoleData.RoleId)
 
 	pr.IsOnline = false
 
@@ -88,7 +92,7 @@ func (pr *PlayerRole) OnLogout() error {
 // OnReconnect 重连回调
 func (pr *PlayerRole) OnReconnect(newSessionId string) error {
 	log.Infof("[PlayerRole] OnReconnect: RoleId=%d, OldSession=%s, NewSession=%s",
-		pr.RoleInfo.RoleId, pr.SessionId, newSessionId)
+		pr.RoleData.RoleId, pr.SessionId, newSessionId)
 
 	pr.SessionId = newSessionId
 	pr.IsOnline = true
@@ -108,7 +112,7 @@ func (pr *PlayerRole) OnReconnect(newSessionId string) error {
 
 // OnDisconnect 断线回调
 func (pr *PlayerRole) OnDisconnect() {
-	log.Infof("[PlayerRole] OnDisconnect: RoleId=%d", pr.RoleInfo.RoleId)
+	log.Infof("[PlayerRole] OnDisconnect: RoleId=%d", pr.RoleData.RoleId)
 
 	pr.IsOnline = false
 	pr.DisconnectAt = time.Now()
@@ -116,7 +120,7 @@ func (pr *PlayerRole) OnDisconnect() {
 
 // Close 关闭回调（3分钟超时或主动登出）
 func (pr *PlayerRole) Close() error {
-	log.Infof("[PlayerRole] Close: RoleId=%d", pr.RoleInfo.RoleId)
+	log.Infof("[PlayerRole] Close: RoleId=%d", pr.RoleData.RoleId)
 
 	// 调用登出
 	err := pr.OnLogout()
@@ -136,100 +140,12 @@ func (pr *PlayerRole) Close() error {
 	return nil
 }
 
-// GiveAwards 发放奖励
-func (pr *PlayerRole) GiveAwards(awards []protocol.Item) error {
-	for _, item := range awards {
-		switch item.Type {
-		case protocol.ItemTypeMoney:
-			// 货币加入MoneySys
-			moneySys := pr.sysMgr.GetSystem(custom_id.SysMoney)
-			if moneySys != nil {
-				if ms, ok := moneySys.(*entitysystem.MoneySys); ok {
-					if err := ms.AddMoney(item.ItemId, item.Count); err != nil {
-						return customerr.Wrap(err)
-					}
-				}
-			}
-		default:
-			// 其他道具加入BagSys
-			bagSys := pr.sysMgr.GetSystem(custom_id.SysBag)
-			if bagSys != nil {
-				if bs, ok := bagSys.(*entitysystem.BagSys); ok {
-					if err := bs.AddItem(item); err != nil {
-						return fmt.Errorf("add item to bag failed: %w", err)
-					}
-				}
-			}
-		}
-	}
-	return nil
-}
-
-// Consume 消耗道具
-func (pr *PlayerRole) Consume(items []protocol.Item) error {
-	// 先检查是否足够
-	for _, item := range items {
-		switch item.Type {
-		case protocol.ItemTypeMoney:
-			moneySys := pr.sysMgr.GetSystem(custom_id.SysMoney)
-			if moneySys != nil {
-				if ms, ok := moneySys.(*entitysystem.MoneySys); ok {
-					if !ms.HasEnough(item.ItemId, item.Count) {
-						return fmt.Errorf("money not enough: itemId=%d", item.ItemId)
-					}
-				}
-			}
-		default:
-			bagSys := pr.sysMgr.GetSystem(custom_id.SysBag)
-			if bagSys != nil {
-				if bs, ok := bagSys.(*entitysystem.BagSys); ok {
-					if !bs.HasEnough(item.ItemId, item.Count) {
-						return fmt.Errorf("item not enough: itemId=%d", item.ItemId)
-					}
-				}
-			}
-		}
-	}
-
-	// 执行消耗
-	for _, item := range items {
-		switch item.Type {
-		case protocol.ItemTypeMoney:
-			moneySys := pr.sysMgr.GetSystem(custom_id.SysMoney)
-			if moneySys != nil {
-				if ms, ok := moneySys.(*entitysystem.MoneySys); ok {
-					ms.ConsumeMoney(item.ItemId, item.Count)
-				}
-			}
-		default:
-			bagSys := pr.sysMgr.GetSystem(custom_id.SysBag)
-			if bagSys != nil {
-				if bs, ok := bagSys.(*entitysystem.BagSys); ok {
-					bs.ConsumeItem(item.ItemId, item.Count)
-				}
-			}
-		}
-	}
-
-	return nil
-}
-
-// AddExp 增加经验
-func (pr *PlayerRole) AddExp(exp uint64) {
-	levelSys := pr.sysMgr.GetSystem(custom_id.SysLevel)
-	if levelSys != nil {
-		if ls, ok := levelSys.(*entitysystem.LevelSys); ok {
-			ls.AddExp(exp)
-		}
-	}
-}
-
-func (pr *PlayerRole) GetPlayerRoleInfo() *protocol.RoleInfo {
-	return pr.RoleInfo
+func (pr *PlayerRole) GetPlayerRoleData() *protocol.PlayerRoleData {
+	return pr.RoleData
 }
 
 func (pr *PlayerRole) GetPlayerRoleId() uint64 {
-	return pr.GetPlayerRoleInfo().RoleId
+	return pr.GetPlayerRoleData().RoleId
 }
 
 func (pr *PlayerRole) GetSessionId() string {
@@ -240,7 +156,7 @@ func (pr *PlayerRole) GetReconnectKey() string {
 	return pr.ReconnectKey
 }
 
-func (pr *PlayerRole) GetSystem(sysId custom_id.SystemId) iface.ISystem {
+func (pr *PlayerRole) GetSystem(sysId uint32) iface.ISystem {
 	return pr.sysMgr.GetSystem(sysId)
 }
 
@@ -255,9 +171,8 @@ func (pr *PlayerRole) SendMessage(protoId uint16, data []byte) error {
 
 // sendReconnectKey 下发重连密钥
 func (pr *PlayerRole) sendReconnectKey() error {
-	resp := &protocol.LoginSuccessResponse{
+	resp := &protocol.S2CReconnectKeyReq{
 		ReconnectKey: pr.ReconnectKey,
-		RoleInfo:     pr.RoleInfo,
 	}
 
 	data, err := tool.JsonMarshal(resp)
@@ -265,7 +180,7 @@ func (pr *PlayerRole) sendReconnectKey() error {
 		return customerr.Wrap(err)
 	}
 
-	return pr.SendMessage(protocol.S2C_ReconnectKey, data)
+	return pr.SendMessage(uint16(protocol.S2CProtocol_S2CReconnectKey), data)
 }
 
 // Publish 发布事件（在当前玩家的事件总线上）

@@ -1,0 +1,27 @@
+/**
+ * @Author: zjj
+ * @Date: 2025/11/12
+ * @Desc:
+**/
+
+syntax = "proto3";
+
+package pb3;
+
+option go_package = "server/internal/protocol";
+
+enum FuBenType {
+    FuBenTypeNil = 0;
+
+    FuBenTypePermanent    = 1;// 常驻副本
+    FuBenTypeTimed        = 2;// 限时副本
+    FuBenTypeTimedSingle  = 3;// 限时单人副本
+    FuBenTypeTimedMulti   = 4;// 限时多人副本
+}
+
+enum FuBenState {
+    FuBenStateNil = 0;
+    FuBenStateNormal   = 1;// 正常
+    FuBenStateClosing  = 2;// 关闭中
+    FuBenStateClosed   = 3;// 已关闭
+}

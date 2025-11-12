@@ -1,0 +1,18 @@
+/**
+ * @Author: zjj
+ * @Date: 2025/11/12
+ * @Desc:
+**/
+
+syntax = "proto3";
+
+package pb3;
+
+option go_package = "server/internal/protocol";
+
+enum BuffType {
+    BuffTypeNil = 0;
+
+    BtBuff = 1;// 增益
+    BtDeBuff = 2;// 减益
+}
