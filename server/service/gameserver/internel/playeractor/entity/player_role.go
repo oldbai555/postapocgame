@@ -9,6 +9,7 @@ import (
 	"postapocgame/server/pkg/tool"
 	"postapocgame/server/service/gameserver/internel/gatewaylink"
 	"postapocgame/server/service/gameserver/internel/gevent"
+	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/iface"
 	"postapocgame/server/service/gameserver/internel/playeractor/entitysystem"
 	"time"
@@ -176,10 +177,18 @@ func (pr *PlayerRole) sendReconnectKey() error {
 // Publish 发布事件（在当前玩家的事件总线上）
 func (pr *PlayerRole) Publish(typ event.Type, args ...interface{}) {
 	ev := event.NewEvent(typ, args...)
-	ctx := context.Background()
-	context.WithValue(ctx, "playerRoleId", pr.GetPlayerRoleId())
+	ctx := pr.BuildContext(nil)
 	pr.eventBus.Publish(ctx, ev)
 	return
+}
+
+func (pr *PlayerRole) BuildContext(parentCtx context.Context) context.Context {
+	var ctx = parentCtx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx = context.WithValue(ctx, gshare.ContextKeyRole, pr)
+	return ctx
 }
 
 func init() {

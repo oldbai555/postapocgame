@@ -7,12 +7,15 @@
 package iface
 
 import (
+	"context"
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
 )
 
 type IPlayerRole interface {
 	IPlayerEvent
+
+	BuildContext(parentCtx context.Context) context.Context
 
 	Close() error
 	OnReconnect(newSessionId string) error

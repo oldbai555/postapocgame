@@ -16,19 +16,20 @@ import (
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
 	"postapocgame/server/service/base"
+	"postapocgame/server/service/gameserver/internel/clientprotocol"
 	"postapocgame/server/service/gameserver/internel/dungeonserverlink"
 	"postapocgame/server/service/gameserver/internel/gatewaylink"
 	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/manager"
-	"postapocgame/server/service/gameserver/internel/playeractor/clientprotocol"
 )
 
-func handleVerify(sessionId string, msg *network.ClientMessage) error {
+func handleVerify(ctx context.Context, msg *network.ClientMessage) error {
 	return nil
 }
 
-func handleQueryRoles(sessionId string, msg *network.ClientMessage) error {
+func handleQueryRoles(ctx context.Context, msg *network.ClientMessage) error {
+	sessionId := ctx.Value(gshare.ContextKeySession).(string)
 	log.Infof("handleQueryRoles: SessionId=%s", sessionId)
 
 	// 模拟返回固定的两个角色
@@ -61,7 +62,8 @@ func handleQueryRoles(sessionId string, msg *network.ClientMessage) error {
 	return gatewaylink.SendToSession(sessionId, uint16(protocol.S2CProtocol_S2CRoleList), jsonData)
 }
 
-func handleEnterGame(sessionId string, msg *network.ClientMessage) error {
+func handleEnterGame(ctx context.Context, msg *network.ClientMessage) error {
+	sessionId := ctx.Value(gshare.ContextKeySession).(string)
 	log.Infof("handleSelectRole: SessionId=%s", sessionId)
 
 	// 解析选择角色请求
@@ -105,11 +107,11 @@ func handleEnterGame(sessionId string, msg *network.ClientMessage) error {
 	return nil
 }
 
-func handleReconnect(sessionId string, msg *network.ClientMessage) error {
+func handleReconnect(ctx context.Context, msg *network.ClientMessage) error {
 	return nil
 }
 
-func handleCreateRole(sessionId string, msg *network.ClientMessage) error {
+func handleCreateRole(ctx context.Context, msg *network.ClientMessage) error {
 	return nil
 }
 
@@ -164,36 +166,26 @@ func handleDoNetWorkMsg(message actor.IActorMessage) {
 		log.Errorf("err:%v", err)
 		return
 	}
-
-	switch cliMsg.MsgId {
-	case uint16(protocol.C2SProtocol_C2SVerify):
-		err = handleVerify(sessionId, cliMsg)
-	case uint16(protocol.C2SProtocol_C2SQueryRoles):
-		err = handleQueryRoles(sessionId, cliMsg)
-	case uint16(protocol.C2SProtocol_C2SCreateRole):
-		err = handleCreateRole(sessionId, cliMsg)
-	case uint16(protocol.C2SProtocol_C2SEnterGame):
-		err = handleEnterGame(sessionId, cliMsg)
-	case uint16(protocol.C2SProtocol_C2SReconnect):
-		err = handleReconnect(sessionId, cliMsg)
-	default:
-		var doClientProtocol = func(roleId uint64) error {
-			if roleId == 0 {
-				return customerr.NewCustomErr("roleId is zero")
-			}
-			playerRole := manager.GetPlayerRole(roleId)
-			if playerRole != nil {
-				return customerr.NewCustomErr("not found %d player role", roleId)
-			}
-			var protoIdH, protoIdL = cliMsg.MsgId >> 8, cliMsg.MsgId & 0xff
-			getFunc := clientprotocol.GetFunc(protoIdH, protoIdL)
-			if getFunc == nil {
-				return customerr.NewCustomErr("not found %d %d handler", protoIdH, protoIdL)
-			}
-			return getFunc(playerRole, cliMsg)
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, gshare.ContextKeySession, sessionId)
+	var buildPlayerRoleCtx = func(ctx context.Context, roleId uint64) context.Context {
+		if roleId == 0 {
+			return ctx
 		}
+		pr := manager.GetPlayerRole(roleId)
+		if pr != nil {
+			return ctx
+		}
+		return pr.BuildContext(ctx)
+	}
+	getFunc := clientprotocol.GetFunc(cliMsg.MsgId)
+	if getFunc == nil {
+		err = customerr.NewCustomErr("not found %d handler", cliMsg.MsgId)
+	}
+	if err == nil {
 		roleId := session.GetRoleId()
-		err = doClientProtocol(roleId)
+		ctx = buildPlayerRoleCtx(ctx, roleId)
+		err = getFunc(ctx, cliMsg)
 	}
 	if err == nil {
 		return
@@ -212,5 +204,11 @@ func handleDoNetWorkMsg(message actor.IActorMessage) {
 func init() {
 	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
 		gshare.RegisterHandler(gshare.DoNetWorkMsg, handleDoNetWorkMsg)
+
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SVerify), handleVerify)
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SQueryRoles), handleQueryRoles)
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SCreateRole), handleCreateRole)
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SEnterGame), handleEnterGame)
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SReconnect), handleReconnect)
 	})
 }

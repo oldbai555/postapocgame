@@ -86,7 +86,9 @@ func (eb *Bus) CloneByReplay() *Bus {
 	for typ, val := range eb.subscribers {
 		var list = val
 		var cpList = make([]handlerEntry, len(list))
-		copy(list, cpList)
+		for idx, handler := range list {
+			cpList[idx] = handler
+		}
 		newBus.subscribers[typ] = cpList
 	}
 	return newBus

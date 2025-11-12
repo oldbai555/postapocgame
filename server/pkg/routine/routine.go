@@ -6,6 +6,7 @@ import (
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"runtime/debug"
+	"strings"
 )
 
 func Go(ctx context.Context, logic func(ctx context.Context) error) {
@@ -44,14 +45,16 @@ func Run(fn func()) {
 
 func CatchPanic(panicCallback func(err interface{})) {
 	if err := recover(); err != any(nil) {
-		log.Errorf("PROCESS PANIC: err %s", err)
+		var sb strings.Builder
+		sb.WriteString("PROCESS PANIC:\n")
 		st := debug.Stack()
 		if len(st) > 0 {
-			log.Errorf("dump stack (%s):", err)
-			log.Errorf("%s", string(st))
+			sb.WriteString(fmt.Sprintf("dump stack (%s):\n", err))
+			sb.WriteString(fmt.Sprintf("%s", string(st)))
 		} else {
-			log.Errorf("stack is empty (%s)", err)
+			sb.WriteString(fmt.Sprintf("stack is empty (%s)", err))
 		}
+		log.Errorf(sb.String())
 		if panicCallback != nil {
 			panicCallback(err)
 		}

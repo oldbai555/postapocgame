@@ -1,10 +1,14 @@
 package entitysystem
 
 import (
+	"context"
 	"fmt"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/routine"
+	"postapocgame/server/service/gameserver/internel/gevent"
+	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/iface"
 )
 
@@ -119,4 +123,15 @@ func (m *SysMgr) EachOpenSystem(f func(system iface.ISystem)) {
 			f(system)
 		})
 	}
+}
+
+func init() {
+	gevent.SubscribePlayerEvent(gevent.OnPlayerLogin, func(ctx context.Context, event *event.Event) {
+		playerRole, ok := ctx.Value(gshare.ContextKeyRole).(iface.IPlayerRole)
+		if !ok {
+			log.Errorf("ctx not found player role")
+			return
+		}
+		log.Infof("system mgr subscribe player %d login", playerRole.GetPlayerRoleId())
+	})
 }
