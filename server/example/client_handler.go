@@ -2,12 +2,12 @@ package main
 
 import (
 	"context"
+	"postapocgame/server/internal"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/pkg/tool"
 )
 
 // ClientHandler Actor消息处理器
@@ -34,7 +34,7 @@ func NewClientHandler() *ClientHandler {
 // handleError 处理错误消息
 func (h *ClientHandler) handleError(msg actor.IActorMessage) {
 	var errResp protocol.ErrorData
-	if err := tool.JsonUnmarshal(msg.GetData(), &errResp); err == nil {
+	if err := internal.Unmarshal(msg.GetData(), &errResp); err == nil {
 		log.Infof("\n⚠️ 服务器错误: %s\n> ", errResp.Msg)
 	}
 }
@@ -55,7 +55,7 @@ func (h *ClientHandler) handleRoleList(msg actor.IActorMessage) {
 	}
 
 	var resp protocol.S2CRoleListReq
-	if err := tool.JsonUnmarshal(msg.GetData(), &resp); err != nil {
+	if err := internal.Unmarshal(msg.GetData(), &resp); err != nil {
 		log.Errorf("解析角色列表失败: %v", err)
 		return
 	}
@@ -72,7 +72,7 @@ func (h *ClientHandler) handleRoleList(msg actor.IActorMessage) {
 		log.Infof("[%s] 🎮 自动进入游戏: RoleID=%d\n", client.GetPlayerID(), selectedRole.RoleId)
 
 		req := protocol.C2SEnterGameReq{RoleId: selectedRole.RoleId}
-		reqData, err := tool.JsonMarshal(&req)
+		reqData, err := internal.Marshal(&req)
 		if err != nil {
 			log.Errorf("序列化失败: %v", err)
 			return
@@ -99,7 +99,7 @@ func (h *ClientHandler) handleEnterScene(msg actor.IActorMessage) {
 	}
 
 	var resp protocol.S2CEnterSceneReq
-	if err := tool.JsonUnmarshal(msg.GetData(), &resp); err != nil {
+	if err := internal.Unmarshal(msg.GetData(), &resp); err != nil {
 		log.Errorf("解析进入场景响应失败: %v", err)
 		return
 	}
@@ -111,7 +111,7 @@ func (h *ClientHandler) handleEnterScene(msg actor.IActorMessage) {
 
 func (h *ClientHandler) handleLoginSuccess(msg actor.IActorMessage) {
 	var resp protocol.S2CLoginSuccessReq
-	if err := tool.JsonUnmarshal(msg.GetData(), &resp); err != nil {
+	if err := internal.Unmarshal(msg.GetData(), &resp); err != nil {
 		log.Errorf("S2CLoginSuccessReq: %v", err)
 		return
 	}
@@ -119,7 +119,7 @@ func (h *ClientHandler) handleLoginSuccess(msg actor.IActorMessage) {
 }
 func (h *ClientHandler) handleReconnectSuccess(msg actor.IActorMessage) {
 	var resp protocol.S2CReconnectSuccessReq
-	if err := tool.JsonUnmarshal(msg.GetData(), &resp); err != nil {
+	if err := internal.Unmarshal(msg.GetData(), &resp); err != nil {
 		log.Errorf("S2CReconnectSuccessReq: %v", err)
 		return
 	}

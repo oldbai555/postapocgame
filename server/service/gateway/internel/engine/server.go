@@ -130,16 +130,19 @@ func (g *GatewayServer) Stop(ctx context.Context) error {
 
 // startTCPServer 启动TCP服务器（使用统一接口）
 func (g *GatewayServer) startTCPServer(ctx context.Context) error {
-	serverConfig := &network.TCPServerConfig{
-		Addr:            g.config.TCPAddr,
-		AllowedIPs:      nil,
-		MaxConnections:  g.config.MaxSessions,
-		HandshakeEnable: false,
-	}
-
 	handler := clientnet.NewClientHandler(g.gsConnector, g.sessionMgr)
 
-	g.tcpServer = network.NewTCPServer(serverConfig, handler)
+	g.tcpServer = network.NewTCPServer(
+		network.WithTCPServerOptionNetworkMessageHandler(handler),
+		network.WithTCPServerOptionOnConn(func(conn network.IConnection) {
+			log.Infof("new conn......")
+		}),
+		network.WithTCPServerOptionOnDisConn(func(conn network.IConnection) {
+			log.Infof("dis conn......")
+		}),
+		network.WithTCPServerOptionMaxConnections(g.config.MaxSessions),
+		network.WithTCPServerOptionAddr(g.config.TCPAddr),
+	)
 	if err := g.tcpServer.Start(ctx); err != nil {
 		return err
 	}

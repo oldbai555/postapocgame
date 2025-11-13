@@ -37,3 +37,12 @@ func GetFunc(protoIdH, protoIdL uint16) Func {
 	}
 	return f
 }
+
+// GetRegisteredProtocols 获取已注册的协议列表
+func GetRegisteredProtocols() []uint16 {
+	protocols := make([]uint16, 0, len(ProtoTbl))
+	for protoId := range ProtoTbl {
+		protocols = append(protocols, protoId)
+	}
+	return protocols
+}

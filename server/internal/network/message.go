@@ -56,14 +56,6 @@ func (x *RPCResponse) Reset() {
 	*x = RPCResponse{}
 }
 
-// HandshakeMessage 握手消息
-type HandshakeMessage struct {
-	ServerType uint8  // 服务器类型: 1=GameServer, 2=DungeonServer
-	PlatformId uint32 // 平台ID
-	ZoneId     uint32 // 区服ID
-	SrvType    uint8  // 服务类型(DungeonServer使用)
-}
-
 // ClientMessage 客户端消息
 type ClientMessage struct {
 	MsgId uint16

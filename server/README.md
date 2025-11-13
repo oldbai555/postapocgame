@@ -138,6 +138,31 @@ DungeonServer          GameServer              Gateway              Client
 3. Gateway根据SessionId找到对应Session
 4. Gateway通过客户端连接发送消息
 
+### 客户端消息转发流程 (GameServer → DungeonServer)
+
+```
+Client                    GameServer                    DungeonServer
+  │                          │                                │
+  │──[ClientMessage]────────>│                                │
+  │   (协议未在GameServer)     │                                │
+  │                          │ [检查协议管理器]                 │
+  │                          │ [确定转发的srvType]              │
+  │                          │──[RPCRequest]─────────────────>│
+  │                          │   (sessionId, msgId, payload)   │
+  │                          │                                │──[处理]
+```
+
+**新增: 智能协议转发流程**:
+1. GameServer接收客户端消息
+2. 优先检查是否能在GameServer处理（使用clientprotocol.GetFunc）
+3. 如果GameServer无法处理，检查协议管理器：
+   - 检查是否是DungeonServer的协议
+   - 如果是独有协议(srvType指定)，直接转发到该srvType
+   - 如果是通用协议，根据玩家当前所在的DungeonServer类型转发
+4. 发送RPC请求到DungeonServer处理
+5. DungeonServer处理并通过ClientMessage下行
+
+
 ## 消息结构
 
 ### 基础消息格式 (所有TCP通信)
@@ -303,6 +328,7 @@ GatewayServer
 - 处理玩家业务逻辑
 - 管理玩家数据
 - 协调DungeonServer进行副本操作
+- **新增**: 管理DungeonServer的协议注册
 
 **核心组件**:
 ```
@@ -318,15 +344,24 @@ GameServer
 ├── DungeonServerLink   # DungeonServer连接
 │   ├── 连接池管理
 │   ├── RPC调用
-│   └── 响应处理
-└── TCP Server          # 接收Gateway连接
+│   ├── 响应处理
+│   └── ✨ProtocolManager # 协议注册管理器
+├── TCP Server          # 接收Gateway连接
 ```
+
+**新增: ProtocolManager 组件**:
+- 存储DungeonServer注册的所有协议
+- 按srvType组织协议信息
+- 支持通用协议和独有协议的区分
+- 提供协议查询和路由功能
 
 **工作流程**:
 1. **启动阶段**:
    - 初始化PlayerActor系统
    - 启动TCP服务器（等待Gateway连接）
+   - 初始化ProtocolManager
    - 连接DungeonServer（按srvType建立连接池）
+   - 注册协议注册RPC Handler
 
 2. **消息处理 (Actor模式)**:
    ```
@@ -341,15 +376,35 @@ GameServer
                            Actor异步处理
    ```
 
-3. **玩家Actor**:
+3. **新增: 智能协议转发**:
+   ```
+   客户端消息 → handleDoNetWorkMsg
+           ↓
+   [检查GameServer协议]
+           ↓ (无法处理)
+   [检查ProtocolManager] ← 是否DungeonServer协议?
+           ↓
+   [判断协议类型]
+   ├─ 独有协议 → 转发到指定srvType
+   └─ 通用协议 → 根据玩家当前srvType转发
+   ```
+
+4. **玩家Actor**:
    - 每个玩家对应一个Actor实例
    - Actor按SessionId进行消息路由
-   - 支持注册多个业务Handler（如登录、创建角色、进入游戏等）
+   - 支持注册多个业务Handler
+   - 记录玩家当前所在的DungeonServer类型(DungeonSrvType)
 
-4. **RPC调用DungeonServer**:
+5. **RPC调用DungeonServer**:
    - 构造RPCRequest
    - 根据srvType选择连接
    - 发送请求并等待响应
+
+6. **协议注册处理**:
+   - 接收DungeonServer的D2GRegisterProtocols RPC
+   - 通过ProtocolManager存储协议信息
+   - 支持自动协议注册和注销
+
 
 ### DungeonServer (副本服务器)
 
@@ -357,6 +412,7 @@ GameServer
 - 处理副本/战斗逻辑
 - 管理副本实体（玩家、怪物等）
 - 处理战斗、Buff、技能等系统
+- **新增**: 向GameServer注册客户端协议
 
 **核心组件**:
 ```
@@ -366,7 +422,8 @@ DungeonServer
 ├── GameServerLink      # GameServer连接处理
 │   ├── 接收GameServer RPC
 │   ├── 连接管理
-│   └── 消息路由
+│   ├── 消息路由
+│   └── ✨ProtocolRegistration # 协议注册管理
 ├── EntitySystem        # 实体系统
 │   ├── EntityManager   # 实体管理
 │   ├── AttrSys         # 属性系统
@@ -379,13 +436,34 @@ DungeonServer
 └── TCP Server          # 接收GameServer连接
 ```
 
+**新增: 协议注册机制**:
+- 自动向GameServer注册所有客户端协议
+- 支持标记通用协议和独有协议
+- 连接建立时注册，断开时注销
+- 支持srvType标识的多种服务器类型
+
 **工作流程**:
 1. **启动阶段**:
+   - 从config读取srv_type
    - 初始化DungeonActor（单例模式）
    - 启动TCP服务器（等待GameServer连接）
    - 初始化副本管理器
+   - 注册ClientProtocol中的所有协议
 
-2. **RPC处理**:
+2. **连接GameServer**:
+   - 与GameServer建立TCP连接
+   - 通过gameserverlink.SetDungeonSrvType()设置自己的srvType
+   - 第一次接收GameServer消息时触发协议注册
+   - 通过RPC D2GRegisterProtocols向GameServer注册
+
+3. **协议注册过程**:
+   - 调用gameserverlink.TryRegisterProtocols()
+   - 获取clientprotocol.GetRegisteredProtocols()的所有协议
+   - 可配置通用协议和独有协议的分类
+   - 发送D2GRegisterProtocolsReq给GameServer
+   - GameServer使用ProtocolManager存储信息
+
+4. **RPC处理**:
    ```
    GameServer RPC → DungeonServer → DungeonActor
                                       ↓
@@ -396,15 +474,20 @@ DungeonServer
                                 返回RPCResponse
    ```
 
-3. **实体系统**:
+5. **实体系统**:
    - 管理副本中的所有实体（玩家、怪物、NPC等）
    - 每个实体有唯一句柄(hdl)
    - 支持属性、战斗、Buff等子系统
 
-4. **副本管理**:
+6. **副本管理**:
    - 支持创建多个副本实例
    - 定期清理空副本
    - 实体进入/离开副本
+
+7. **优雅关闭**:
+   - 服务器关闭时调用gameserverlink.UnregisterProtocols()
+   - 向GameServer发送D2GUnregisterProtocols
+   - GameServer清理对应的协议注册信息
 
 ## 技术特性
 
@@ -415,19 +498,27 @@ DungeonServer
 ### 2. 连接管理
 - 支持自动重连
 - 心跳保活机制
-- 连接池管理（GameServer ↔ DungeonServer）
+- 连接池管理（GameServer ↔ DungeonServer，按srvType分类）
 
 ### 3. 消息路由
 - 基于SessionId进行消息路由
 - Gateway维护Session到连接的映射
 - GameServer维护Session到PlayerActor的映射
+- ProtocolManager支持多srvType的协议路由
 
-### 4. 错误处理
+### 4. ✨新增: 动态协议注册和转发
+- **自动注册**: DungeonServer启动后自动向GameServer注册协议
+- **智能转发**: GameServer根据协议属性和玩家状态智能转发
+- **协议分类**: 支持通用协议和独有协议，避免协议重复注册
+- **热扩展**: 扩展新的DungeonServer(srvType)无需修改GameServer代码
+- **自动清理**: 连接断开时自动清理协议注册
+
+### 5. 错误处理
 - 统一的错误码体系（protocol.ErrorCode）
 - 错误自动记录调用位置
 - 支持错误码扩展
 
-### 5. 高可用设计
+### 6. 高可用设计
 - 非阻塞消息发送
 - 优雅关闭机制
 - 资源自动清理
@@ -460,7 +551,8 @@ DungeonServer
   "actor_pool_size": 1000,
   "actor_mailbox_size": 1000,
   "dungeon_server_addr_map": {
-    "1": "127.0.0.1:9001"
+    "3": "127.0.0.1:9001",
+    "4": "127.0.0.1:9002"
   }
 }
 ```
@@ -468,13 +560,15 @@ DungeonServer
 ### DungeonServer配置 (dungeonsrv.json)
 ```json
 {
-  "app_id": 2,
-  "platform_id": 1,
-  "srv_id": 1,
+  "srv_type": 3,
   "tcp_addr": ":9001",
-  "game_server_allow_ips": ["127.0.0.1"]
+  "actor_mailbox_size": 1000
 }
 ```
+
+**配置说明**:
+- `srv_type`: DungeonServer的类型标识(3=副本服务器, 4=跨服服务器等)
+- `dungeon_server_addr_map`: GameServer连接DungeonServer的地址映射，按srvType索引
 
 ## 开发指南
 
@@ -485,6 +579,96 @@ DungeonServer
 ```go
 clientprotocol.Register(uint16(protocol.C2SProtocol_XXX), handleXXX)
 ```
+
+### 协议注册和转发机制
+
+#### 工作流程
+
+1. **DungeonServer启动时**:
+   - 设置自己的srvType（如3或4）
+   - 与GameServer建立连接
+   - 通过RPC向GameServer注册所有客户端协议
+   - 可标记为通用协议或独有协议
+
+2. **GameServer接收协议注册**:
+   - 使用ProtocolManager存储DungeonServer的协议信息
+   - 按srvType组织协议
+   - 支持通用协议(多个srvType共享)和独有协议(特定srvType)
+
+3. **处理客户端消息**:
+   - 优先在GameServer处理（检查clientprotocol）
+   - 如无法处理，检查是否是DungeonServer的协议
+   - 独有协议直接转发到指定srvType
+   - 通用协议根据玩家当前所在srvType转发
+
+#### 代码示例
+
+**DungeonServer配置**:
+```go
+// main.go中设置srvType
+gameserverlink.SetDungeonSrvType(serverConfig.SrvType)
+
+// 自动在连接建立后注册协议
+// DungeonServer会调用RegisterProtocolsToGameServer注册所有协议
+```
+
+**GameServer处理消息**:
+```go
+// player_network.go中的handleDoNetWorkMsg已实现智能转发
+// 流程:
+// 1. 检查GameServer是否能处理 → clientprotocol.GetFunc()
+// 2. 检查是否DungeonServer协议 → protocolMgr.IsDungeonProtocol()
+// 3. 判断转发规则 → protocolMgr.GetSrvTypeForProtocol()
+// 4. 根据协议类型转发:
+//    - 独有协议: 转发到指定srvType
+//    - 通用协议: 转发到玩家当前所在srvType
+```
+
+**玩家DungeonServer类型**:
+```go
+// PlayerRole中记录玩家所在的DungeonServer
+playerRole.SetDungeonSrvType(uint8(protocol.SrvType_SrvTypeDungeonServer))
+
+// 转发通用协议时查询
+targetSrvType := pr.GetDungeonSrvType()
+```
+
+#### 协议分类
+
+- **通用协议**: 多个DungeonServer共享(如移动、释放技能等)
+  - 使用isCommon=true标记
+  - GameServer转发时根据玩家当前srvType决定目标
+  - 只在GameServer注册一份
+
+- **独有协议**: 特定DungeonServer独有(如跨服特定操作)
+  - 使用isCommon=false标记，指定srvType
+  - GameServer转发时直接发往指定srvType
+  - 不同srvType可有相同msgId但不同含义
+
+#### 扩展新srvType
+
+1. **配置新的DungeonServer**:
+```json
+{
+  "srv_type": 4,
+  "tcp_addr": ":9002"
+}
+```
+
+2. **GameServer配置关键的连接地址**:
+```json
+{
+  "dungeon_server_addr_map": {
+    "3": "127.0.0.1:9001",
+    "4": "127.0.0.1:9002"
+  }
+}
+```
+
+3. **DungeonServer启动时自动注册协议**:
+   - 无需修改GameServer代码
+   - 协议通过RPC D2GRpcProtocol_D2GRegisterProtocols注册
+   - 可混合通用和独有协议
 
 ### 添加新的RPC方法
 
@@ -504,6 +688,7 @@ dshare.RegisterHandler(msgId, handler)
 ```go
 return customerr.NewErrorByCode(int32(protocol.ErrorCode_XXX), "error message")
 ```
+
 
 ## 部署说明
 

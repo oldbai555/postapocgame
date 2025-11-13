@@ -2,6 +2,7 @@ package entity
 
 import (
 	"context"
+	"postapocgame/server/internal"
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
@@ -26,6 +27,9 @@ type PlayerRole struct {
 	ReconnectKey string
 	IsOnline     bool
 	DisconnectAt time.Time
+
+	// DungeonServer相关
+	DungeonSrvType uint8 // 角色所在的DungeonServer类型
 
 	// 事件总线（每个玩家独立的事件总线）
 	eventBus *event.Bus
@@ -145,6 +149,15 @@ func (pr *PlayerRole) GetReconnectKey() string {
 	return pr.ReconnectKey
 }
 
+func (pr *PlayerRole) GetDungeonSrvType() uint8 {
+	return pr.DungeonSrvType
+}
+
+func (pr *PlayerRole) SetDungeonSrvType(srvType uint8) {
+	pr.DungeonSrvType = srvType
+	log.Debugf("PlayerRole %d set DungeonSrvType to %d", pr.SimpleData.RoleId, srvType)
+}
+
 func (pr *PlayerRole) GetSystem(sysId uint32) iface.ISystem {
 	return pr.sysMgr.GetSystem(sysId)
 }
@@ -154,7 +167,7 @@ func (pr *PlayerRole) SendMessage(protoId uint16, data []byte) error {
 }
 
 func (pr *PlayerRole) SendJsonMessage(protoId uint16, v interface{}) error {
-	bytes, err := tool.JsonMarshal(v)
+	bytes, err := internal.Marshal(v)
 	if err != nil {
 		return customerr.Wrap(err)
 	}

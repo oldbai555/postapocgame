@@ -8,16 +8,17 @@ package fuben
 
 import (
 	"context"
+	"postapocgame/server/internal"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/pkg/tool"
 	"postapocgame/server/service/base"
 	"postapocgame/server/service/dungeonserver/internel/devent"
 	"postapocgame/server/service/dungeonserver/internel/dshare"
 	"postapocgame/server/service/dungeonserver/internel/entity"
 	"postapocgame/server/service/dungeonserver/internel/entitymgr"
+	"postapocgame/server/service/dungeonserver/internel/gameserverlink"
 )
 
 func handleG2DEnterDungeon(message actor.IActorMessage) {
@@ -25,13 +26,17 @@ func handleG2DEnterDungeon(message actor.IActorMessage) {
 	if msg.SessionId == "" {
 		return
 	}
-	var roleInfo protocol.PlayerSimpleData
-	err := tool.JsonUnmarshal(msg.Data, &roleInfo)
+	var req protocol.G2DEnterDungeonReq
+	err := internal.Unmarshal(msg.Data, &req)
 	if err != nil {
 		log.Errorf("err:%v", err)
 		return
 	}
-	roleEntity := entity.NewRoleEntity(msg.SessionId, &roleInfo)
+
+	// 进入时绑定 session
+	gameserverlink.GetMessageSender().RegisterSessionRoute(msg.SessionId, req.PlatformId, req.SrvId)
+
+	roleEntity := entity.NewRoleEntity(msg.SessionId, req.SimpleData)
 	err = entitymgr.GetEntityMgr().Register(roleEntity)
 	if err != nil {
 		log.Errorf("err:%v", err)
@@ -47,7 +52,7 @@ func handleG2DEnterDungeon(message actor.IActorMessage) {
 			SceneId:  1,
 			FbId:     1,
 			Level:    1,
-			ShowName: roleInfo.RoleName,
+			ShowName: req.SimpleData.RoleName,
 		},
 	}
 	err = roleEntity.SendJsonMessage(uint16(protocol.S2CProtocol_S2CEnterScene), resp)

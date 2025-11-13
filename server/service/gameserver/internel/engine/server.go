@@ -29,15 +29,19 @@ func NewGameServer(config *config.ServerConfig) *GameServer {
 
 func (gs *GameServer) Start(ctx context.Context) error {
 	log.Infof("Starting GameServer: AppID=%d, PlatformId=%d, SrvId=%d", gs.config.AppID, gs.config.PlatformID, gs.config.SrvId)
-	// 启动TCP服务器
-	serverConfig := &network.TCPServerConfig{
-		Addr:            gs.config.TCPAddr,
-		AllowedIPs:      gs.config.GatewayAllowIPs,
-		MaxConnections:  10,
-		HandshakeEnable: false,
-	}
+
 	networkHandler := gatewaylink.DefaultNetworkHandler()
-	gs.tcpServer = network.NewTCPServer(serverConfig, networkHandler)
+	gs.tcpServer = network.NewTCPServer(
+		network.WithTCPServerOptionNetworkMessageHandler(networkHandler),
+		network.WithTCPServerOptionOnConn(func(conn network.IConnection) {
+			log.Infof("new conn......")
+		}),
+		network.WithTCPServerOptionOnDisConn(func(conn network.IConnection) {
+			log.Infof("dis conn......")
+		}),
+		network.WithTCPServerOptionAddr(gs.config.TCPAddr),
+		network.WithTCPServerOptionAllowedIPs(gs.config.GatewayAllowIPs),
+	)
 	if err := gs.tcpServer.Start(ctx); err != nil {
 		return fmt.Errorf("start tcp service failed: %w", err)
 	}

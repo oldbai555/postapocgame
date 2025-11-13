@@ -14,5 +14,5 @@ type IDungeonServer interface {
 // IGameServerRPC GameServer RPC接口
 type IGameServerRPC interface {
 	// Call 调用GameServer RPC
-	Call(ctx context.Context, platformId, zoneId uint32, msgId uint16, data []byte) ([]byte, error)
+	Call(ctx context.Context, platformId, srvId uint32, msgId uint16, data []byte) ([]byte, error)
 }

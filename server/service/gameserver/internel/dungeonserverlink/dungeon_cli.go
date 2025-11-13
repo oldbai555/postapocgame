@@ -3,6 +3,9 @@ package dungeonserverlink
 import (
 	"context"
 	"fmt"
+	"postapocgame/server/internal"
+	"postapocgame/server/internal/protocol"
+	"postapocgame/server/service/gameserver/internel/gshare"
 	"sync"
 	"time"
 
@@ -117,35 +120,32 @@ func (dc *DungeonClient) RegisterRPCHandler(msgId uint16, handler RPCHandler) {
 func (dc *DungeonClient) Connect(ctx context.Context, srvType uint8, addr string) error {
 	dc.mu.Lock()
 	defer dc.mu.Unlock()
-
 	if _, ok := dc.connPools[srvType]; ok {
 		return fmt.Errorf("already connected to dungeon service: srvType=%d", srvType)
 	}
-
-	clientConfig := &network.TCPClientConfig{
-		HandshakeEnable: true,
-		Handshake: &network.HandshakeMessage{
-			ServerType: 1, // 1=GameServer
-			PlatformId: dc.config.PlatformID,
-			ZoneId:     dc.config.SrvId,
-			SrvType:    0,
-		},
-		EnableReconnect: true,
-		ReconnectConfig: network.DefaultReconnectConfig(),
-	}
-
-	client := network.NewTCPClient(clientConfig, dc.handler)
-
-	// 设置连接/断开回调
-	client.SetCallbacks(
-		func() {
+	client := network.NewTCPClient(
+		network.WithTCPClientOptionOnConn(func(conn network.IConnection) {
 			log.Infof("connected to DungeonServer: srvType=%d, addr=%s", srvType, addr)
-		},
-		func() {
+			p := &protocol.G2DSyncGameDataReq{
+				PlatformId: gshare.GetPlatformId(),
+				SrvId:      gshare.GetSrvId(),
+			}
+			marshal, _ := internal.Marshal(p)
+			message := network.GetMessage()
+			message.Type = network.MsgTypeHandshake
+			message.Payload = marshal
+			err := conn.SendMessage(message)
+			network.PutMessage(message)
+			if err != nil {
+				log.Errorf("err:%v", err)
+				return
+			}
+		}),
+		network.WithTCPClientOptionOnDisConn(func(conn network.IConnection) {
 			log.Warnf("disconnected from DungeonServer: srvType=%d, addr=%s", srvType, addr)
-		},
+		}),
+		network.WithTCPClientOptionNetworkMessageHandler(dc.handler),
 	)
-
 	dc.connPools[srvType] = client
 
 	// 连接(会自动重连和启动接收协程)

@@ -8,13 +8,12 @@ import (
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
-	"time"
 )
 
 // GameClient 游戏客户端（使用Actor）
 type GameClient struct {
 	playerID    string
-	tcpClient   *network.TCPClient
+	tcpClient   network.ITCPClient
 	codec       *network.Codec
 	actorMgr    actor.IActorManager
 	actorCtx    actor.IActorContext
@@ -37,13 +36,15 @@ func (c *GameClient) Start(ctx context.Context) error {
 		client: c,
 	}
 
-	config := &network.TCPClientConfig{
-		ConnectTimeout:  5 * time.Second,
-		EnableReconnect: true,
-		ReconnectConfig: network.DefaultReconnectConfig(),
-	}
-
-	c.tcpClient = network.NewTCPClient(config, handler)
+	c.tcpClient = network.NewTCPClient(
+		network.WithTCPClientOptionNetworkMessageHandler(handler),
+		network.WithTCPClientOptionOnDisConn(func(conn network.IConnection) {
+			log.Infof("dis connect gateway")
+		}),
+		network.WithTCPClientOptionOnConn(func(conn network.IConnection) {
+			log.Warnf("connect gateway")
+		}),
+	)
 
 	log.Infof("[%s] 🔌 正在连接到网关 %s...\n", c.playerID, c.gatewayAddr)
 	if err := c.tcpClient.Connect(ctx, c.gatewayAddr); err != nil {

@@ -14,6 +14,7 @@ import (
 	"postapocgame/server/service/dungeonserver/internel/dungeonactor"
 	"postapocgame/server/service/dungeonserver/internel/engine"
 	"postapocgame/server/service/dungeonserver/internel/fbmgr"
+	"postapocgame/server/service/dungeonserver/internel/gameserverlink"
 	"syscall"
 	"time"
 )
@@ -27,6 +28,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("err:%v", err)
 	}
+
+	// 设置DungeonServer类型(用于协议注册)
+	gameserverlink.SetDungeonSrvType(serverConfig.SrvType)
 
 	// 创建
 	ds := engine.NewDungeonServer(serverConfig)
@@ -61,6 +65,9 @@ func main() {
 	<-sigChan
 
 	log.Infof("Shutting down DungeonServer...")
+
+	// 注销协议
+	gameserverlink.UnregisterProtocols(context.Background())
 
 	// 停止DungeonServer
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)

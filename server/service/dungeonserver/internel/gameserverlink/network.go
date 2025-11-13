@@ -2,6 +2,7 @@ package gameserverlink
 
 import (
 	"context"
+	"postapocgame/server/internal"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
@@ -24,62 +25,29 @@ func NewNetworkHandler() *NetworkHandler {
 
 // HandleMessage 处理网络消息
 func (h *NetworkHandler) HandleMessage(ctx context.Context, conn network.IConnection, msg *network.Message) error {
-	// 🔧 移到开头，确保握手后立即注册
-	if msg.Type == network.MsgTypeHandshake {
-		// 握手消息已经在 TCPServer 中处理
-		return nil
-	}
-
-	// 注册GameServer连接
-	h.registerGameServer(conn)
-
 	switch msg.Type {
+	case network.MsgTypeHandshake:
+		return h.handleHandshake(conn, msg)
 	case network.MsgTypeRPCRequest:
-		return h.handleRPCRequest(ctx, conn, msg)
+		return h.handleRPCRequest(ctx, msg)
 	case network.MsgTypeClient:
 		return h.handleClientMsg(ctx, msg)
 	case network.MsgTypeHeartbeat:
-		return h.handleHeartbeat(conn, msg)
+		return h.handleHeartbeat(conn)
 	default:
 		log.Warnf("unknown message type: %d", msg.Type)
 		return nil
 	}
 }
 
-// registerGameServer 注册GameServer连接
-func (h *NetworkHandler) registerGameServer(conn network.IConnection) {
-	meta := conn.GetMeta()
-	if meta == nil {
-		return
-	}
-
-	handshake, ok := meta.(*network.HandshakeMessage)
-	if !ok {
-		return
-	}
-
-	// 注册到消息发送器
-	GetMessageSender().RegisterGameServer(handshake.PlatformId, handshake.ZoneId, conn)
-
-	log.Infof("GameServer registered: PlatformId=%d, ZoneId=%d", handshake.PlatformId, handshake.ZoneId)
-}
-
 // handleRPCRequest 处理来自GameServer的RPC请求
-func (h *NetworkHandler) handleRPCRequest(ctx context.Context, conn network.IConnection, msg *network.Message) error {
+func (h *NetworkHandler) handleRPCRequest(ctx context.Context, msg *network.Message) error {
 	req, err := h.codec.DecodeRPCRequest(msg.Payload)
 	if err != nil {
 		return customerr.Wrap(err)
 	}
 
 	log.Debugf("Received RPC Request: RequestId=%d, MsgId=%d", req.RequestId, req.MsgId)
-
-	// 记录会话路由
-	if req.SessionId != "" {
-		meta := conn.GetMeta()
-		if handshake, ok := meta.(*network.HandshakeMessage); ok {
-			GetMessageSender().RegisterSessionRoute(req.SessionId, handshake.PlatformId, handshake.ZoneId)
-		}
-	}
 
 	message := base.NewSessionMessage()
 	message.SessionId = req.SessionId
@@ -119,7 +87,7 @@ func (h *NetworkHandler) handleClientMsg(ctx context.Context, msg *network.Messa
 }
 
 // handleHeartbeat 处理心跳消息
-func (h *NetworkHandler) handleHeartbeat(conn network.IConnection, msg *network.Message) error {
+func (h *NetworkHandler) handleHeartbeat(conn network.IConnection) error {
 	pong := network.GetMessage()
 	defer network.PutMessage(pong)
 
@@ -164,5 +132,15 @@ func (h *NetworkHandler) CallGameServer(ctx context.Context, sessionId string, m
 
 // Close 关闭处理器
 func (h *NetworkHandler) Close() error {
+	return nil
+}
+
+func (h *NetworkHandler) handleHandshake(conn network.IConnection, msg *network.Message) error {
+	var req protocol.G2DSyncGameDataReq
+	if err := internal.Unmarshal(msg.Payload, &req); err != nil {
+		return customerr.Wrap(err)
+	}
+	GetMessageSender().RegisterGameServer(req.PlatformId, req.SrvId, conn)
+	log.Infof("game server connected: %d %d", req.PlatformId, req.SrvId)
 	return nil
 }

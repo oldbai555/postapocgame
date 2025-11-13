@@ -30,6 +30,8 @@ type IPlayerRole interface {
 	GetReconnectKey() string
 	GetSessionId() string
 	GetBinaryData() *protocol.PlayerRoleBinaryData
+	GetDungeonSrvType() uint8
+	SetDungeonSrvType(srvType uint8)
 
 	GetSysMgr() ISystemMgr
 	GetSystem(sysId uint32) ISystem

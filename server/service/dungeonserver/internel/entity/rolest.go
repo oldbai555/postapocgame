@@ -7,10 +7,10 @@
 package entity
 
 import (
+	"postapocgame/server/internal"
 	"postapocgame/server/internal/attrdef"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
-	"postapocgame/server/pkg/tool"
 	"postapocgame/server/service/dungeonserver/internel/gameserverlink"
 )
 
@@ -57,7 +57,7 @@ func (r *RoleEntity) SendMessage(protoId uint16, data []byte) error {
 }
 
 func (r *RoleEntity) SendJsonMessage(protoId uint16, v interface{}) error {
-	bytes, err := tool.JsonMarshal(v)
+	bytes, err := internal.Marshal(v)
 	if err != nil {
 		return customerr.Wrap(err)
 	}

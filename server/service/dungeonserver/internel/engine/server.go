@@ -43,15 +43,17 @@ func (ds *DungeonServer) Start(ctx context.Context) error {
 
 // startTCPServer 启动TCP服务器
 func (ds *DungeonServer) startTCPServer(ctx context.Context) error {
-	serverConfig := &network.TCPServerConfig{
-		Addr:            ds.config.TCPAddr,
-		AllowedIPs:      nil,
-		MaxConnections:  100,
-		HandshakeEnable: true,
-	}
-
 	ds.networkHandler = gameserverlink.NewNetworkHandler()
-	ds.tcpServer = network.NewTCPServer(serverConfig, ds.networkHandler)
+	ds.tcpServer = network.NewTCPServer(
+		network.WithTCPServerOptionNetworkMessageHandler(ds.networkHandler),
+		network.WithTCPServerOptionOnConn(func(conn network.IConnection) {
+			log.Infof("new game server conn......")
+		}),
+		network.WithTCPServerOptionOnDisConn(func(conn network.IConnection) {
+			log.Infof("dis conn......")
+		}),
+		network.WithTCPServerOptionAddr(ds.config.TCPAddr),
+	)
 
 	if err := ds.tcpServer.Start(ctx); err != nil {
 		return fmt.Errorf("start tcp service failed: %w", err)

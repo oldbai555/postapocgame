@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"postapocgame/server/internal"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/pkg/tool"
 	"sync"
 )
 
@@ -126,7 +126,7 @@ func (cm *ConfigManager) loadItemConfigs() error {
 	}
 
 	var configs []*ItemConfig
-	if err := tool.JsonUnmarshal(data, &configs); err != nil {
+	if err := internal.Unmarshal(data, &configs); err != nil {
 		return fmt.Errorf("unmarshal item config failed: %w", err)
 	}
 
@@ -148,7 +148,7 @@ func (cm *ConfigManager) loadLevelConfigs() error {
 	}
 
 	var configs []*LevelConfig
-	if err := tool.JsonUnmarshal(data, &configs); err != nil {
+	if err := internal.Unmarshal(data, &configs); err != nil {
 		return fmt.Errorf("unmarshal level config failed: %w", err)
 	}
 
@@ -170,7 +170,7 @@ func (cm *ConfigManager) loadVipConfigs() error {
 	}
 
 	var configs []*VipConfig
-	if err := tool.JsonUnmarshal(data, &configs); err != nil {
+	if err := internal.Unmarshal(data, &configs); err != nil {
 		return fmt.Errorf("unmarshal vip config failed: %w", err)
 	}
 
@@ -192,7 +192,7 @@ func (cm *ConfigManager) loadMoneyConfigs() error {
 	}
 
 	var configs []*MoneyConfig
-	if err := tool.JsonUnmarshal(data, &configs); err != nil {
+	if err := internal.Unmarshal(data, &configs); err != nil {
 		return fmt.Errorf("unmarshal money config failed: %w", err)
 	}
 
@@ -214,7 +214,7 @@ func (cm *ConfigManager) loadQuestConfigs() error {
 	}
 
 	var configs []*QuestConfig
-	if err := tool.JsonUnmarshal(data, &configs); err != nil {
+	if err := internal.Unmarshal(data, &configs); err != nil {
 		return fmt.Errorf("unmarshal quest config failed: %w", err)
 	}
 
@@ -236,7 +236,7 @@ func (cm *ConfigManager) loadMailTemplateConfigs() error {
 	}
 
 	var configs []*MailTemplateConfig
-	if err := tool.JsonUnmarshal(data, &configs); err != nil {
+	if err := internal.Unmarshal(data, &configs); err != nil {
 		return fmt.Errorf("unmarshal mail template config failed: %w", err)
 	}
 
@@ -258,7 +258,7 @@ func (cm *ConfigManager) loadMonsterConfigs() error {
 	}
 
 	var configs []*MonsterConfig
-	if err := tool.JsonUnmarshal(data, &configs); err != nil {
+	if err := internal.Unmarshal(data, &configs); err != nil {
 		return fmt.Errorf("unmarshal monster config failed: %w", err)
 	}
 
@@ -280,7 +280,7 @@ func (cm *ConfigManager) loadSkillConfigs() error {
 	}
 
 	var configs []*SkillConfig
-	if err := tool.JsonUnmarshal(data, &configs); err != nil {
+	if err := internal.Unmarshal(data, &configs); err != nil {
 		return fmt.Errorf("unmarshal skill config failed: %w", err)
 	}
 
@@ -302,7 +302,7 @@ func (cm *ConfigManager) loadBuffConfigs() error {
 	}
 
 	var configs []*BuffConfig
-	if err := tool.JsonUnmarshal(data, &configs); err != nil {
+	if err := internal.Unmarshal(data, &configs); err != nil {
 		return fmt.Errorf("unmarshal buff config failed: %w", err)
 	}
 

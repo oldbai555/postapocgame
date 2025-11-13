@@ -2,7 +2,6 @@ package network
 
 import (
 	"context"
-	"fmt"
 	"github.com/gorilla/websocket"
 	"net"
 	"net/http"
@@ -17,7 +16,7 @@ type WSServerConfig struct {
 	Addr            string                     // 监听地址
 	Path            string                     // WebSocket路径
 	AllowedIPs      []string                   // 允许的IP列表(为空则允许所有)
-	MaxConnections  int                        // 最大连接数
+	MaxConnections  uint32                     // 最大连接数
 	HandshakeEnable bool                       // 是否启用握手
 	CheckOrigin     func(r *http.Request) bool // Origin检查函数
 }
@@ -53,7 +52,7 @@ func NewWSServer(config *WSServerConfig, handler INetworkMessageHandler) *WSServ
 }
 
 // Start 启动服务器
-func (s *WSServer) Start(ctx context.Context) error {
+func (s *WSServer) Start(_ context.Context) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc(s.config.Path, s.handleWebSocket)
 
@@ -127,7 +126,7 @@ func (s *WSServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	connCount := len(s.connections)
 	s.mu.RUnlock()
 
-	if s.config.MaxConnections > 0 && connCount >= s.config.MaxConnections {
+	if s.config.MaxConnections > 0 && uint32(connCount) >= s.config.MaxConnections {
 		log.Infof("Max connections reached, reject: %s", r.RemoteAddr)
 		http.Error(w, "Too Many Connections", http.StatusServiceUnavailable)
 		return
@@ -199,32 +198,6 @@ func (s *WSServer) handleConnection(ctx context.Context, wsConn IConnection, raw
 			log.Errorf("Handle message failed: %v", err)
 		}
 	}
-}
-
-// handleHandshake 处理握手
-func (s *WSServer) handleHandshake(ctx context.Context, conn IConnection) error {
-	msg, err := conn.ReceiveMessage(ctx)
-	if err != nil {
-		return fmt.Errorf("receive handshake failed: %w", err)
-	}
-
-	if msg.Type != MsgTypeHandshake {
-		return fmt.Errorf("expected handshake message, got %d", msg.Type)
-	}
-
-	codec := DefaultCodec()
-	handshake, err := codec.DecodeHandshake(msg.Payload)
-	if err != nil {
-		return fmt.Errorf("decode handshake failed: %w", err)
-	}
-
-	// 保存握手信息到连接元数据
-	conn.SetMeta(handshake)
-
-	log.Infof("Handshake success: ServerType=%d, PlatformId=%d, ZoneId=%d, SrvType=%d",
-		handshake.ServerType, handshake.PlatformId, handshake.ZoneId, handshake.SrvType)
-
-	return nil
 }
 
 // isIPAllowed 检查IP是否允许

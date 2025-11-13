@@ -12,18 +12,53 @@ import (
 	"time"
 )
 
-// TCPServerConfig TCP服务器配置
-type TCPServerConfig struct {
-	Addr            string   // 监听地址
-	AllowedIPs      []string // 允许的IP列表(为空则允许所有)
-	MaxConnections  int      // 最大连接数
-	HandshakeEnable bool     // 是否启用握手
+type TCPServerOption func(*TCPServer)
+
+func WithTCPServerOptionOnConn(f func(conn IConnection)) TCPServerOption {
+	return func(tcpServer *TCPServer) {
+		tcpServer.onConnected = f
+	}
+}
+
+func WithTCPServerOptionOnDisConn(f func(conn IConnection)) TCPServerOption {
+	return func(tcpServer *TCPServer) {
+		tcpServer.onDisconnected = f
+	}
+}
+
+func WithTCPServerOptionNetworkMessageHandler(handler INetworkMessageHandler) TCPServerOption {
+	return func(tcpServer *TCPServer) {
+		tcpServer.handler = handler
+	}
+}
+func WithTCPServerOptionAllowedIPs(allowedIPs []string) TCPServerOption {
+	return func(tcpServer *TCPServer) {
+		tcpServer.allowedIPs = allowedIPs
+	}
+}
+
+func WithTCPServerOptionAddr(addr string) TCPServerOption {
+	return func(tcpServer *TCPServer) {
+		tcpServer.addr = addr
+	}
+}
+func WithTCPServerOptionMaxConnections(maxConnections uint32) TCPServerOption {
+	return func(tcpServer *TCPServer) {
+		tcpServer.maxConnections = maxConnections
+	}
 }
 
 // TCPServer TCP服务器
 type TCPServer struct {
-	config      *TCPServerConfig
-	handler     INetworkMessageHandler
+	addr           string   // 监听地址
+	allowedIPs     []string // 允许的IP列表(为空则允许所有)
+	maxConnections uint32   // 最大连接数
+
+	onConnected    func(conn IConnection)
+	onDisconnected func(conn IConnection)
+
+	handler INetworkMessageHandler
+
 	listener    net.Listener
 	connections sync.Map // map[net.Conn]IConnection
 	stopChan    chan struct{}
@@ -35,12 +70,15 @@ type TCPServer struct {
 }
 
 // NewTCPServer 创建TCP服务器
-func NewTCPServer(config *TCPServerConfig, handler INetworkMessageHandler) *TCPServer {
-	return &TCPServer{
-		config:   config,
-		handler:  handler,
-		stopChan: make(chan struct{}),
+func NewTCPServer(opts ...TCPServerOption) ITCPServer {
+	t := &TCPServer{
+		stopChan:       make(chan struct{}),
+		maxConnections: 10,
 	}
+	for _, opt := range opts {
+		opt(t)
+	}
+	return t
 }
 
 // Start 启动服务器
@@ -49,13 +87,13 @@ func (s *TCPServer) Start(ctx context.Context) error {
 		return fmt.Errorf("no message handler provided")
 	}
 
-	listener, err := net.Listen("tcp", s.config.Addr)
+	listener, err := net.Listen("tcp", s.addr)
 	if err != nil {
 		return fmt.Errorf("listen failed: %w", err)
 	}
 
 	s.listener = listener
-	log.Infof("✅ TCP service started on %s", s.config.Addr)
+	log.Infof("✅ TCP service started on %s", s.addr)
 
 	// 启动接受连接协程
 	s.wg.Add(1)
@@ -132,7 +170,7 @@ func (s *TCPServer) acceptLoop(ctx context.Context) {
 		}
 
 		// 检查连接数限制
-		if s.config.MaxConnections > 0 && int(s.connCount.Load()) >= s.config.MaxConnections {
+		if s.maxConnections > 0 && uint32(s.connCount.Load()) >= s.maxConnections {
 			log.Warnf("🚫 max connections reached, reject: %s", remote)
 			conn.Close()
 			continue
@@ -162,6 +200,9 @@ func (s *TCPServer) handleConnection(ctx context.Context, tcpConn IConnection, r
 			if r := recover(); r != nil {
 				log.Errorf("[PANIC] TCP connection handler crashed, remote=%s, err=%v", rawConn.RemoteAddr().String(), r)
 			}
+			if s.onDisconnected != nil {
+				s.onDisconnected(tcpConn)
+			}
 			tcpConn.Close()
 			s.connections.Delete(rawConn)
 			s.connCount.Add(-1)
@@ -172,12 +213,8 @@ func (s *TCPServer) handleConnection(ctx context.Context, tcpConn IConnection, r
 		defer cancel()
 
 		// 握手阶段
-		if s.config.HandshakeEnable {
-			if err := s.handleHandshake(connCtx, tcpConn); err != nil {
-				log.Warnf("handshake failed from %s: %v", rawConn.RemoteAddr().String(), err)
-				return
-			}
-			log.Infof("🤝 handshake success from %s", rawConn.RemoteAddr().String())
+		if s.onConnected != nil {
+			s.onConnected(tcpConn)
 		}
 
 		const defaultHeartbeatTimeout = 60 * time.Second // 心跳或消息的最大空闲时长
@@ -225,8 +262,6 @@ func (s *TCPServer) handleConnection(ctx context.Context, tcpConn IConnection, r
 
 			lastActive = time.Now()
 			if msg.Type == MsgTypeHeartbeat {
-				// 心跳包直接丢弃/也可回包
-				log.Debugf("[HEARTBEAT] recv hb from %s", rawConn.RemoteAddr().String())
 				continue
 			}
 
@@ -237,34 +272,9 @@ func (s *TCPServer) handleConnection(ctx context.Context, tcpConn IConnection, r
 	})
 }
 
-// handleHandshake 处理握手
-func (s *TCPServer) handleHandshake(ctx context.Context, conn IConnection) error {
-	msg, err := conn.ReceiveMessage(ctx)
-	if err != nil {
-		return fmt.Errorf("receive handshake failed: %w", err)
-	}
-
-	if msg.Type != MsgTypeHandshake {
-		return fmt.Errorf("expected handshake message, got %d", msg.Type)
-	}
-
-	codec := DefaultCodec()
-	handshake, err := codec.DecodeHandshake(msg.Payload)
-	if err != nil {
-		return fmt.Errorf("decode handshake failed: %w", err)
-	}
-
-	conn.SetMeta(handshake)
-
-	log.Infof("handshake success: ServerType=%d, PlatformId=%d, ZoneId=%d, SrvType=%d",
-		handshake.ServerType, handshake.PlatformId, handshake.ZoneId, handshake.SrvType)
-
-	return nil
-}
-
 // isIPAllowed 检查IP是否允许
 func (s *TCPServer) isIPAllowed(addr net.Addr) bool {
-	if len(s.config.AllowedIPs) == 0 {
+	if len(s.allowedIPs) == 0 {
 		return true
 	}
 
@@ -274,7 +284,7 @@ func (s *TCPServer) isIPAllowed(addr net.Addr) bool {
 	}
 	ip := tcpAddr.IP.String()
 
-	for _, allowed := range s.config.AllowedIPs {
+	for _, allowed := range s.allowedIPs {
 		if ip == allowed || allowed == "0.0.0.0" {
 			return true
 		}
@@ -297,4 +307,9 @@ func (s *TCPServer) GetConnections() []IConnection {
 // GetConnectionCount 获取连接数
 func (s *TCPServer) GetConnectionCount() int {
 	return int(s.connCount.Load())
+}
+
+func (s *TCPServer) SetCallbacks(onConnected, onDisconnected func(conn IConnection)) {
+	s.onConnected = onConnected
+	s.onDisconnected = onDisconnected
 }

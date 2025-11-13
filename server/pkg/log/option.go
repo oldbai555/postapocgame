@@ -18,7 +18,7 @@ func WithPath(path string) Option {
 
 func WithLevel(level int) Option {
 	return func(log *logger) {
-		log.level = level
+		log.level = int32(level)
 	}
 }
 

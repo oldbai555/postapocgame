@@ -10,6 +10,7 @@ package pb3;
 
 option go_package = "server/internal/protocol";
 import "base.proto";
+import "player.proto";
 
 enum G2DRpcProtocol{
     G2DRPCProtocolNil = 0;
@@ -17,4 +18,39 @@ enum G2DRpcProtocol{
     G2DEnterDungeon = 1;// 进入副本
 }
 
-message G2DEnterDungeonReq {}
+message G2DEnterDungeonReq {
+    string session_id = 1;
+    uint32 platform_id = 2;// 平台ID
+    uint32 srv_id = 3;// 区服ID
+    PlayerSimpleData simple_data = 4;
+}
+
+message G2DSyncGameDataReq {
+    uint32 platform_id = 1;// 平台ID
+    uint32 srv_id = 2;// 区服ID
+}
+
+// DungeonServer -> GameServer RPC Protocol
+enum D2GRpcProtocol{
+    D2GRPCProtocolNil = 0;
+
+    D2GRegisterProtocols = 1;// 注册协议
+    D2GUnregisterProtocols = 2;// 注销协议
+}
+
+// 协议注册信息
+message ProtocolInfo {
+    uint32 protoId = 1;// 协议ID
+    bool isCommon = 2;// 是否为通用协议(多个DungeonServer共享)
+}
+
+// 注册协议请求
+message D2GRegisterProtocolsReq {
+    uint32 srvType = 1;// DungeonServer类型
+    repeated ProtocolInfo protocols = 2;// 协议列表
+}
+
+// 注销协议请求
+message D2GUnregisterProtocolsReq {
+    uint32 srvType = 1;// DungeonServer类型
+}

@@ -28,12 +28,12 @@ type SessionManager struct {
 	wg       sync.WaitGroup
 
 	sessionBufferSize int           // 每个会话的发送缓冲区大小
-	maxSessions       int           // 最大会话数
+	maxSessions       uint32        // 最大会话数
 	sessionTimeout    time.Duration // 会话超时时间
 }
 
 // NewSessionManager 创建会话管理器
-func NewSessionManager(maxSessions int, sessionBufferSize int, sessionTimeout time.Duration, gsConn IGameServerConnector) *SessionManager {
+func NewSessionManager(maxSessions uint32, sessionBufferSize int, sessionTimeout time.Duration, gsConn IGameServerConnector) *SessionManager {
 	return &SessionManager{
 		sessions: make(map[string]*Session),
 		gsConn:   gsConn,
@@ -50,7 +50,7 @@ func (sm *SessionManager) CreateSession(conn IConnection) (*Session, error) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	if sm.maxSessions > 0 && len(sm.sessions) >= sm.maxSessions {
+	if sm.maxSessions > 0 && uint32(len(sm.sessions)) >= sm.maxSessions {
 		return nil, customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "max session reached")
 	}
 

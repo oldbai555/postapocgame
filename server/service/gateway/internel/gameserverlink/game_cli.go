@@ -84,25 +84,21 @@ type GameClient struct {
 func NewGameClient(addr string) *GameClient {
 	handler := NewGameMessageHandler()
 
-	clientConfig := &network.TCPClientConfig{
-		HandshakeEnable: false,
-		EnableReconnect: true,
-		ReconnectConfig: network.DefaultReconnectConfig(),
-	}
-
-	client := network.NewTCPClient(clientConfig, handler)
+	client := network.NewTCPClient(
+		network.WithTCPClientOptionOnConn(func(conn network.IConnection) {
+			log.Infof("connected to game server: %s", addr)
+		}),
+		network.WithTCPClientOptionOnDisConn(func(conn network.IConnection) {
+			log.Warnf("disconnected from game server: %s", addr)
+		}),
+		network.WithTCPClientOptionNetworkMessageHandler(handler),
+	)
 
 	gsc := &GameClient{
 		client:  client,
 		codec:   network.DefaultCodec(),
 		handler: handler,
 	}
-
-	// 设置连接/断开回调
-	client.SetCallbacks(
-		func() { log.Infof("connected to game server: %s", addr) },
-		func() { log.Warnf("disconnected from game server: %s", addr) },
-	)
 
 	return gsc
 }

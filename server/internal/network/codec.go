@@ -340,55 +340,6 @@ func (c *Codec) DecodeSessionEvent(data []byte) (*SessionEvent, error) {
 }
 
 // ============================================
-// 6. 握手消息编解码
-// ============================================
-
-// EncodeHandshake 编码握手消息
-func (c *Codec) EncodeHandshake(handshake *HandshakeMessage) []byte {
-	data := GetBuffer(10)
-	offset := 0
-
-	data[offset] = handshake.ServerType
-	offset++
-
-	c.byteOrder.PutUint32(data[offset:], handshake.PlatformId)
-	offset += 4
-
-	c.byteOrder.PutUint32(data[offset:], handshake.ZoneId)
-	offset += 4
-
-	data[offset] = handshake.SrvType
-
-	return data
-}
-
-// DecodeHandshake 解码握手消息
-func (c *Codec) DecodeHandshake(data []byte) (*HandshakeMessage, error) {
-	if len(data) < 10 {
-		return nil, ErrInvalidMessage
-	}
-
-	offset := 0
-	serverType := data[offset]
-	offset++
-
-	platformId := c.byteOrder.Uint32(data[offset:])
-	offset += 4
-
-	zoneId := c.byteOrder.Uint32(data[offset:])
-	offset += 4
-
-	srvType := data[offset]
-
-	return &HandshakeMessage{
-		ServerType: serverType,
-		PlatformId: platformId,
-		ZoneId:     zoneId,
-		SrvType:    srvType,
-	}, nil
-}
-
-// ============================================
 // 7. JSON序列化辅助（使用内存池）
 // ============================================
 

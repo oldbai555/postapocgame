@@ -9,6 +9,7 @@ package engine
 import (
 	"os"
 	"path"
+	"postapocgame/server/internal"
 	"postapocgame/server/pkg/tool"
 	"time"
 )
@@ -27,7 +28,7 @@ type Config struct {
 
 	// 会话配置
 	SessionBufferSize int           // 每个会话的发送缓冲区大小
-	MaxSessions       int           // 最大会话数
+	MaxSessions       uint32        // 最大会话数
 	SessionTimeout    time.Duration // 会话超时时间
 
 	MaxFrameSize int // 帧协议配置 最大帧大小
@@ -42,7 +43,7 @@ func LoadGatewayConf(confPath string) (*Config, error) {
 		return nil, err
 	}
 	var conf Config
-	err = tool.JsonUnmarshal(bytes, &conf)
+	err = internal.Unmarshal(bytes, &conf)
 	if err != nil {
 		return nil, err
 	}

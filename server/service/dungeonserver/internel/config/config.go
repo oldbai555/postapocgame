@@ -9,6 +9,7 @@ package config
 import (
 	"os"
 	"path"
+	"postapocgame/server/internal"
 	"postapocgame/server/pkg/tool"
 )
 
@@ -30,7 +31,7 @@ func LoadServerConfig(confPath string) (*ServerConfig, error) {
 		return nil, err
 	}
 	var conf ServerConfig
-	err = tool.JsonUnmarshal(bytes, &conf)
+	err = internal.Unmarshal(bytes, &conf)
 	if err != nil {
 		return nil, err
 	}

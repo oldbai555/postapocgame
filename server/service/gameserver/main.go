@@ -13,6 +13,7 @@ import (
 	"postapocgame/server/service/gameserver/internel/dungeonserverlink"
 	"postapocgame/server/service/gameserver/internel/engine"
 	"postapocgame/server/service/gameserver/internel/gevent"
+	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/playeractor"
 	"syscall"
 	"time"
@@ -27,6 +28,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("err:%v", err)
 	}
+
+	gshare.SetPlatformId(serverConfig.PlatformID)
+	gshare.SetSrvId(serverConfig.SrvId)
 
 	// 创建GameServer
 	gs := engine.NewGameServer(serverConfig)
@@ -43,6 +47,9 @@ func main() {
 
 	// 连接DungeonServer
 	dungeonserverlink.StartDungeonClient(ctx, serverConfig)
+
+	// 初始化协议注册RPC处理器
+	dungeonserverlink.InitProtocolRegistration()
 
 	if err := playerRoleActor.Start(ctx); err != nil {
 		log.Fatalf("Start playerRoleActor failed: %v", err)

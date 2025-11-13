@@ -14,37 +14,36 @@ import (
 	"postapocgame/server/pkg/routine"
 )
 
-// TCPClientConfig TCP客户端配置
-type TCPClientConfig struct {
-	ConnectTimeout  time.Duration     // 连接超时
-	HandshakeEnable bool              // 是否启用握手
-	Handshake       *HandshakeMessage // 握手消息
+type TCPClientOption func(*TCPClient)
 
-	EnableReconnect bool             // 是否启用重连
-	ReconnectConfig *ReconnectConfig // 重连配置
+func WithTCPClientOptionOnConn(f func(conn IConnection)) TCPClientOption {
+	return func(client *TCPClient) {
+		client.onConnected = f
+	}
 }
 
-// ReconnectConfig 重连配置
-type ReconnectConfig struct {
-	InitialInterval time.Duration
-	MaxInterval     time.Duration
-	Multiplier      float64
-	MaxRetries      int
+func WithTCPClientOptionOnDisConn(f func(conn IConnection)) TCPClientOption {
+	return func(client *TCPClient) {
+		client.onDisconnected = f
+	}
 }
 
-func DefaultReconnectConfig() *ReconnectConfig {
-	return &ReconnectConfig{
-		InitialInterval: 1 * time.Second,
-		MaxInterval:     30 * time.Second,
-		Multiplier:      1.5,
-		MaxRetries:      0,
+func WithTCPClientOptionNetworkMessageHandler(handler INetworkMessageHandler) TCPClientOption {
+	return func(client *TCPClient) {
+		client.handler = handler
 	}
 }
 
 // TCPClient TCP客户端
 type TCPClient struct {
-	config *TCPClientConfig
-	addr   string
+	addr string
+
+	ConnectTimeout  time.Duration // 连接超时
+	EnableReconnect bool          // 是否启用重连
+	InitialInterval time.Duration
+	MaxInterval     time.Duration
+	Multiplier      float64
+	MaxRetries      int
 
 	conn      IConnection
 	connected atomic.Bool
@@ -53,8 +52,8 @@ type TCPClient struct {
 	reconnecting atomic.Bool
 	retryCount   atomic.Int32
 
-	onConnected    func()
-	onDisconnected func()
+	onConnected    func(conn IConnection)
+	onDisconnected func(conn IConnection)
 
 	handler INetworkMessageHandler
 
@@ -70,26 +69,19 @@ type TCPClient struct {
 	cancel context.CancelFunc
 }
 
-func NewTCPClient(config *TCPClientConfig, handler INetworkMessageHandler) *TCPClient {
-	if config.ConnectTimeout == 0 {
-		config.ConnectTimeout = 10 * time.Second
+func NewTCPClient(opts ...TCPClientOption) ITCPClient {
+	t := &TCPClient{
+		EnableReconnect: true,
+		ConnectTimeout:  3 * time.Second,
+		InitialInterval: 1 * time.Second,
+		MaxInterval:     30 * time.Second,
+		Multiplier:      1.5,
+		stopChan:        make(chan struct{}),
 	}
-	return &TCPClient{
-		config:   config,
-		handler:  handler,
-		stopChan: make(chan struct{}),
+	for _, opt := range opts {
+		opt(t)
 	}
-}
-
-func (c *TCPClient) SetCallbacks(onConnected, onDisconnected func()) {
-	c.onConnected = onConnected
-	c.onDisconnected = onDisconnected
-}
-
-func (c *TCPClient) SetMessageHandler(handler INetworkMessageHandler) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.handler = handler
+	return t
 }
 
 func (c *TCPClient) Connect(ctx context.Context, addr string) error {
@@ -101,7 +93,7 @@ func (c *TCPClient) Connect(ctx context.Context, addr string) error {
 	// 🔹内部 ctx 派生自外部 ctx，外部 ctx 取消 => 客户端关闭
 	c.ctx, c.cancel = context.WithCancel(ctx)
 
-	if c.config.EnableReconnect {
+	if c.EnableReconnect {
 		return c.connectWithReconnect(ctx)
 	}
 	return c.doConnect(ctx)
@@ -128,8 +120,8 @@ func (c *TCPClient) connectWithReconnect(ctx context.Context) error {
 	return nil
 }
 
-func (c *TCPClient) doConnect(ctx context.Context) error {
-	conn, err := net.DialTimeout("tcp", c.addr, c.config.ConnectTimeout)
+func (c *TCPClient) doConnect(_ context.Context) error {
+	conn, err := net.DialTimeout("tcp", c.addr, c.ConnectTimeout)
 	if err != nil {
 		return customerr.Wrap(err, int32(protocol.ErrorCode_Internal_Error))
 	}
@@ -137,20 +129,6 @@ func (c *TCPClient) doConnect(ctx context.Context) error {
 	c.mu.Lock()
 	c.conn = NewTCPConnection(conn)
 	c.mu.Unlock()
-
-	if c.config.HandshakeEnable && c.config.Handshake != nil {
-		// ✅ 添加握手超时
-		handshakeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		defer cancel()
-
-		if err := c.sendHandshake(handshakeCtx); err != nil {
-			c.conn.Close()
-			c.mu.Lock()
-			c.conn = nil
-			c.mu.Unlock()
-			return customerr.Wrap(err, int32(protocol.ErrorCode_Internal_Error))
-		}
-	}
 
 	c.connected.Store(true)
 	c.reconnecting.Store(false)
@@ -163,7 +141,9 @@ func (c *TCPClient) doConnect(ctx context.Context) error {
 	c.startReceiveLoop()
 
 	if c.onConnected != nil {
-		routine.Run(c.onConnected)
+		routine.Run(func() {
+			c.onConnected(c.conn)
+		})
 	}
 
 	return nil
@@ -248,19 +228,6 @@ func (c *TCPClient) receiveLoop(ctx context.Context) {
 	}
 }
 
-func (c *TCPClient) sendHandshake(ctx context.Context) error {
-	codec := DefaultCodec()
-	payload := codec.EncodeHandshake(c.config.Handshake)
-	defer PutBuffer(payload)
-
-	message := GetMessage()
-	message.Type = MsgTypeHandshake
-	message.Payload = payload
-	defer PutMessage(message)
-
-	return c.conn.SendMessage(message)
-}
-
 func (c *TCPClient) healthCheck() {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
@@ -317,10 +284,13 @@ func (c *TCPClient) handleDisconnect() {
 	c.mu.Unlock()
 
 	if c.onDisconnected != nil {
-		routine.Run(c.onDisconnected)
+		routine.Run(
+			func() {
+				c.onDisconnected(c.conn)
+			})
 	}
 
-	if c.config.EnableReconnect && !c.stopping.Load() {
+	if c.EnableReconnect && !c.stopping.Load() {
 		c.startReconnect()
 	}
 }
@@ -341,11 +311,7 @@ func (c *TCPClient) startReconnect() {
 func (c *TCPClient) reconnectLoop() {
 	defer c.reconnecting.Store(false)
 
-	if c.config.ReconnectConfig == nil {
-		c.config.ReconnectConfig = DefaultReconnectConfig()
-	}
-
-	interval := c.config.ReconnectConfig.InitialInterval
+	interval := c.InitialInterval
 
 	for {
 		if c.stopping.Load() {
@@ -353,15 +319,15 @@ func (c *TCPClient) reconnectLoop() {
 		}
 
 		retries := c.retryCount.Add(1)
-		if c.config.ReconnectConfig.MaxRetries > 0 && int(retries) > c.config.ReconnectConfig.MaxRetries {
-			log.Errorf("max retries (%d) reached for %s, giving up", c.config.ReconnectConfig.MaxRetries, c.addr)
+		if c.MaxRetries > 0 && int(retries) > c.MaxRetries {
+			log.Errorf("max retries (%d) reached for %s, giving up", c.MaxRetries, c.addr)
 			return
 		}
 
 		log.Infof("attempting to reconnect to %s (attempt %d)...", c.addr, retries)
 
 		// 🔹每次重连使用独立短期拨号 context，防止阻塞
-		dialCtx, cancel := context.WithTimeout(c.ctx, c.config.ConnectTimeout)
+		dialCtx, cancel := context.WithTimeout(c.ctx, c.ConnectTimeout)
 		err := c.doConnect(dialCtx)
 		cancel()
 
@@ -373,9 +339,9 @@ func (c *TCPClient) reconnectLoop() {
 			case <-c.stopChan:
 				return
 			case <-time.After(interval):
-				interval = time.Duration(float64(interval) * c.config.ReconnectConfig.Multiplier)
-				if interval > c.config.ReconnectConfig.MaxInterval {
-					interval = c.config.ReconnectConfig.MaxInterval
+				interval = time.Duration(float64(interval) * c.Multiplier)
+				if interval > c.MaxInterval {
+					interval = c.MaxInterval
 				}
 				continue
 			}

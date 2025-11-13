@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	DefaultSkipCall = 3     // 默认跳过调用层级
+	DefaultSkipCall = 4     // 默认跳过调用层级
 	maxContentSize  = 15000 // 最大日志内容长度（防止磁盘溢出）
 )
 
