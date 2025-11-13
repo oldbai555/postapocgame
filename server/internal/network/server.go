@@ -98,6 +98,9 @@ func (s *TCPServer) Start(ctx context.Context) error {
 	// 启动接受连接协程
 	s.wg.Add(1)
 	routine.GoV2(func() error {
+		defer func() {
+			s.wg.Done()
+		}()
 		s.acceptLoop(ctx)
 		return nil
 	})
@@ -141,7 +144,6 @@ func (s *TCPServer) Stop(ctx context.Context) error {
 
 // acceptLoop 接受连接循环
 func (s *TCPServer) acceptLoop(ctx context.Context) {
-	defer s.wg.Done()
 	defer log.Infof("accept loop exited")
 
 	for {
@@ -185,6 +187,9 @@ func (s *TCPServer) acceptLoop(ctx context.Context) {
 		// 启动连接处理协程
 		s.wg.Add(1)
 		routine.GoV2(func() error {
+			defer func() {
+				s.wg.Done()
+			}()
 			s.handleConnection(ctx, tcpConn, conn)
 			return nil
 		})
@@ -193,9 +198,7 @@ func (s *TCPServer) acceptLoop(ctx context.Context) {
 
 // handleConnection 处理单个连接
 func (s *TCPServer) handleConnection(ctx context.Context, tcpConn IConnection, rawConn net.Conn) {
-	s.wg.Add(1)
 	routine.Run(func() {
-		defer s.wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
 				log.Errorf("[PANIC] TCP connection handler crashed, remote=%s, err=%v", rawConn.RemoteAddr().String(), r)
