@@ -2,6 +2,7 @@ package playeractor
 
 import (
 	"postapocgame/server/internal/actor"
+	"postapocgame/server/pkg/routine"
 )
 
 var _ actor.IActorHandler = (*PlayerHandler)(nil)
@@ -17,13 +18,19 @@ type PlayerHandler struct {
 }
 
 func (h *PlayerHandler) Loop() {
-	return
+	routine.Run(func() {
+		// ...原本Loop的业务逻辑...
+	})
 }
 
 func (h *PlayerHandler) OnStart() {
-
+	routine.Run(func() {
+		// ...业务逻辑...
+	})
 }
 
 func (h *PlayerHandler) OnStop() {
-
+	routine.Run(func() {
+		// ...业务逻辑...
+	})
 }

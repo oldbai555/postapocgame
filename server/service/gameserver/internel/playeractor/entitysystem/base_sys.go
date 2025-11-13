@@ -2,6 +2,7 @@ package entitysystem
 
 import (
 	"context"
+	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/iface"
@@ -53,11 +54,11 @@ func (bs *BaseSystem) SetOpened(opened bool) {
 func GetIPlayerRoleByContext(ctx context.Context) (iface.IPlayerRole, error) {
 	value := ctx.Value(gshare.ContextKeyRole)
 	if value == nil {
-		return nil, customerr.NewCustomErr("not found %s value", gshare.ContextKeyRole)
+		return nil, customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "not found %s value", gshare.ContextKeyRole)
 	}
 	iPlayerRole, ok := value.(iface.IPlayerRole)
 	if !ok {
-		return nil, customerr.NewCustomErr("not convert to IPlayerRole")
+		return nil, customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "not convert to IPlayerRole")
 	}
 	return iPlayerRole, nil
 }

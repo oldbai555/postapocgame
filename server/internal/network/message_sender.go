@@ -2,6 +2,7 @@ package network
 
 import (
 	"encoding/json"
+	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 )
 
@@ -44,7 +45,7 @@ func (s *BaseMessageSender) SetConn(conn IConnection) {
 // SendToClient 发送消息给客户端
 func (s *BaseMessageSender) SendToClient(sessionId string, msgId uint16, data []byte) error {
 	if s.conn == nil {
-		return customerr.NewCustomErr("conn is nil")
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "conn is nil")
 	}
 
 	// 1. 编码客户端消息
@@ -57,7 +58,7 @@ func (s *BaseMessageSender) SendToClient(sessionId string, msgId uint16, data []
 		Data:  data,
 	})
 	if err != nil {
-		return customerr.Wrap(err)
+		return customerr.Wrap(err, int32(protocol.ErrorCode_Internal_Error))
 	}
 	defer PutBuffer(clientMsgBuf)
 

@@ -3,6 +3,7 @@ package actor
 import (
 	"context"
 	"fmt"
+	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"sync"
@@ -36,7 +37,7 @@ func (m *actorManager) Init() error {
 
 func (m *actorManager) Start(ctx context.Context) error {
 	if m.actorHandlerFactoryFunc == nil {
-		return customerr.NewCustomErr("not found msg handler factory func")
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "not found msg handler factory func")
 	}
 	m.ctx, m.cancel = context.WithCancel(ctx)
 	actorHandler := m.actorHandlerFactoryFunc()

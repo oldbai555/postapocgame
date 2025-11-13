@@ -2,6 +2,7 @@ package dungeonserverlink
 
 import (
 	"context"
+	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/config"
@@ -33,7 +34,7 @@ func Stop() {
 
 func AsyncCall(ctx context.Context, srvType uint8, sessionId string, msgId uint16, data []byte) error {
 	if dungeonRPC == nil {
-		return customerr.NewCustomErr("dungeonRPC not initialized")
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "dungeonRPC not initialized")
 	}
 	return dungeonRPC.AsyncCall(ctx, srvType, sessionId, msgId, data)
 }

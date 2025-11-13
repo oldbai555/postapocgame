@@ -1,0 +1,14 @@
+syntax = "proto3";
+package pb3;
+option go_package = "server/internal/protocol";
+
+// 通用错误码，全局唯一。
+enum ErrorCode {
+    Success                = 0;  // 成功
+    Internal_Error         = 1000; // 系统内部错误
+    Param_Invalid          = 1001; // 参数不合法
+    Network_Timeout        = 2001; // 网络超时
+    Player_NotFound        = 3001; // 找不到玩家
+    Item_NotEnough         = 5001; // 道具数量不足
+    // ... 更多业务细分可继续补充 ...
+}

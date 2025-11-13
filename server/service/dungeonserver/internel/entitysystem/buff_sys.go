@@ -1,6 +1,7 @@
 package entitysystem
 
 import (
+	"fmt"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
@@ -35,7 +36,7 @@ func (bs *BuffSys) AddBuff(entityId uint64, buffId uint32, casterId uint64) erro
 	// TODO: 从配置中获取Buff信息
 	buffInfo := bs.getBuffInfo(buffId)
 	if buffInfo == nil {
-		return customerr.NewCustomErr("%d %d %d buff not found", entityId, buffId, casterId)
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), fmt.Sprintf("%d %d %d buff not found", entityId, buffId, casterId))
 	}
 
 	// 获取实体的Buff列表
@@ -82,11 +83,11 @@ func (bs *BuffSys) RemoveBuff(entityId uint64, buffId uint32) error {
 
 	buffs, ok := bs.entityBuffs[entityId]
 	if !ok {
-		return customerr.NewCustomErr("entity has no buffs")
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "entity has no buffs")
 	}
 
 	if _, ok := buffs[buffId]; !ok {
-		return customerr.NewCustomErr("buff not found on entity")
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "buff not found on entity")
 	}
 
 	delete(buffs, buffId)

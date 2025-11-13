@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
 	"postapocgame/server/service/gateway/internel/engine"
@@ -13,6 +14,9 @@ import (
 
 func main() {
 	log.InitLogger(log.WithAppName("gateway"), log.WithScreen(true), log.WithPath(tool.GetCurDir()+"log"))
+
+	// 初始化错误码映射
+	protocol.InitErrorCodes()
 	defer func() {
 		log.Flush()
 	}()

@@ -92,71 +92,71 @@ func (h *ClientHandler) getOrCreateSession(conn network.IConnection) *Session {
 
 // handleSend 处理发送（优雅关闭版本）
 func (h *ClientHandler) handleSend(conn network.IConnection, session *Session) {
-	defer func() {
-		// 清理工作
-		h.mu.Lock()
-		delete(h.Sessions, conn)
-		h.mu.Unlock()
+	routine.Run(func() {
+		defer func() {
+			// 清理工作
+			h.mu.Lock()
+			delete(h.Sessions, conn)
+			h.mu.Unlock()
+			// 关闭会话
+			if err := h.SessionMgr.CloseSession(session.Id); err != nil {
+				log.Errorf("CloseSession failed for session %s, err:%v", session.Id, err)
+			}
+			log.Infof("handleSend goroutine exited for session: %s", session.Id)
+		}()
 
-		// 关闭会话
-		if err := h.SessionMgr.CloseSession(session.Id); err != nil {
-			log.Errorf("CloseSession failed for session %s, err:%v", session.Id, err)
-		}
+		// 连续发送失败计数器
+		consecutiveFailures := 0
+		maxConsecutiveFailures := 3 // 连续失败3次后才认为连接已断开
 
-		log.Infof("handleSend goroutine exited for session: %s", session.Id)
-	}()
+		for {
+			select {
+			case data, ok := <-session.SendChan:
+				// channel 被关闭，退出
+				if !ok {
+					log.Infof("SendChan closed for session: %s", session.Id)
+					return
+				}
 
-	// 连续发送失败计数器
-	consecutiveFailures := 0
-	maxConsecutiveFailures := 3 // 连续失败3次后才认为连接已断开
+				message := network.GetMessage()
+				message.Type = network.MsgTypeClient
+				message.Payload = data
 
-	for {
-		select {
-		case data, ok := <-session.SendChan:
-			// channel 被关闭，退出
-			if !ok {
-				log.Infof("SendChan closed for session: %s", session.Id)
+				// 尝试发送消息
+				if err := conn.SendMessage(message); err != nil {
+					consecutiveFailures++
+					log.Warnf("Send message failed (attempt %d/%d) for session %s: %v",
+						consecutiveFailures, maxConsecutiveFailures, session.Id, err)
+
+					// 检查是否是致命错误（连接已断开）
+					if isConnectionError(err) {
+						log.Errorf("Connection error detected for session %s: %v", session.Id, err)
+						network.PutMessage(message)
+						return
+					}
+
+					// 连续失败次数过多，认为连接已不可用
+					if consecutiveFailures >= maxConsecutiveFailures {
+						log.Errorf("Max consecutive failures reached for session %s, closing connection", session.Id)
+						network.PutMessage(message)
+						return
+					}
+
+					// 发送失败但还没达到阈值，继续尝试下一条消息
+					network.PutMessage(message)
+					continue
+				}
+
+				// 发送成功，重置失败计数器
+				consecutiveFailures = 0
+				network.PutMessage(message)
+
+			case <-session.stopChan: // 🔧 新增：会话级别的停止信号
+				log.Infof("Session stop signal received for session: %s", session.Id)
 				return
 			}
-
-			message := network.GetMessage()
-			message.Type = network.MsgTypeClient
-			message.Payload = data
-
-			// 尝试发送消息
-			if err := conn.SendMessage(message); err != nil {
-				consecutiveFailures++
-				log.Warnf("Send message failed (attempt %d/%d) for session %s: %v",
-					consecutiveFailures, maxConsecutiveFailures, session.Id, err)
-
-				// 检查是否是致命错误（连接已断开）
-				if isConnectionError(err) {
-					log.Errorf("Connection error detected for session %s: %v", session.Id, err)
-					network.PutMessage(message)
-					return
-				}
-
-				// 连续失败次数过多，认为连接已不可用
-				if consecutiveFailures >= maxConsecutiveFailures {
-					log.Errorf("Max consecutive failures reached for session %s, closing connection", session.Id)
-					network.PutMessage(message)
-					return
-				}
-
-				// 发送失败但还没达到阈值，继续尝试下一条消息
-				network.PutMessage(message)
-				continue
-			}
-
-			// 发送成功，重置失败计数器
-			consecutiveFailures = 0
-			network.PutMessage(message)
-
-		case <-session.stopChan: // 🔧 新增：会话级别的停止信号
-			log.Infof("Session stop signal received for session: %s", session.Id)
-			return
 		}
-	}
+	})
 }
 
 // isConnectionError 判断是否是连接错误（不可恢复的错误）

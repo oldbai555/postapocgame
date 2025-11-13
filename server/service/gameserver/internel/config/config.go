@@ -49,3 +49,15 @@ func LoadServerConfig(confPath string) (*ServerConfig, error) {
 
 	return &conf, nil
 }
+
+// 热加载配置建议示例（可在main里用go热重载）
+// func (c *ServerConfig) WatchAndReload() {
+//     go func() {
+//         for {
+//             // 监听文件变化或定时reload
+//             <-time.After(30 * time.Second)
+//             // TODO: reload from disk
+//             // ...变更后赋值到c...
+//         }
+//     }()
+// }

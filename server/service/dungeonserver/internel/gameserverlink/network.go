@@ -3,6 +3,7 @@ package gameserverlink
 import (
 	"context"
 	"postapocgame/server/internal/network"
+	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/base"
@@ -146,7 +147,7 @@ func (h *NetworkHandler) sendRPCResponse(conn network.IConnection, resp *network
 func (h *NetworkHandler) CallGameServer(ctx context.Context, sessionId string, msgId uint16, data []byte) error {
 	conn, ok := GetMessageSender().GetGameServerBySession(sessionId)
 	if !ok {
-		return customerr.NewCustomErr("game server not found for session: %s", sessionId)
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "game server not found for session: %s", sessionId)
 	}
 
 	req := network.GetRPCRequest()

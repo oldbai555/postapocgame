@@ -16,10 +16,13 @@ func Go(ctx context.Context, logic func(ctx context.Context) error) {
 
 		})
 		err := logic(ctx)
-		if customerr.GetErrCode(err) < 0 {
-			msg := fmt.Sprintf("go-routine err %v", err)
-			log.Errorf(msg)
-			// 错误通知
+		if err != nil {
+			code := customerr.GetErrCode(err)
+			if code < 0 {
+				msg := fmt.Sprintf("go-routine err %v", err)
+				log.Errorf(msg)
+				// 错误通知
+			}
 		}
 	}()
 }
@@ -30,10 +33,13 @@ func GoV2(fn func() error) {
 
 		})
 		err := fn()
-		if customerr.GetErrCode(err) < 0 {
-			msg := fmt.Sprintf("go-routine err:%v", err)
-			log.Errorf(msg)
-			// 错误通知
+		if err != nil {
+			code := customerr.GetErrCode(err)
+			if code < 0 {
+				msg := fmt.Sprintf("go-routine err:%v", err)
+				log.Errorf(msg)
+				// 错误通知
+			}
 		}
 	}()
 }

@@ -155,49 +155,86 @@ func (s *TCPServer) acceptLoop(ctx context.Context) {
 
 // handleConnection 处理单个连接
 func (s *TCPServer) handleConnection(ctx context.Context, tcpConn IConnection, rawConn net.Conn) {
-	defer s.wg.Done()
-	defer func() {
-		tcpConn.Close()
-		s.connections.Delete(rawConn)
-		s.connCount.Add(-1)
-		log.Infof("❌ connection closed: %s (remaining=%d)", rawConn.RemoteAddr().String(), s.connCount.Load())
-	}()
+	s.wg.Add(1)
+	routine.Run(func() {
+		defer s.wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				log.Errorf("[PANIC] TCP connection handler crashed, remote=%s, err=%v", rawConn.RemoteAddr().String(), r)
+			}
+			tcpConn.Close()
+			s.connections.Delete(rawConn)
+			s.connCount.Add(-1)
+			log.Infof("❌ connection closed: %s (remaining=%d)", rawConn.RemoteAddr().String(), s.connCount.Load())
+		}()
 
-	connCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
+		connCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
 
-	// 握手阶段
-	if s.config.HandshakeEnable {
-		if err := s.handleHandshake(connCtx, tcpConn); err != nil {
-			log.Warnf("handshake failed from %s: %v", rawConn.RemoteAddr().String(), err)
-			return
-		}
-		log.Infof("🤝 handshake success from %s", rawConn.RemoteAddr().String())
-	}
-
-	// 主循环
-	for {
-		select {
-		case <-connCtx.Done():
-			return
-		case <-s.stopChan:
-			return
-		default:
-		}
-
-		msg, err := tcpConn.ReceiveMessage(connCtx)
-		if err != nil {
-			if errors.Is(err, context.Canceled) || errors.Is(err, net.ErrClosed) {
+		// 握手阶段
+		if s.config.HandshakeEnable {
+			if err := s.handleHandshake(connCtx, tcpConn); err != nil {
+				log.Warnf("handshake failed from %s: %v", rawConn.RemoteAddr().String(), err)
 				return
 			}
-			log.Warnf("receive message failed from %s: %v", rawConn.RemoteAddr().String(), err)
-			return
+			log.Infof("🤝 handshake success from %s", rawConn.RemoteAddr().String())
 		}
 
-		if err := s.handler.HandleMessage(connCtx, tcpConn, msg); err != nil {
-			log.Warnf("handle message failed from %s: %v", rawConn.RemoteAddr().String(), err)
+		const defaultHeartbeatTimeout = 60 * time.Second // 心跳或消息的最大空闲时长
+		lastActive := time.Now()
+
+		// 主循环
+		for {
+			select {
+			case <-connCtx.Done():
+				return
+			case <-s.stopChan:
+				return
+			default:
+			}
+
+			// 空闲超时检测
+			if time.Since(lastActive) > defaultHeartbeatTimeout {
+				log.Warnf("[HEARTBEAT] connection idle timeout from %s, kicking...", rawConn.RemoteAddr().String())
+				return
+			}
+
+			tcpConnRaw := tcpConn // 保持变量一致，兼容类型
+			// 设置读取超时，实现心跳自动检测
+			raw, ok := tcpConnRaw.(*TCPConnection)
+			if ok {
+				_ = raw.conn.SetReadDeadline(time.Now().Add(defaultHeartbeatTimeout))
+			}
+
+			msg, err := tcpConn.ReceiveMessage(connCtx)
+			if err != nil {
+				if errors.Is(err, context.Canceled) || errors.Is(err, net.ErrClosed) {
+					return
+				}
+				// 详细分类日志
+				switch {
+				case errors.Is(err, ErrFrameTooLarge):
+					log.Warnf("[SECURITY] recv frame too large from %s: %v", rawConn.RemoteAddr().String(), err)
+				case errors.Is(err, ErrInvalidMessage):
+					log.Warnf("[PROTO] invalid message from %s: %v", rawConn.RemoteAddr().String(), err)
+				default:
+					log.Warnf("receive message failed from %s: %v", rawConn.RemoteAddr().String(), err)
+				}
+				return
+			}
+
+			lastActive = time.Now()
+			if msg.Type == MsgTypeHeartbeat {
+				// 心跳包直接丢弃/也可回包
+				log.Debugf("[HEARTBEAT] recv hb from %s", rawConn.RemoteAddr().String())
+				continue
+			}
+
+			if err := s.handler.HandleMessage(connCtx, tcpConn, msg); err != nil {
+				log.Warnf("handle message failed from %s: %v", rawConn.RemoteAddr().String(), err)
+			}
 		}
-	}
+	})
 }
 
 // handleHandshake 处理握手

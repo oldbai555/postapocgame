@@ -1,64 +1,27 @@
 package customerr
 
-import "fmt"
-
-var errMap = make(map[int32]*Error)
-var errcodeMsgMap = make(map[int32]string)
-
-func Register(err ...*Error) {
-	for _, gerr := range err {
-		errMap[gerr.code] = gerr
-	}
-}
-
-func RegisterErrCodeMsg(errCodeMsg map[int32]string) {
-	for k, v := range errCodeMsg {
-		errcodeMsgMap[k] = v
-	}
-}
-
-func NewGErr(code int32) error {
-	msg := errcodeMsgMap[code]
-	return NewErr(code, msg)
-}
-
+// GetErrCode 获取错误码（兼容新旧错误类型）
 func GetErrCode(err error) int32 {
 	if err == nil {
 		return 0
 	}
-	if p, ok := err.(*Error); ok {
-		return p.code
+	// 优先支持新的 CustomErr 类型
+	if p, ok := err.(*CustomErr); ok {
+		return p.Code
 	}
-
+	// 兼容旧的 Error 类型（如果存在）
+	// 注意：旧的 Error 类型已删除，这里保留兼容性检查
 	return -1
 }
 
-func GetErrMsg(errCode int32) string {
-	if errCode == 0 {
+// GetErrMsgByErr 获取错误消息
+func GetErrMsgByErr(err error) string {
+	if err == nil {
 		return "success"
 	}
-	msg, ok := errMap[errCode]
-	if ok {
-		return msg.message
+	// 优先支持新的 CustomErr 类型
+	if x, ok := err.(*CustomErr); ok {
+		return x.Message
 	}
-	if errCode < 0 {
-		return "system error"
-	}
-	return "unknown"
-}
-
-func GetErrMsgByErr(err error) string {
-	if x, ok := err.(*Error); ok {
-		return x.message
-	} else {
-		return err.Error()
-	}
-}
-
-func Creategerr(code int32) *Error {
-	gerr, ok := errMap[code]
-	if ok {
-		return gerr
-	}
-	return &Error{code: code, message: fmt.Sprintf("unknown code %d", code)}
+	return err.Error()
 }

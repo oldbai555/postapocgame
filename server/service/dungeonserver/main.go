@@ -6,6 +6,7 @@ import (
 	"os/signal"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/event"
+	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
 	"postapocgame/server/service/dungeonserver/internel/config"
@@ -19,6 +20,9 @@ import (
 
 func main() {
 	log.InitLogger(log.WithAppName("dungeonserver"), log.WithScreen(true), log.WithPath(tool.GetCurDir()+"log"))
+
+	// 初始化错误码映射
+	protocol.InitErrorCodes()
 	serverConfig, err := config.LoadServerConfig("")
 	if err != nil {
 		log.Fatalf("err:%v", err)

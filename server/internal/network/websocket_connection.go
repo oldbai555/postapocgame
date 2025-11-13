@@ -6,6 +6,7 @@ import (
 	"github.com/gorilla/websocket"
 	"net"
 	"sync"
+	"time"
 )
 
 // WebSocketConnection WebSocket连接实现
@@ -35,6 +36,9 @@ func (wc *WebSocketConnection) SendMessage(msg *Message) error {
 
 // ReceiveMessage 接收消息
 func (wc *WebSocketConnection) ReceiveMessage(ctx context.Context) (*Message, error) {
+	// 为ws连接设置读超时
+	deadline := time.Now().Add(60 * time.Second)
+	_ = wc.conn.SetReadDeadline(deadline)
 	messageType, data, err := wc.conn.ReadMessage()
 	if err != nil {
 		return nil, err

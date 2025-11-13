@@ -9,6 +9,7 @@ import (
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/routine"
 	"sync"
+	"time"
 )
 
 // WSServerConfig WebSocket服务器配置
@@ -167,15 +168,8 @@ func (s *WSServer) handleConnection(ctx context.Context, wsConn IConnection, raw
 		log.Infof("WebSocket connection closed: %s", rawConn.RemoteAddr().String())
 	}()
 
-	// 如果启用握手,先处理握手
-	if s.config.HandshakeEnable {
-		if err := s.handleHandshake(ctx, wsConn); err != nil {
-			log.Errorf("Handshake failed: %v", err)
-			return
-		}
-	}
-
-	// 消息处理循环
+	const defaultHeartbeatTimeout = 60 * time.Second
+	lastActive := time.Now()
 	for {
 		select {
 		case <-ctx.Done():
@@ -185,12 +179,21 @@ func (s *WSServer) handleConnection(ctx context.Context, wsConn IConnection, raw
 		default:
 		}
 
+		if time.Since(lastActive) > defaultHeartbeatTimeout {
+			log.Warnf("[HEARTBEAT] ws connection idle timeout from %s, kicking...", rawConn.RemoteAddr().String())
+			return
+		}
+
 		msg, err := wsConn.ReceiveMessage(ctx)
 		if err != nil {
 			log.Errorf("Receive message failed: %v", err)
 			return
 		}
-
+		lastActive = time.Now()
+		if msg.Type == MsgTypeHeartbeat {
+			log.Debugf("[HEARTBEAT] recv hb from %s", rawConn.RemoteAddr().String())
+			continue
+		}
 		// 调用消息处理器
 		if err := s.handler.HandleMessage(ctx, wsConn, msg); err != nil {
 			log.Errorf("Handle message failed: %v", err)

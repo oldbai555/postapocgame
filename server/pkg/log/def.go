@@ -1,14 +1,6 @@
 package log
 
-const (
-	TraceLevel = iota // Trace级别
-	DebugLevel        // Debug级别
-	InfoLevel         // Info级别
-	WarnLevel         // Warn级别
-	ErrorLevel        // Error级别
-	StackLevel        // stack级别
-	FatalLevel        // Fatal级别
-)
+import "errors"
 
 const (
 	LogFileMaxSize   = 1024 * 1024 * 500
@@ -24,4 +16,10 @@ const (
 	errorColor = "\033[31m[Error] %s\033[0m"
 	stackColor = "\033[31m[Stack] %s\033[0m"
 	fatalColor = "\033[31m[Fatal] %s\033[0m"
+)
+
+// 错误定义
+var (
+	ErrBufferFull   = errors.New("log buffer is full")
+	ErrWriterClosed = errors.New("log writer is closed")
 )

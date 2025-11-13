@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"postapocgame/server/internal/network"
+	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/routine"
 	"postapocgame/server/pkg/tool"
 	"sync"
 	"time"
+
+	"postapocgame/server/pkg/customerr"
 )
 
 var (
@@ -48,7 +51,7 @@ func (sm *SessionManager) CreateSession(conn IConnection) (*Session, error) {
 	defer sm.mu.Unlock()
 
 	if sm.maxSessions > 0 && len(sm.sessions) >= sm.maxSessions {
-		return nil, ErrMaxSessionReached
+		return nil, customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "max session reached")
 	}
 
 	sessionID := tool.GenUUID()
@@ -76,7 +79,7 @@ func (sm *SessionManager) CreateSession(conn IConnection) (*Session, error) {
 	defer cancel()
 	if err := sm.gsConn.NotifySessionEvent(ctx, ev); err != nil {
 		log.Errorf("notify session event failed: %v", err)
-		return nil, err
+		return nil, customerr.Wrap(err, int32(protocol.ErrorCode_Internal_Error))
 	}
 	return session, nil
 }

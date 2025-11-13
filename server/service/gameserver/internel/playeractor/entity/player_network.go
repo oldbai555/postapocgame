@@ -8,6 +8,7 @@ package entity
 
 import (
 	"context"
+	"fmt"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/network"
@@ -93,7 +94,7 @@ func handleEnterGame(ctx context.Context, msg *network.ClientMessage) error {
 			Level:    15,
 		}
 	} else {
-		return customerr.NewCustomErr("not found role Id")
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "not found role Id")
 	}
 
 	log.Infof("Selected player role: RoleId=%d, Name=%s", selectedRole.RoleId, selectedRole.RoleName)
@@ -137,7 +138,7 @@ func enterGame(sessionId string, roleInfo *protocol.PlayerSimpleData) error {
 	err = dungeonserverlink.AsyncCall(context.Background(), uint8(protocol.SrvType_SrvTypeDungeonServer), sessionId, uint16(protocol.G2DRpcProtocol_G2DEnterDungeon), reqData)
 	if err != nil {
 		log.Errorf("call dungeon service enter scene failed: %v", err)
-		return customerr.Wrap(err)
+		return customerr.Wrap(err, int32(protocol.ErrorCode_Internal_Error))
 	}
 
 	err = playerRole.OnLogin()
@@ -180,7 +181,7 @@ func handleDoNetWorkMsg(message actor.IActorMessage) {
 	}
 	getFunc := clientprotocol.GetFunc(cliMsg.MsgId)
 	if getFunc == nil {
-		err = customerr.NewCustomErr("not found %d handler", cliMsg.MsgId)
+		err = customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), fmt.Sprintf("not found %d handler", cliMsg.MsgId))
 	}
 	if err == nil {
 		roleId := session.GetRoleId()

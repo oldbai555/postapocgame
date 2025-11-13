@@ -11,11 +11,12 @@ import (
 	"time"
 )
 
-type CheckTimeToOpenNewFileFunc func(lastOpenFileTime *time.Time, isNeverOpenFile bool) (string, bool)
+type CheckTimeToOpenNewFileFunc func(logName string, lastOpenFileTime *time.Time, isNeverOpenFile bool) (string, bool)
 
-var OpenNewFileByByDateHour CheckTimeToOpenNewFileFunc = func(lastOpenFileTime *time.Time, isNeverOpenFile bool) (string, bool) {
+// OpenNewFileByByDateHour 按日期小时打开新文件的函数
+func OpenNewFileByByDateHour(logName string, lastOpenFileTime *time.Time, isNeverOpenFile bool) (string, bool) {
 	if isNeverOpenFile {
-		return instance.name + time.Now().Format(".01-02.log"), true
+		return logName + time.Now().Format(".01-02.log"), true
 	}
 
 	lastOpenYear, lastOpenMonth, lastOpenDay := lastOpenFileTime.Date()
@@ -24,7 +25,7 @@ var OpenNewFileByByDateHour CheckTimeToOpenNewFileFunc = func(lastOpenFileTime *
 	nowYear, nowMonth, nowDay := now.Date()
 
 	if lastOpenDay != nowDay || lastOpenMonth != nowMonth || lastOpenYear != nowYear {
-		return instance.name + time.Now().Format(".01-02.log"), true
+		return logName + time.Now().Format(".01-02.log"), true
 	}
 
 	return "", false
@@ -38,6 +39,7 @@ var (
 type FileLoggerWriter struct {
 	fp                        *os.File
 	baseDir                   string
+	logName                   string // 日志文件名（不含扩展名）
 	maxFileSize               int64
 	lastCheckIsFullAt         int64
 	isFileFull                bool
@@ -51,6 +53,10 @@ type FileLoggerWriter struct {
 	flushDoneSignCh           chan error
 	mu                        sync.Mutex
 	perm                      os.FileMode
+	closed                    atomic.Bool
+	stopCh                    chan struct{}
+	wg                        sync.WaitGroup
+	writeErrors               uint64 // 写入错误计数（用于监控）
 }
 
 func NewFileLoggerWriter(baseDir string, maxFileSize int64, checkFileFullIntervalSecs int64, checkTimeToOpenNewFile CheckTimeToOpenNewFileFunc, bufChanLen uint32, perm os.FileMode) *FileLoggerWriter {
@@ -60,10 +66,18 @@ func NewFileLoggerWriter(baseDir string, maxFileSize int64, checkFileFullInterva
 		checkFileFullIntervalSecs: checkFileFullIntervalSecs,
 		checkTimeToOpenNewFile:    checkTimeToOpenNewFile,
 		bufCh:                     make(chan []byte, bufChanLen),
-		flushSignCh:               make(chan struct{}),
-		flushDoneSignCh:           make(chan error),
+		flushSignCh:               make(chan struct{}, 1), // 缓冲1，避免阻塞
+		flushDoneSignCh:           make(chan error, 1),
+		stopCh:                    make(chan struct{}),
 		perm:                      perm,
 	}
+}
+
+// SetLogName 设置日志文件名
+func (w *FileLoggerWriter) SetLogName(name string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.logName = name
 }
 
 func (w *FileLoggerWriter) checkFileIsFull() (bool, error) {
@@ -147,7 +161,11 @@ func backUpName(name string) string {
 
 func (w *FileLoggerWriter) tryOpenNewFile() error {
 	var err error
-	fileName, ok := w.checkTimeToOpenNewFile(w.openCurrentFileTime, w.openCurrentFileTime == nil)
+	w.mu.Lock()
+	logName := w.logName
+	w.mu.Unlock()
+
+	fileName, ok := w.checkTimeToOpenNewFile(logName, w.openCurrentFileTime, w.openCurrentFileTime == nil)
 	if !ok {
 		if w.fp == nil {
 			return errors.New("get first file name failed")
@@ -181,9 +199,17 @@ func (w *FileLoggerWriter) tryOpenNewFile() error {
 }
 
 func (w *FileLoggerWriter) Flush() error {
+	if w.closed.Load() {
+		return ErrWriterClosed
+	}
+
 	w.isFlushing.Store(true)
-	w.flushSignCh <- struct{}{}
-	return <-w.flushDoneSignCh
+	select {
+	case w.flushSignCh <- struct{}{}:
+		return <-w.flushDoneSignCh
+	case <-w.stopCh:
+		return ErrWriterClosed
+	}
 }
 
 func (w *FileLoggerWriter) finishFlush(err error) {
@@ -196,18 +222,37 @@ func (w *FileLoggerWriter) isFlushingNow() bool {
 }
 
 func (w *FileLoggerWriter) Write(logContent []byte) (n int, err error) {
+	if w.closed.Load() {
+		return 0, ErrWriterClosed
+	}
+
 	select {
 	case w.bufCh <- logContent:
-		n = len(logContent)
+		return len(logContent), nil
+	case <-w.stopCh:
+		return 0, ErrWriterClosed
 	default:
-		// never blocking main thread
-		err = fmt.Errorf("log content cached buf full, lost:%s", logContent)
+		// 缓冲满时丢弃，避免阻塞主线程（记录错误计数）
+		atomic.AddUint64(&w.writeErrors, 1)
+		return 0, ErrBufferFull
 	}
-	return
 }
 
+// Loop 主循环（带错误恢复和优雅关闭）
 func (w *FileLoggerWriter) Loop() error {
+	defer func() {
+		// 确保关闭文件
+		w.mu.Lock()
+		if w.fp != nil {
+			w.fp.Sync()
+			w.fp.Close()
+			w.fp = nil
+		}
+		w.mu.Unlock()
+	}()
+
 	doWriteMoreAsPossible := func(buf []byte) error {
+		// 批量读取尽可能多的日志
 		for {
 			var moreBuf []byte
 			select {
@@ -225,50 +270,125 @@ func (w *FileLoggerWriter) Loop() error {
 			return nil
 		}
 
+		// 尝试打开新文件（如果需要）
 		if err := w.tryOpenNewFile(); err != nil {
-			return err
+			// 文件打开失败时，尝试降级处理
+			return w.handleWriteError(err)
 		}
 
+		// 检查文件是否已满
 		if isFull, err := w.checkFileIsFull(); err != nil {
-			return err
+			return w.handleWriteError(err)
 		} else if isFull {
 			if err := w.rotate(); err != nil {
-				return err
+				return w.handleWriteError(err)
 			}
 		}
 
-		bufLen := len(buf)
-		var totalWrittenBytes int
-		for {
-			n, err := w.fp.Write(buf[totalWrittenBytes:])
-			if err != nil {
-				return err
-			}
-			totalWrittenBytes += n
-			if totalWrittenBytes >= bufLen {
-				break
-			}
-		}
-
-		return nil
+		// 写入文件
+		return w.writeToFile(buf)
 	}
 
 	for {
 		select {
 		case buf := <-w.bufCh:
 			if err := doWriteMoreAsPossible(buf); err != nil {
-				return err
+				// 错误已处理，继续运行
+				continue
 			}
-		case _ = <-w.flushSignCh:
+		case <-w.flushSignCh:
 			if err := doWriteMoreAsPossible([]byte{}); err != nil {
 				w.finishFlush(err)
-				break
+				continue
 			}
-			if err := w.fp.Sync(); err != nil {
-				w.finishFlush(err)
-				break
+			w.mu.Lock()
+			if w.fp != nil {
+				if err := w.fp.Sync(); err != nil {
+					w.mu.Unlock()
+					w.finishFlush(err)
+					continue
+				}
 			}
+			w.mu.Unlock()
 			w.finishFlush(nil)
+		case <-w.stopCh:
+			// 优雅关闭：处理剩余日志
+			for {
+				select {
+				case buf := <-w.bufCh:
+					doWriteMoreAsPossible(buf)
+				default:
+					// 处理完所有日志后退出
+					return nil
+				}
+			}
 		}
 	}
+}
+
+// writeToFile 写入文件（带重试）
+func (w *FileLoggerWriter) writeToFile(buf []byte) error {
+	w.mu.Lock()
+	fp := w.fp
+	w.mu.Unlock()
+
+	if fp == nil {
+		return errors.New("file not opened")
+	}
+
+	bufLen := len(buf)
+	var totalWrittenBytes int
+	maxRetries := 3
+
+	for retries := 0; retries < maxRetries; retries++ {
+		n, err := fp.Write(buf[totalWrittenBytes:])
+		if err != nil {
+			if retries < maxRetries-1 {
+				// 重试前等待一小段时间
+				time.Sleep(time.Millisecond * 10)
+				continue
+			}
+			atomic.AddUint64(&w.writeErrors, 1)
+			return err
+		}
+		totalWrittenBytes += n
+		if totalWrittenBytes >= bufLen {
+			return nil
+		}
+	}
+
+	return nil
+}
+
+// handleWriteError 处理写入错误（降级策略）
+func (w *FileLoggerWriter) handleWriteError(err error) error {
+	atomic.AddUint64(&w.writeErrors, 1)
+	// 可以在这里添加降级逻辑，比如输出到 stderr
+	// 当前实现：记录错误但继续运行
+	return nil
+}
+
+// Close 优雅关闭写入器
+func (w *FileLoggerWriter) Close() error {
+	if !w.closed.CompareAndSwap(false, true) {
+		return nil // 已经关闭
+	}
+
+	close(w.stopCh)
+	w.wg.Wait()
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.fp != nil {
+		w.fp.Sync()
+		err := w.fp.Close()
+		w.fp = nil
+		return err
+	}
+	return nil
+}
+
+// GetWriteErrors 获取写入错误计数
+func (w *FileLoggerWriter) GetWriteErrors() uint64 {
+	return atomic.LoadUint64(&w.writeErrors)
 }

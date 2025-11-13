@@ -3,6 +3,7 @@ package gameserverlink
 import (
 	"postapocgame/server/internal/argsdef"
 	"postapocgame/server/internal/network"
+	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"sync"
 )
@@ -79,7 +80,7 @@ func (s *MessageSender) SendToClient(sessionId string, msgId uint16, data []byte
 	// 获取GameServer连接
 	conn, ok := s.GetGameServerBySession(sessionId)
 	if !ok {
-		return customerr.NewCustomErr("no gameserver connection for session: %s", sessionId)
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "no gameserver connection for session: %s", sessionId)
 	}
 	return conn.SendToClient(sessionId, msgId, data)
 }
@@ -89,7 +90,7 @@ func (s *MessageSender) SendToClientJSON(sessionId string, msgId uint16, v inter
 	// 获取GameServer连接
 	conn, ok := s.GetGameServerBySession(sessionId)
 	if !ok {
-		return customerr.NewCustomErr("no gameserver connection for session: %s", sessionId)
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "no gameserver connection for session: %s", sessionId)
 	}
 	return conn.SendToClientJSON(sessionId, msgId, v)
 }

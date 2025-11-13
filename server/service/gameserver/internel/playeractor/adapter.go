@@ -4,6 +4,7 @@ import (
 	"context"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/pkg/customerr"
+	"postapocgame/server/pkg/routine"
 	"postapocgame/server/service/gameserver/internel/gshare"
 )
 
@@ -31,34 +32,57 @@ func NewPlayerRoleActor(mode actor.ActorMode) *PlayerRoleActor {
 }
 
 func (p *PlayerRoleActor) RegisterHandler(msgId uint16, f actor.HandlerMessageFunc) {
-	p.playerHandler.RegisterMessageHandler(msgId, f)
+	routine.Run(func() {
+		p.playerHandler.RegisterMessageHandler(msgId, f)
+	})
 }
 
 func (p *PlayerRoleActor) SendMessageAsync(key string, message actor.IActorMessage) error {
-	return p.actorMgr.SendMessageAsync(key, message)
+	var err error
+	routine.Run(func() {
+		err = p.actorMgr.SendMessageAsync(key, message)
+	})
+	return err
 }
 
 func (p *PlayerRoleActor) RemoveActor(key string) error {
-	return p.actorMgr.RemoveActor(key)
+	var err error
+	routine.Run(func() {
+		err = p.actorMgr.RemoveActor(key)
+	})
+	return err
 }
 
 func (p *PlayerRoleActor) Init() error {
-	err := p.actorMgr.Init()
+	var err error
+	routine.Run(func() {
+		err = p.actorMgr.Init()
+		if err == nil {
+			p.playerHandler.OnInit()
+		}
+	})
 	if err != nil {
 		return customerr.Wrap(err)
 	}
-	p.playerHandler.OnInit()
 	return nil
 }
 
 // Start 启动Actor系统
 func (p *PlayerRoleActor) Start(ctx context.Context) error {
-	return p.actorMgr.Start(ctx)
+	var err error
+	routine.Run(func() {
+		err = p.actorMgr.Start(ctx)
+	})
+	return err
 }
 
 // Stop 停止Actor系统
 func (p *PlayerRoleActor) Stop(ctx context.Context) error {
-	return p.actorMgr.Stop(ctx)
+	var err error
+	routine.Run(func() {
+		err = p.actorMgr.Stop(ctx)
+	})
+	return err
 }
 
 func (p *PlayerRoleActor) NewPlayerHandlerFactory() actor.IActorHandler {

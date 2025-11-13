@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"sync"
 	"sync/atomic"
@@ -93,7 +94,7 @@ func (c *TCPClient) SetMessageHandler(handler INetworkMessageHandler) {
 
 func (c *TCPClient) Connect(ctx context.Context, addr string) error {
 	if c.handler == nil {
-		return customerr.NewCustomErr("not found network message handler")
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "not found network message handler")
 	}
 	c.addr = addr
 
@@ -108,7 +109,7 @@ func (c *TCPClient) Connect(ctx context.Context, addr string) error {
 
 func (c *TCPClient) connectWithReconnect(ctx context.Context) error {
 	if c.stopping.Load() {
-		return fmt.Errorf("client is stopping")
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "client is stopping")
 	}
 
 	if err := c.doConnect(ctx); err != nil {
@@ -130,7 +131,7 @@ func (c *TCPClient) connectWithReconnect(ctx context.Context) error {
 func (c *TCPClient) doConnect(ctx context.Context) error {
 	conn, err := net.DialTimeout("tcp", c.addr, c.config.ConnectTimeout)
 	if err != nil {
-		return fmt.Errorf("connect failed: %w", err)
+		return customerr.Wrap(err, int32(protocol.ErrorCode_Internal_Error))
 	}
 
 	c.mu.Lock()
@@ -147,7 +148,7 @@ func (c *TCPClient) doConnect(ctx context.Context) error {
 			c.mu.Lock()
 			c.conn = nil
 			c.mu.Unlock()
-			return fmt.Errorf("handshake failed: %w", err)
+			return customerr.Wrap(err, int32(protocol.ErrorCode_Internal_Error))
 		}
 	}
 
@@ -398,7 +399,7 @@ func (c *TCPClient) reconnectLoop() {
 
 func (c *TCPClient) SendMessage(msg *Message) error {
 	if !c.connected.Load() {
-		return fmt.Errorf("not connected to %s", c.addr)
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Network_Timeout), "not connected to "+c.addr)
 	}
 
 	c.mu.RLock()
@@ -406,7 +407,7 @@ func (c *TCPClient) SendMessage(msg *Message) error {
 	c.mu.RUnlock()
 
 	if conn == nil {
-		return fmt.Errorf("connection is nil")
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Network_Timeout), "connection is nil")
 	}
 
 	return conn.SendMessage(msg)
