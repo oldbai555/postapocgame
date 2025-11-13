@@ -5,27 +5,62 @@ import (
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
+	"postapocgame/server/pkg/routine"
 	"postapocgame/server/service/dungeonserver/internel/buff"
 	"sync"
 	"time"
 )
 
 type BuffSys struct {
-	mu sync.RWMutex
-	// entityId -> buffId -> BuffInstance
+	mu          sync.RWMutex
 	entityBuffs map[uint64]map[uint32]*buff.BData
+	stopChan    chan struct{}
+	wg          sync.WaitGroup
 }
 
-// NewBuffSystem 创建Buff系统
 func NewBuffSystem() *BuffSys {
 	bs := &BuffSys{
 		entityBuffs: make(map[uint64]map[uint32]*buff.BData),
+		stopChan:    make(chan struct{}),
 	}
-
-	// 启动定时清理
-	go bs.cleanupExpiredBuffs()
-
+	bs.wg.Add(1)
+	routine.GoV2(func() error {
+		defer bs.wg.Done()
+		bs.cleanupExpiredBuffs()
+		return nil
+	})
 	return bs
+}
+
+func (bs *BuffSys) cleanupExpiredBuffs() {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-bs.stopChan:
+			return
+		case <-ticker.C:
+			bs.mu.Lock()
+			now := time.Now()
+			for entityId, buffs := range bs.entityBuffs {
+				for buffId, b := range buffs {
+					if now.After(b.EndTime) {
+						delete(buffs, buffId)
+					}
+				}
+				if len(buffs) == 0 {
+					delete(bs.entityBuffs, entityId)
+				}
+			}
+			bs.mu.Unlock()
+		}
+	}
+}
+
+func (bs *BuffSys) Close() {
+	close(bs.stopChan)
+	bs.wg.Wait()
 }
 
 // AddBuff 添加Buff
@@ -148,33 +183,6 @@ func (bs *BuffSys) ClearDeBuffs(entityId uint64) {
 		if buffInstance.BuffType == uint32(protocol.BuffType_BtDeBuff) {
 			delete(buffs, buffId)
 		}
-	}
-}
-
-// cleanupExpiredBuffs 清理过期的Buff
-func (bs *BuffSys) cleanupExpiredBuffs() {
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		bs.mu.Lock()
-		now := time.Now()
-
-		for entityId, buffs := range bs.entityBuffs {
-			for buffId, b := range buffs {
-				if now.After(b.EndTime) {
-					delete(buffs, buffId)
-					// TODO: 发送Buff移除通知
-				}
-			}
-
-			// 如果实体没有Buff了，删除记录
-			if len(buffs) == 0 {
-				delete(bs.entityBuffs, entityId)
-			}
-		}
-
-		bs.mu.Unlock()
 	}
 }
 

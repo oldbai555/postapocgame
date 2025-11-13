@@ -161,11 +161,17 @@ func (dc *DungeonClient) Connect(ctx context.Context, srvType uint8, addr string
 func (dc *DungeonClient) AsyncCall(ctx context.Context, srvType uint8, sessionId string, msgId uint16, data []byte) error {
 	dc.mu.RLock()
 	client, ok := dc.connPools[srvType]
-	dc.mu.RUnlock()
-
 	if !ok {
+		dc.mu.RUnlock()
 		return fmt.Errorf("dungeon service not connected: srvType=%d", srvType)
 	}
+
+	// 在锁内检查连接状态
+	if !client.IsConnected() {
+		dc.mu.RUnlock()
+		return fmt.Errorf("dungeon service not connected: srvType=%d", srvType)
+	}
+	dc.mu.RUnlock()
 
 	// 🔧 添加重试逻辑
 	maxRetries := 3

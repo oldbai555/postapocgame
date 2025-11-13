@@ -21,14 +21,18 @@ func CreateEntityHandle(et uint32) uint64 {
 		idxMap[et] = 1
 	}
 	if idxMap[et] >= math.MaxUint32 {
-		idxMap[et] = 0
-		if magicMap[et] >= math.MaxUint8 {
-			magicMap[et] = 0
+		idxMap[et] = 1
+		if magicMap[et] >= math.MaxUint16 {
+			magicMap[et] = 1
 		}
 		magicMap[et]++
 	}
+
+	idx := idxMap[et]
 	idxMap[et]++
-	return uint64(idxMap[et] | et<<8 | uint32(magicMap[et]))
+
+	// 正确的组合方式: [48位idx][8位et][8位magic]
+	return uint64(idx) | (uint64(et) << 48) | (uint64(magicMap[et]) << 56)
 }
 func init() {
 	idxMap = make(map[uint32]uint32)

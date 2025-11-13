@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"sync"
 )
 
 var (
@@ -35,6 +36,13 @@ func NewCodec() *Codec {
 // DefaultCodec 获取默认编解码器
 func DefaultCodec() *Codec {
 	return defaultCodec
+}
+
+var headerPool = sync.Pool{
+	New: func() interface{} {
+		buf := make([]byte, 4)
+		return &buf
+	},
 }
 
 // ============================================
@@ -74,8 +82,11 @@ func (c *Codec) EncodeMessage(msg *Message) ([]byte, error) {
 
 // DecodeMessage 解码消息
 func (c *Codec) DecodeMessage(reader io.Reader) (*Message, error) {
+	headerPtr := headerPool.Get().(*[]byte)
+	header := *headerPtr
+	defer headerPool.Put(headerPtr)
+
 	// 读取帧头
-	header := make([]byte, 4)
 	if _, err := io.ReadFull(reader, header); err != nil {
 		return nil, err
 	}

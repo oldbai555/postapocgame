@@ -6,24 +6,22 @@ import (
 	"sync"
 )
 
-// AOI 观察者系统 (Area Of Interest)
-// 使用九宫格算法
-type AOI struct {
+type AOISys struct {
 	entity          iface.IEntity
 	visibleEntities map[uint64]iface.IEntity // 可见的实体列表
 	mu              sync.RWMutex
 }
 
 // NewAOI 创建AOI
-func NewAOI(entity iface.IEntity) *AOI {
-	return &AOI{
+func NewAOI(entity iface.IEntity) *AOISys {
+	return &AOISys{
 		entity:          entity,
 		visibleEntities: make(map[uint64]iface.IEntity),
 	}
 }
 
 // GetVisibleEntities 获取可见实体列表
-func (aoi *AOI) GetVisibleEntities() []iface.IEntity {
+func (aoi *AOISys) GetVisibleEntities() []iface.IEntity {
 	aoi.mu.RLock()
 	defer aoi.mu.RUnlock()
 
@@ -35,7 +33,7 @@ func (aoi *AOI) GetVisibleEntities() []iface.IEntity {
 }
 
 // AddVisibleEntity 添加可见实体
-func (aoi *AOI) AddVisibleEntity(entity iface.IEntity) {
+func (aoi *AOISys) AddVisibleEntity(entity iface.IEntity) {
 	aoi.mu.Lock()
 	defer aoi.mu.Unlock()
 
@@ -45,7 +43,7 @@ func (aoi *AOI) AddVisibleEntity(entity iface.IEntity) {
 }
 
 // RemoveVisibleEntity 移除可见实体
-func (aoi *AOI) RemoveVisibleEntity(entityId uint64) {
+func (aoi *AOISys) RemoveVisibleEntity(entityId uint64) {
 	aoi.mu.Lock()
 	defer aoi.mu.Unlock()
 
@@ -55,7 +53,7 @@ func (aoi *AOI) RemoveVisibleEntity(entityId uint64) {
 }
 
 // IsVisible 检查实体是否在视野内
-func (aoi *AOI) IsVisible(entityId uint64) bool {
+func (aoi *AOISys) IsVisible(entityId uint64) bool {
 	aoi.mu.RLock()
 	defer aoi.mu.RUnlock()
 
@@ -64,7 +62,7 @@ func (aoi *AOI) IsVisible(entityId uint64) bool {
 }
 
 // ClearVisibleEntities 清空可见实体
-func (aoi *AOI) ClearVisibleEntities() {
+func (aoi *AOISys) ClearVisibleEntities() {
 	aoi.mu.Lock()
 	defer aoi.mu.Unlock()
 
@@ -72,7 +70,7 @@ func (aoi *AOI) ClearVisibleEntities() {
 }
 
 // OnMove 实体移动时更新AOI
-func (aoi *AOI) OnMove(oldPos, newPos *argsdef.Position) {
+func (aoi *AOISys) OnMove(oldPos, newPos *argsdef.Position) {
 	// 获取旧的九宫格
 	oldGrIds := argsdef.GetNineGrIds(oldPos)
 	// 获取新的九宫格

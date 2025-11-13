@@ -25,7 +25,15 @@ type FightSys struct {
 }
 
 func NewFightSys() *FightSys {
-	return &FightSys{}
+	return &FightSys{
+		skills:          make(map[uint32]*skill.Skill),
+		passivitySkills: make(map[uint32]*skill.Skill),
+		CommonCd:        make(map[uint32]int64),
+	}
+}
+
+func (s *FightSys) SetEntity(et iface.IEntity) {
+	s.et = et
 }
 
 func (s *FightSys) LearnSkill(skillId, skillLv uint32) error {

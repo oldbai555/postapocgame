@@ -2,11 +2,12 @@ package gatewaylink
 
 import (
 	"context"
+	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/argsdef"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/service/base"
+	"postapocgame/server/service/dungeonserver/internel/dshare"
 	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/iface"
 	"sync"
@@ -41,7 +42,7 @@ func (h *NetworkHandler) HandleMessage(ctx context.Context, conn network.IConnec
 	case network.MsgTypeSessionEvent:
 		return h.handleSessionEvent(msg)
 	case network.MsgTypeClient:
-		return h.handleClientMsg(msg)
+		return h.handleClientMsg(ctx, msg)
 	case network.MsgTypeHeartbeat:
 		return nil
 	default:
@@ -100,7 +101,7 @@ func (h *NetworkHandler) handleSessionClose(event *network.SessionEvent) error {
 }
 
 // handleClientMsg 处理客户端消息
-func (h *NetworkHandler) handleClientMsg(msg *network.Message) error {
+func (h *NetworkHandler) handleClientMsg(ctx context.Context, msg *network.Message) error {
 	// 解码转发消息
 	fwdMsg, err := h.codec.DecodeForwardMessage(msg.Payload)
 	if err != nil {
@@ -115,11 +116,8 @@ func (h *NetworkHandler) handleClientMsg(msg *network.Message) error {
 
 	log.Debugf("ClientMsg: SessionId=%s, MsgId=%d, DataLen=%d", fwdMsg.SessionId, clientMsg.MsgId, len(clientMsg.Data))
 
-	message := base.NewSessionMessage()
-	message.SessionId = fwdMsg.SessionId
-	message.Data = fwdMsg.Payload
-	message.MsgId = gshare.DoNetWorkMsg
-	message.Context = context.Background()
+	newCtx := context.WithValue(ctx, dshare.ContextKeySession, fwdMsg.SessionId)
+	message := actor.NewBaseMessage(newCtx, dshare.DoNetWorkMsg, fwdMsg.Payload)
 
 	// 发送到Actor系统处理
 	if err := gshare.SendMessageAsync(fwdMsg.SessionId, message); err != nil {

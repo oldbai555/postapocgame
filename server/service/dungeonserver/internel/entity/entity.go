@@ -20,10 +20,10 @@ type BaseEntity struct {
 	fuBenId    uint32
 
 	// 使用新的属性系统替代旧的attr
-	AttrSys  *entitysystem.AttrSys
-	aoi      *entitysystem.AOI
-	FightSys *entitysystem.FightSys
-	BuffSys  *entitysystem.BuffSys
+	attrSys  *entitysystem.AttrSys
+	aoiSys   *entitysystem.AOISys
+	fightSys *entitysystem.FightSys
+	buffSys  *entitysystem.BuffSys
 
 	// 状态标记
 	isDead       bool
@@ -46,12 +46,11 @@ func NewBaseEntity(Id uint64, entityType uint32) *BaseEntity {
 		cannotMove:   false,
 	}
 
-	entity.FightSys = entitysystem.NewFightSys()
-	entity.BuffSys = entitysystem.NewBuffSystem()
-	entity.AttrSys = entitysystem.NewAttrSys()
-
-	// 创建AOI
-	entity.aoi = entitysystem.NewAOI(entity)
+	entity.fightSys = entitysystem.NewFightSys()
+	entity.fightSys.SetEntity(entity) // 设置实体引用
+	entity.buffSys = entitysystem.NewBuffSystem()
+	entity.attrSys = entitysystem.NewAttrSys()
+	entity.aoiSys = entitysystem.NewAOI(entity)
 
 	return entity
 }
@@ -69,7 +68,7 @@ func (e *BaseEntity) GetEntityType() uint32 {
 }
 
 func (e *BaseEntity) GetLevel() uint32 {
-	level := e.AttrSys.GetAttrValue(attrdef.AttrLevel)
+	level := e.attrSys.GetAttrValue(attrdef.AttrLevel)
 	return uint32(level)
 }
 
@@ -112,7 +111,7 @@ func (e *BaseEntity) SetFuBenId(fuBenId uint32) {
 
 // GetAttrSys 获取属性系统
 func (e *BaseEntity) GetAttrSys() iface.IAttrSys {
-	return e.AttrSys
+	return e.attrSys
 }
 func (e *BaseEntity) GetHP() int64 {
 	return e.GetAttrSys().GetAttrValue(attrdef.AttrHP)
@@ -174,11 +173,11 @@ func (e *BaseEntity) CanBeAttacked() bool {
 }
 
 func (e *BaseEntity) GetFightSys() iface.IFightSys {
-	return e.FightSys
+	return e.fightSys
 }
 
 func (e *BaseEntity) GetBuffSys() iface.IBuffSys {
-	return e.BuffSys
+	return e.buffSys
 }
 
 func (e *BaseEntity) OnAttacked(attacker iface.IEntity, damage int64) {
@@ -203,7 +202,7 @@ func (e *BaseEntity) OnDie(killer iface.IEntity) {
 }
 
 func (e *BaseEntity) GetAOISys() iface.IAOISys {
-	return e.aoi
+	return e.aoiSys
 }
 
 func (e *BaseEntity) OnEnterScene() {
@@ -219,8 +218,8 @@ func (e *BaseEntity) OnMove(newX, newY uint32) {
 	e.SetPosition(newX, newY)
 
 	// 更新AOI
-	if e.aoi != nil {
-		e.aoi.OnMove(oldPos, &argsdef.Position{X: newX, Y: newY})
+	if e.aoiSys != nil {
+		e.aoiSys.OnMove(oldPos, &argsdef.Position{X: newX, Y: newY})
 	}
 }
 
@@ -229,5 +228,13 @@ func (e *BaseEntity) SendMessage(protoId uint16, data []byte) error {
 }
 
 func (e *BaseEntity) SendJsonMessage(protoId uint16, v interface{}) error {
+	return nil
+}
+
+func (e *BaseEntity) Close() error {
+	if e.buffSys != nil {
+		e.buffSys.Close()
+	}
+	// 清理其他资源
 	return nil
 }

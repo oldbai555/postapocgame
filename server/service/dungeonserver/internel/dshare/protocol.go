@@ -9,3 +9,7 @@ package dshare
 const (
 	DoNetWorkMsg = iota + 1
 )
+
+const (
+	ContextKeySession = "session"
+)

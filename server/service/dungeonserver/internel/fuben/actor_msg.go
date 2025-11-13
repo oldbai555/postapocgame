@@ -13,7 +13,6 @@ import (
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/service/base"
 	"postapocgame/server/service/dungeonserver/internel/devent"
 	"postapocgame/server/service/dungeonserver/internel/dshare"
 	"postapocgame/server/service/dungeonserver/internel/entity"
@@ -21,22 +20,22 @@ import (
 	"postapocgame/server/service/dungeonserver/internel/gameserverlink"
 )
 
-func handleG2DEnterDungeon(message actor.IActorMessage) {
-	msg := message.(*base.SessionMessage)
-	if msg.SessionId == "" {
+func handleG2DEnterDungeon(msg actor.IActorMessage) {
+	sessionId := msg.GetContext().Value(dshare.ContextKeySession).(string)
+	if sessionId == "" {
 		return
 	}
 	var req protocol.G2DEnterDungeonReq
-	err := internal.Unmarshal(msg.Data, &req)
+	err := internal.Unmarshal(msg.GetData(), &req)
 	if err != nil {
 		log.Errorf("err:%v", err)
 		return
 	}
 
 	// 进入时绑定 session
-	gameserverlink.GetMessageSender().RegisterSessionRoute(msg.SessionId, req.PlatformId, req.SrvId)
+	gameserverlink.GetMessageSender().RegisterSessionRoute(sessionId, req.PlatformId, req.SrvId)
 
-	roleEntity := entity.NewRoleEntity(msg.SessionId, req.SimpleData)
+	roleEntity := entity.NewRoleEntity(sessionId, req.SimpleData)
 	err = entitymgr.GetEntityMgr().Register(roleEntity)
 	if err != nil {
 		log.Errorf("err:%v", err)

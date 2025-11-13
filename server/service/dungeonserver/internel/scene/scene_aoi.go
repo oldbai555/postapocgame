@@ -59,14 +59,14 @@ func (am *AOIManager) RemoveEntity(entity iface.IEntity) {
 	entity.GetAOISys().ClearVisibleEntities()
 }
 
-// UpdateEntity 更新实体位置
 func (am *AOIManager) UpdateEntity(entity iface.IEntity, oldPos, newPos *argsdef.Position) {
 	oldGrIds := argsdef.GetNineGrIds(oldPos)
 	newGrIds := argsdef.GetNineGrIds(newPos)
 
-	am.mu.Lock()
+	// 先计算差异（无锁）
+	toLeave := make([]argsdef.GrIdSt, 0)
+	toEnter := make([]argsdef.GrIdSt, 0)
 
-	// 找出需要离开的格子
 	for _, oldGrId := range oldGrIds {
 		found := false
 		for _, newGrId := range newGrIds {
@@ -76,16 +76,10 @@ func (am *AOIManager) UpdateEntity(entity iface.IEntity, oldPos, newPos *argsdef
 			}
 		}
 		if !found {
-			if entities, ok := am.grIds[oldGrId]; ok {
-				delete(entities, entity.GetId())
-				if len(entities) == 0 {
-					delete(am.grIds, oldGrId)
-				}
-			}
+			toLeave = append(toLeave, oldGrId)
 		}
 	}
 
-	// 找出需要进入的格子
 	for _, newGrId := range newGrIds {
 		found := false
 		for _, oldGrId := range oldGrIds {
@@ -95,16 +89,30 @@ func (am *AOIManager) UpdateEntity(entity iface.IEntity, oldPos, newPos *argsdef
 			}
 		}
 		if !found {
-			if _, ok := am.grIds[newGrId]; !ok {
-				am.grIds[newGrId] = make(map[uint64]iface.IEntity)
-			}
-			am.grIds[newGrId][entity.GetId()] = entity
+			toEnter = append(toEnter, newGrId)
 		}
 	}
 
-	am.mu.Unlock() // 🔧 提前释放锁
+	// 快速更新（持锁）
+	am.mu.Lock()
+	for _, grId := range toLeave {
+		if entities, ok := am.grIds[grId]; ok {
+			delete(entities, entity.GetId())
+			if len(entities) == 0 {
+				delete(am.grIds, grId)
+			}
+		}
+	}
 
-	// 🔧 在锁外更新可见列表（避免持有锁时间过长）
+	for _, grId := range toEnter {
+		if _, ok := am.grIds[grId]; !ok {
+			am.grIds[grId] = make(map[uint64]iface.IEntity)
+		}
+		am.grIds[grId][entity.GetId()] = entity
+	}
+	am.mu.Unlock()
+
+	// 更新可见列表（无锁）
 	am.updateEntityVisibility(entity)
 }
 

@@ -16,7 +16,7 @@ import (
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/service/base"
+	"postapocgame/server/service/dungeonserver/internel/dshare"
 	"postapocgame/server/service/gameserver/internel/clientprotocol"
 	"postapocgame/server/service/gameserver/internel/dungeonserverlink"
 	"postapocgame/server/service/gameserver/internel/gatewaylink"
@@ -159,13 +159,7 @@ func enterGame(sessionId string, roleInfo *protocol.PlayerSimpleData) error {
 }
 
 func handleDoNetWorkMsg(message actor.IActorMessage) {
-	msg, ok := message.(*base.SessionMessage)
-	if !ok {
-		return
-	}
-
-	sessionId := msg.SessionId
-
+	sessionId := message.GetContext().Value(dshare.ContextKeySession).(string)
 	session := gatewaylink.GetSession(sessionId)
 	if session == nil {
 		return

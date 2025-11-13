@@ -50,36 +50,34 @@ func (as *AttrSys) GetAttrValue(attrType attrdef.AttrType) attrdef.AttrValue {
 	return 0
 }
 
-// SetAttrValue 设置属性值
 func (as *AttrSys) SetAttrValue(attrType attrdef.AttrType, value attrdef.AttrValue) {
 	as.mu.Lock()
 	defer as.mu.Unlock()
 
 	if attrdef.IsCombatAttr(attrType) {
+		as.combatCalc.SetValue(attrType, value)
 		return
 	}
 
 	if attrdef.IsExtraAttr(attrType) {
+		as.extraCalc.SetValue(attrType, value)
 		return
 	}
-
-	return
 }
 
-// AddAttrValue 增加属性值
 func (as *AttrSys) AddAttrValue(attrType attrdef.AttrType, delta attrdef.AttrValue) {
 	as.mu.Lock()
 	defer as.mu.Unlock()
 
 	if attrdef.IsCombatAttr(attrType) {
+		as.combatCalc.AddValue(attrType, delta)
 		return
 	}
 
 	if attrdef.IsExtraAttr(attrType) {
+		as.extraCalc.AddValue(attrType, delta)
 		return
 	}
-
-	return
 }
 
 // GetAllCombatAttrs 获取所有战斗属性

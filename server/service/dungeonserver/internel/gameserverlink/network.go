@@ -3,11 +3,11 @@ package gameserverlink
 import (
 	"context"
 	"postapocgame/server/internal"
+	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/service/base"
 	"postapocgame/server/service/dungeonserver/internel/dshare"
 )
 
@@ -49,11 +49,8 @@ func (h *NetworkHandler) handleRPCRequest(ctx context.Context, msg *network.Mess
 
 	log.Debugf("Received RPC Request: RequestId=%d, MsgId=%d", req.RequestId, req.MsgId)
 
-	message := base.NewSessionMessage()
-	message.SessionId = req.SessionId
-	message.MsgId = req.MsgId
-	message.Data = req.Data
-	message.Context = ctx
+	newCtx := context.WithValue(ctx, dshare.ContextKeySession, req.SessionId)
+	message := actor.NewBaseMessage(newCtx, req.MsgId, req.Data)
 
 	// 发送到Actor系统处理
 	if err := dshare.SendMessageAsync(req.SessionId, message); err != nil {
@@ -72,11 +69,8 @@ func (h *NetworkHandler) handleClientMsg(ctx context.Context, msg *network.Messa
 
 	log.Debugf("Received Forward Message: SessionId=%s", fwdMsg.SessionId)
 
-	message := base.NewSessionMessage()
-	message.SessionId = fwdMsg.SessionId
-	message.MsgId = dshare.DoNetWorkMsg
-	message.Data = fwdMsg.Payload
-	message.Context = ctx
+	newCtx := context.WithValue(ctx, dshare.ContextKeySession, fwdMsg.SessionId)
+	message := actor.NewBaseMessage(newCtx, dshare.DoNetWorkMsg, fwdMsg.Payload)
 
 	// 发送到Actor系统处理
 	if err := dshare.SendMessageAsync(fwdMsg.SessionId, message); err != nil {
