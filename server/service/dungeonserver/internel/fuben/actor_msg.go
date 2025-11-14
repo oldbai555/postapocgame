@@ -8,7 +8,7 @@ package fuben
 
 import (
 	"context"
-	"postapocgame/server/internal"
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/jsonconf"
@@ -22,8 +22,8 @@ import (
 	"postapocgame/server/service/dungeonserver/internel/entity"
 	"postapocgame/server/service/dungeonserver/internel/entityhelper"
 	"postapocgame/server/service/dungeonserver/internel/entitymgr"
-	"postapocgame/server/service/dungeonserver/internel/fbmgr"
 	"postapocgame/server/service/dungeonserver/internel/gameserverlink"
+	"postapocgame/server/service/dungeonserver/internel/iface"
 	"time"
 )
 
@@ -54,7 +54,7 @@ func handleDoNetWorkMsg(msg actor.IActorMessage) {
 
 	if err := handler(entityInstance, cliMsg); err != nil {
 		log.Errorf("handleDoNetWorkMsg handler err: %v", err)
-		_ = entityInstance.SendJsonMessage(uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
+		_ = entityInstance.SendProtoMessage(uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
 			Code: -1,
 			Msg:  err.Error(),
 		})
@@ -83,7 +83,7 @@ func handleG2DEnterDungeon(msg actor.IActorMessage) error {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "not found sessiopn")
 	}
 	var req protocol.G2DEnterDungeonReq
-	err := internal.Unmarshal(msg.GetData(), &req)
+	err := proto.Unmarshal(msg.GetData(), &req)
 	if err != nil {
 		log.Errorf("err:%v", err)
 		return err
@@ -111,10 +111,12 @@ func handleG2DEnterDungeon(msg actor.IActorMessage) error {
 		}
 	} else {
 		// 进入限时副本
-		fbMgr := fbmgr.GetFuBenMgr()
-
-		// 检查是否已有该玩家的限时副本
-		existingFb, exists := fbMgr.GetTimedFuBenForPlayer(sessionId)
+		var existingFb iface.IFuBen
+		var exists bool
+		if fbInstance, ok := getTimedFuBen(sessionId); ok {
+			existingFb = fbInstance
+			exists = true
+		}
 		if exists && existingFb != nil {
 			// 使用已有副本
 			fb = existingFb
@@ -134,7 +136,7 @@ func handleG2DEnterDungeon(msg actor.IActorMessage) error {
 			}
 
 			// 创建限时副本
-			newFb, err := fbMgr.CreateTimedFuBenForPlayer(sessionId, dungeonCfg.Name, maxDuration)
+			newFb, err := createTimedFuBen(sessionId, dungeonCfg.Name, maxDuration)
 			if err != nil {
 				return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "failed to create timed fuben: %v", err)
 			}
@@ -154,7 +156,7 @@ func handleG2DEnterDungeon(msg actor.IActorMessage) error {
 			if len(sceneConfigs) == 0 {
 				// 如果没有配置场景，使用默认场景
 				sceneConfigs = []jsonconf.SceneConfig{
-					{SceneId: 1, Name: "限时副本场景", WIdth: 1028, Height: 1028},
+					{SceneId: 1, Name: "限时副本场景", Width: 1028, Height: 1028},
 				}
 			}
 			fb.InitScenes(sceneConfigs)
@@ -201,7 +203,7 @@ func handleG2DEnterDungeon(msg actor.IActorMessage) error {
 			StateFlags: roleEntity.GetStateFlags(),
 		},
 	}
-	if err := roleEntity.SendJsonMessage(uint16(protocol.S2CProtocol_S2CEnterScene), resp); err != nil {
+	if err := roleEntity.SendProtoMessage(uint16(protocol.S2CProtocol_S2CEnterScene), resp); err != nil {
 		log.Errorf("send enter scene failed: %v", err)
 		return err
 	}
@@ -211,12 +213,12 @@ func handleG2DEnterDungeon(msg actor.IActorMessage) error {
 		SessionId: sessionId,
 		RoleId:    req.SimpleData.RoleId,
 	}
-	notifyData, err := internal.Marshal(notifyReq)
+	notifyData, err := proto.Marshal(notifyReq)
 	if err != nil {
 		log.Errorf("marshal enter dungeon success notify failed: %v", err)
 		// 不返回错误，继续执行
 	} else {
-		if err := gameserverlink.GetMessageSender().SendRPC(req.PlatformId, req.SrvId, uint16(protocol.D2GRpcProtocol_D2GEnterDungeonSuccess), notifyData); err != nil {
+		if err := gameserverlink.CallGameServer(context.Background(), sessionId, uint16(protocol.D2GRpcProtocol_D2GEnterDungeonSuccess), notifyData); err != nil {
 			log.Errorf("send enter dungeon success notify failed: %v", err)
 			// 不返回错误，继续执行
 		} else {
@@ -235,7 +237,7 @@ func handleG2DSyncAttrs(msg actor.IActorMessage) error {
 	}
 
 	var req protocol.G2DSyncAttrsReq
-	err := internal.Unmarshal(msg.GetData(), &req)
+	err := proto.Unmarshal(msg.GetData(), &req)
 	if err != nil {
 		log.Errorf("unmarshal sync attrs request failed: %v", err)
 		return err
@@ -269,7 +271,7 @@ func handleG2DUpdateHpMp(msg actor.IActorMessage) error {
 	}
 
 	var req protocol.G2DUpdateHpMpReq
-	err := internal.Unmarshal(msg.GetData(), &req)
+	err := proto.Unmarshal(msg.GetData(), &req)
 	if err != nil {
 		log.Errorf("unmarshal update hp/mp request failed: %v", err)
 		return err
@@ -303,7 +305,7 @@ func handleG2DUpdateSkill(msg actor.IActorMessage) error {
 	}
 
 	var req protocol.G2DUpdateSkillReq
-	err := internal.Unmarshal(msg.GetData(), &req)
+	err := proto.Unmarshal(msg.GetData(), &req)
 	if err != nil {
 		log.Errorf("unmarshal update skill request failed: %v", err)
 		return err
@@ -333,64 +335,6 @@ func handleG2DUpdateSkill(msg actor.IActorMessage) error {
 	return nil
 }
 
-// handleD2GAddItemResponse 处理D2GAddItem的RPC响应
-func handleD2GAddItemResponse(msg actor.IActorMessage) error {
-	ctx := msg.GetContext()
-	var resp protocol.D2GAddItemResp
-	if err := internal.Unmarshal(msg.GetData(), &resp); err != nil {
-		log.Errorf("unmarshal D2GAddItemResp failed: %v", err)
-		return err
-	}
-
-	sessionId := ctx.Value(dshare.ContextKeySession).(string)
-	if sessionId == "" {
-		log.Errorf("sessionId not found in context")
-		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "sessionId not found")
-	}
-
-	// 获取角色实体
-	entityMgr := entitymgr.GetEntityMgr()
-	roleEntity, ok := entityMgr.GetBySession(sessionId)
-	if !ok || roleEntity == nil {
-		log.Errorf("role entity not found: SessionId=%s", sessionId)
-		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "role entity not found")
-	}
-
-	// 检查是否为角色实体
-	role, ok := roleEntity.(*entity.RoleEntity)
-	if !ok {
-		log.Errorf("entity is not RoleEntity: SessionId=%s", sessionId)
-		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "entity is not RoleEntity")
-	}
-
-	// 构造响应
-	pickupResp := &protocol.S2CPickupItemResultReq{
-		Success: resp.Success,
-		Message: resp.ErrorMsg,
-		ItemHdl: resp.ItemHdl,
-	}
-
-	if !resp.Success {
-		// 拾取失败，只发送响应
-		return role.SendJsonMessage(uint16(protocol.S2CProtocol_S2CPickupItemResult), pickupResp)
-	}
-
-	// 拾取成功，从场景中移除掉落物
-	scene, ok := entityMgr.GetSceneByHandle(resp.ItemHdl)
-	if ok && scene != nil {
-		if err := scene.RemoveEntity(resp.ItemHdl); err != nil {
-			log.Warnf("Failed to remove drop item from scene: %v", err)
-		}
-		// 解除场景绑定
-		entityMgr.UnbindScene(resp.ItemHdl)
-	}
-	// 从实体管理器中注销
-	entityMgr.Unregister(resp.ItemHdl)
-
-	// 发送拾取成功响应
-	return role.SendJsonMessage(uint16(protocol.S2CProtocol_S2CPickupItemResult), pickupResp)
-}
-
 func init() {
 	devent.Subscribe(devent.OnSrvStart, func(ctx context.Context, event *event.Event) {
 		dshare.RegisterHandler(uint16(dshare.DoNetWorkMsg), handleDoNetWorkMsg)
@@ -399,7 +343,5 @@ func init() {
 		drpcprotocol.Register(uint16(protocol.G2DRpcProtocol_G2DSyncAttrs), handleG2DSyncAttrs)
 		drpcprotocol.Register(uint16(protocol.G2DRpcProtocol_G2DUpdateHpMp), handleG2DUpdateHpMp)
 		drpcprotocol.Register(uint16(protocol.G2DRpcProtocol_G2DUpdateSkill), handleG2DUpdateSkill)
-		// 注册D2GAddItem的RPC响应处理
-		dshare.RegisterHandler(uint16(protocol.D2GRpcProtocol_D2GAddItem), handleD2GAddItemResponse)
 	})
 }

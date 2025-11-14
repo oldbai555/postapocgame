@@ -6,10 +6,16 @@
 
 package iface
 
-import "time"
+import (
+	"postapocgame/server/internal/jsonconf"
+	"time"
+)
 
 type IFuBen interface {
 	Close()
+	InitScenes(sceneConfigs []jsonconf.SceneConfig)
+	SetDifficulty(difficulty uint32)
+	OnPlayerEnter(sessionId string) error
 	GetScene(sceneId uint32) IScene
 	GetAllScenes() []IScene
 	GetFbId() uint32

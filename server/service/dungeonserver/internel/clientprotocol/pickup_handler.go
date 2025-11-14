@@ -2,10 +2,9 @@ package clientprotocol
 
 import (
 	"context"
-	"postapocgame/server/internal"
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
-	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/dungeonserver/internel/entity"
 	"postapocgame/server/service/dungeonserver/internel/entitymgr"
@@ -19,7 +18,7 @@ func init() {
 
 func handlePickupItem(picker iface.IEntity, msg *network.ClientMessage) error {
 	var req protocol.C2SPickupItemReq
-	if err := internal.Unmarshal(msg.Data, &req); err != nil {
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
 		return err
 	}
 
@@ -32,7 +31,7 @@ func handlePickupItem(picker iface.IEntity, msg *network.ClientMessage) error {
 			Message: "掉落物不存在",
 			ItemHdl: req.ItemHdl,
 		}
-		return picker.SendJsonMessage(uint16(protocol.S2CProtocol_S2CPickupItemResult), resp)
+		return picker.SendProtoMessage(uint16(protocol.S2CProtocol_S2CPickupItemResult), resp)
 	}
 
 	// 检查是否为掉落物实体
@@ -43,7 +42,7 @@ func handlePickupItem(picker iface.IEntity, msg *network.ClientMessage) error {
 			Message: "不是掉落物",
 			ItemHdl: req.ItemHdl,
 		}
-		return picker.SendJsonMessage(uint16(protocol.S2CProtocol_S2CPickupItemResult), resp)
+		return picker.SendProtoMessage(uint16(protocol.S2CProtocol_S2CPickupItemResult), resp)
 	}
 
 	// 检查归属者
@@ -53,7 +52,7 @@ func handlePickupItem(picker iface.IEntity, msg *network.ClientMessage) error {
 			Message: "不是你的掉落物",
 			ItemHdl: req.ItemHdl,
 		}
-		return picker.SendJsonMessage(uint16(protocol.S2CProtocol_S2CPickupItemResult), resp)
+		return picker.SendProtoMessage(uint16(protocol.S2CProtocol_S2CPickupItemResult), resp)
 	}
 
 	// 检查是否为角色实体
@@ -64,7 +63,7 @@ func handlePickupItem(picker iface.IEntity, msg *network.ClientMessage) error {
 			Message: "只有角色可以拾取",
 			ItemHdl: req.ItemHdl,
 		}
-		return picker.SendJsonMessage(uint16(protocol.S2CProtocol_S2CPickupItemResult), resp)
+		return picker.SendProtoMessage(uint16(protocol.S2CProtocol_S2CPickupItemResult), resp)
 	}
 
 	// 通过异步RPC请求GameServer检查背包空间并添加物品
@@ -77,10 +76,10 @@ func handlePickupItem(picker iface.IEntity, msg *network.ClientMessage) error {
 		RoleId:    roleId,
 		ItemId:    dropItem.GetItemId(),
 		Count:     dropItem.GetCount(),
-		ItemHdl:   req.ItemHdl, // 传递掉落物句柄，用于响应时移除
+		ItemHdl:   req.ItemHdl,
 	}
 
-	reqData, err := internal.Marshal(rpcReq)
+	reqData, err := proto.Marshal(rpcReq)
 	if err != nil {
 		log.Errorf("marshal D2GAddItemReq failed: %v", err)
 		resp := &protocol.S2CPickupItemResultReq{
@@ -88,27 +87,33 @@ func handlePickupItem(picker iface.IEntity, msg *network.ClientMessage) error {
 			Message: "系统错误",
 			ItemHdl: req.ItemHdl,
 		}
-		return picker.SendJsonMessage(uint16(protocol.S2CProtocol_S2CPickupItemResult), resp)
+		return picker.SendProtoMessage(uint16(protocol.S2CProtocol_S2CPickupItemResult), resp)
 	}
 
-	// 异步调用GameServer（不等待响应，通过RPC响应消息异步处理）
-	err = gameserverlink.CallGameServer(context.Background(), sessionId, uint16(protocol.D2GRpcProtocol_D2GAddItem), reqData)
-	if err != nil {
+	// 异步调用GameServer
+	if err := gameserverlink.CallGameServer(context.Background(), sessionId, uint16(protocol.D2GRpcProtocol_D2GAddItem), reqData); err != nil {
 		log.Errorf("call GameServer AddItem failed: %v", err)
 		resp := &protocol.S2CPickupItemResultReq{
 			Success: false,
 			Message: "系统错误",
 			ItemHdl: req.ItemHdl,
 		}
-		return picker.SendJsonMessage(uint16(protocol.S2CProtocol_S2CPickupItemResult), resp)
+		return picker.SendProtoMessage(uint16(protocol.S2CProtocol_S2CPickupItemResult), resp)
 	}
 
-	// 异步RPC已发送，等待GameServer响应（通过RPC响应消息处理）
-	// 先返回处理中状态，实际结果通过RPC响应消息异步通知
+	// 发送成功后立即移除掉落物，默认RPC调用成功
+	if scene, ok := entityMgr.GetSceneByHandle(req.ItemHdl); ok && scene != nil {
+		if err := scene.RemoveEntity(req.ItemHdl); err != nil {
+			log.Warnf("Failed to remove drop item from scene: %v", err)
+		}
+		entityMgr.UnbindScene(req.ItemHdl)
+	}
+	entityMgr.Unregister(req.ItemHdl)
+
 	resp := &protocol.S2CPickupItemResultReq{
 		Success: true,
-		Message: "拾取中...",
+		Message: "拾取成功",
 		ItemHdl: req.ItemHdl,
 	}
-	return picker.SendJsonMessage(uint16(protocol.S2CProtocol_S2CPickupItemResult), resp)
+	return picker.SendProtoMessage(uint16(protocol.S2CProtocol_S2CPickupItemResult), resp)
 }

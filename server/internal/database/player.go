@@ -11,15 +11,17 @@ import (
 
 // Player 角色表
 type Player struct {
-	ID         uint   `gorm:"primaryKey"`
-	AccountID  uint   `gorm:"not null;index"`
-	RoleName   string `gorm:"not null;size:32;index"`
-	Job        int
-	Sex        int
-	Level      int
-	BinaryData []byte `gorm:"type:blob"` // PlayerRoleBinaryData的二进制数据
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID           uint   `gorm:"primaryKey"`
+	AccountID    uint   `gorm:"not null;index"`
+	RoleName     string `gorm:"not null;size:32;index"`
+	Job          int
+	Sex          int
+	Level        int
+	LastLoginAt  time.Time
+	LastLogoutAt time.Time
+	BinaryData   []byte `gorm:"type:blob"` // PlayerRoleBinaryData的二进制数据
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 // CreatePlayer 创建角色
@@ -101,4 +103,30 @@ func SavePlayerBinaryDataTx(tx *gorm.DB, playerId uint, binaryData *protocol.Pla
 		return err
 	}
 	return tx.Model(&Player{}).Where("id = ?", playerId).Update("binary_data", data).Error
+}
+
+// GetPlayerMainData 加载PlayerRoleMainData
+func GetPlayerMainData(playerId uint) (*protocol.PlayerRoleMainData, error) {
+	player, err := GetPlayerByID(playerId)
+	if err != nil {
+		return nil, err
+	}
+	mainData := &protocol.PlayerRoleMainData{
+		RoleId:         uint64(player.ID),
+		Job:            uint32(player.Job),
+		Sex:            uint32(player.Sex),
+		Level:          uint32(player.Level),
+		RoleName:       player.RoleName,
+		LastLoginTime:  player.LastLoginAt.Unix(),
+		LastLogoutTime: player.LastLogoutAt.Unix(),
+	}
+	return mainData, nil
+}
+
+func UpdatePlayerLoginTime(playerId uint, loginAt time.Time) error {
+	return DB.Model(&Player{}).Where("id = ?", playerId).Update("last_login_at", loginAt).Error
+}
+
+func UpdatePlayerLogoutTime(playerId uint, logoutAt time.Time) error {
+	return DB.Model(&Player{}).Where("id = ?", playerId).Update("last_logout_at", logoutAt).Error
 }

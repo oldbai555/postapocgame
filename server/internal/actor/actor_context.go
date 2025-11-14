@@ -23,7 +23,7 @@ type actorContext struct {
 	stopChan chan struct{}
 	wg       sync.WaitGroup
 
-	data interface{}
+	dataMap map[string]interface{}
 
 	// ✅ 新增：消息丢弃计数
 	droppedCount  atomic.Int64
@@ -35,6 +35,7 @@ func newActorContext(id string, mailboxSize int, opts ...ContextOption) *actorCo
 		id:       id,
 		mailbox:  make(chan IActorMessage, mailboxSize),
 		stopChan: make(chan struct{}),
+		dataMap:  make(map[string]interface{}),
 	}
 	for _, opt := range opts {
 		opt(a)
@@ -68,12 +69,12 @@ func (a *actorContext) ExecuteAsync(message IActorMessage) {
 	}
 }
 
-func (a *actorContext) GetData() interface{} {
-	return a.data
+func (a *actorContext) GetData(key string) interface{} {
+	return a.dataMap[key]
 }
 
-func (a *actorContext) SetData(data interface{}) {
-	a.data = data
+func (a *actorContext) SetData(key string, data interface{}) {
+	a.dataMap[key] = data
 }
 
 func (a *actorContext) IsRunning() bool {

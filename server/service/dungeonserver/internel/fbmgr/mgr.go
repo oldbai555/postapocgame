@@ -7,44 +7,40 @@
 package fbmgr
 
 import (
-	"context"
 	"fmt"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/pkg/routine"
 	"postapocgame/server/service/dungeonserver/internel/fuben"
 	"postapocgame/server/service/dungeonserver/internel/iface"
-	"sync"
 	"time"
 )
 
 // FuBenMgr 副本管理器
 type FuBenMgr struct {
 	fubens map[uint32]iface.IFuBen
-	mu     sync.RWMutex
 
 	// 限时副本
 	timedFubens map[string]iface.IFuBen // key: sessionId (单人) 或 teamId (多人)
-	timedMu     sync.RWMutex
 
 	nextFbId uint32
+	// 定期清理
+	lastCleanup time.Time
 }
 
 var (
 	globalFuBenMgr *FuBenMgr
-	fubenOnce      sync.Once
 )
 
 // GetFuBenMgr 获取全局副本管理器
 func GetFuBenMgr() *FuBenMgr {
-	fubenOnce.Do(func() {
+	if globalFuBenMgr == nil {
 		globalFuBenMgr = &FuBenMgr{
 			fubens:      make(map[uint32]iface.IFuBen),
 			timedFubens: make(map[string]iface.IFuBen),
 			nextFbId:    1,
 		}
-	})
+	}
 	return globalFuBenMgr
 }
 
@@ -55,8 +51,8 @@ func (m *FuBenMgr) CreateDefaultFuBen() error {
 
 	// 初始化场景
 	sceneConfigs := []jsonconf.SceneConfig{
-		{SceneId: 1, Name: "新手村", WIdth: 1028, Height: 1028},
-		{SceneId: 2, Name: "森林", WIdth: 1028, Height: 1028},
+		{SceneId: 1, Name: "新手村", Width: 1028, Height: 1028},
+		{SceneId: 2, Name: "森林", Width: 1028, Height: 1028},
 	}
 	defaultFuBen.InitScenes(sceneConfigs)
 
@@ -71,18 +67,12 @@ func (m *FuBenMgr) CreateDefaultFuBen() error {
 
 // AddFuBen 添加副本
 func (m *FuBenMgr) AddFuBen(fb *fuben.FuBenSt) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	m.fubens[fb.GetFbId()] = fb
 	log.Infof("FuBen added: fbId=%d", fb.GetFbId())
 }
 
 // RemoveFuBen 移除副本
 func (m *FuBenMgr) RemoveFuBen(fbId uint32) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	if fb, ok := m.fubens[fbId]; ok {
 		fb.Close()
 		delete(m.fubens, fbId)
@@ -92,28 +82,20 @@ func (m *FuBenMgr) RemoveFuBen(fbId uint32) {
 
 // GetFuBen 获取副本
 func (m *FuBenMgr) GetFuBen(fbId uint32) (iface.IFuBen, bool) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
 	fb, ok := m.fubens[fbId]
 	return fb, ok
 }
 
 // CreateTimedFuBenForPlayer 为玩家创建限时副本
 func (m *FuBenMgr) CreateTimedFuBenForPlayer(sessionId string, name string, maxDuration time.Duration) (*fuben.FuBenSt, error) {
-	m.timedMu.Lock()
-	defer m.timedMu.Unlock()
-
 	// 检查是否已存在
 	if _, exists := m.timedFubens[sessionId]; exists {
 		return nil, fmt.Errorf("timed fuben already exists for player")
 	}
 
 	// 生成副本Id
-	m.mu.Lock()
 	fbId := m.nextFbId
 	m.nextFbId++
-	m.mu.Unlock()
 
 	// 创建限时副本
 	fb := fuben.NewFuBenSt(fbId, name, uint32(protocol.FuBenType_FuBenTypeTimed), 1, maxDuration)
@@ -131,16 +113,12 @@ func (m *FuBenMgr) CreateTimedFuBenForPlayer(sessionId string, name string, maxD
 
 // GetTimedFuBenForPlayer 获取玩家的限时副本
 func (m *FuBenMgr) GetTimedFuBenForPlayer(sessionId string) (iface.IFuBen, bool) {
-	m.timedMu.RLock()
-	defer m.timedMu.RUnlock()
-
 	fb, ok := m.timedFubens[sessionId]
 	return fb, ok
 }
 
 // CleanupExpiredFubens 清理过期副本
 func (m *FuBenMgr) CleanupExpiredFubens() {
-	m.mu.Lock()
 	toRemove := make([]uint32, 0)
 
 	for fbId, fb := range m.fubens {
@@ -152,7 +130,6 @@ func (m *FuBenMgr) CleanupExpiredFubens() {
 			}
 		}
 	}
-	m.mu.Unlock()
 
 	// 移除过期副本
 	for _, fbId := range toRemove {
@@ -166,45 +143,34 @@ func (m *FuBenMgr) CleanupExpiredFubens() {
 
 // RunOne 驱动所有副本的常驻逻辑
 func (m *FuBenMgr) RunOne(now time.Time) {
-	m.mu.RLock()
-	fubens := make([]iface.IFuBen, 0, len(m.fubens))
 	for _, fb := range m.fubens {
-		fubens = append(fubens, fb)
-	}
-	m.mu.RUnlock()
-
-	for _, fb := range fubens {
 		if fb != nil {
 			fb.RunOne(now)
 		}
 	}
-}
 
-// StartCleanupRoutine 启动清理协程
-func (m *FuBenMgr) StartCleanupRoutine(ctx context.Context) {
-	routine.GoV2(func() error {
-		ticker := time.NewTicker(1 * time.Minute)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				break
-			case <-ticker.C:
-				m.CleanupExpiredFubens()
-			}
-		}
-	})
-	log.Infof("FuBen cleanup routine started")
+	if m.lastCleanup.IsZero() || now.Sub(m.lastCleanup) >= time.Minute {
+		m.CleanupExpiredFubens()
+		m.lastCleanup = now
+	}
 }
 
 // GetAllFubens 获取所有副本
 func (m *FuBenMgr) GetAllFubens() []iface.IFuBen {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
 	fubens := make([]iface.IFuBen, 0, len(m.fubens))
 	for _, fb := range m.fubens {
 		fubens = append(fubens, fb)
 	}
 	return fubens
+}
+
+func init() {
+	fuben.RegisterTimedFuBenProvider(
+		func(sessionId string) (iface.IFuBen, bool) {
+			return GetFuBenMgr().GetTimedFuBenForPlayer(sessionId)
+		},
+		func(sessionId string, name string, maxDuration time.Duration) (*fuben.FuBenSt, error) {
+			return GetFuBenMgr().CreateTimedFuBenForPlayer(sessionId, name, maxDuration)
+		},
+	)
 }

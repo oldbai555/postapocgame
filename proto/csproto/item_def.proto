@@ -23,6 +23,7 @@ enum MoneyType {
     MoneyTypeNil = 0;
     MoneyTypeExp = 1;        // 经验
     MoneyTypeGoldCoin = 2;  // 金币
+    MoneyTypeActivePoint = 3; // 活跃点
 }
 
 // 装备槽位枚举

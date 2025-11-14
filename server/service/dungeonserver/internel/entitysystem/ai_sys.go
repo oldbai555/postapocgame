@@ -269,7 +269,7 @@ func (ai *AISys) broadcastSkillResult(skillID uint32, result *skill.CastResult, 
 		Hits:      convertAIHitResults(result.HitResults),
 	}
 	for _, et := range ai.scene.GetAllEntities() {
-		_ = et.SendJsonMessage(uint16(protocol.S2CProtocol_S2CSkillCastResult), resp)
+		_ = et.SendProtoMessage(uint16(protocol.S2CProtocol_S2CSkillCastResult), resp)
 	}
 }
 

@@ -2,6 +2,7 @@ package entitysystem
 
 import (
 	"context"
+	"math"
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
@@ -9,6 +10,21 @@ import (
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/iface"
+)
+
+const (
+	// 万分比基数（10000 = 100%）
+	PerTenThousandBase int64 = 10000
+	// 强化等级每级增加的倍率（万分比：1000 = 10%）
+	UpgradePerLevelMultiplier int64 = 1000
+	// 精炼等级每级增加的倍率（万分比：500 = 5%）
+	RefinePerLevelMultiplier int64 = 500
+	// 星级每星增加的倍率（万分比：1000 = 10%）
+	StarPerLevelMultiplier int64 = 1000
+	// 品质每级增加的倍率（万分比：1000 = 10%）
+	QualityPerLevelMultiplier int64 = 1000
+	// 阶级每级增加的倍率（万分比：1000 = 10%）
+	TierPerLevelMultiplier int64 = 1000
 )
 
 // EquipSys 装备系统
@@ -292,7 +308,7 @@ func (es *EquipSys) UpgradeEquip(ctx context.Context, slot uint32) error {
 
 	// 检查消耗是否足够
 	if len(consumeItems) > 0 {
-		if err := playerRole.CheckConsume(consumeItems); err != nil {
+		if err := playerRole.CheckConsume(ctx, consumeItems); err != nil {
 			return customerr.Wrap(err)
 		}
 
@@ -357,15 +373,22 @@ func (es *EquipSys) CalculateEquipAttrs() map[uint32]int64 {
 			continue
 		}
 
-		// 根据强化等级计算属性值（每级增加10%，使用万分比：1000/10000）
+		// 根据强化等级计算属性值（每级增加10%，使用万分比）
 		// 基础倍率10000，每级增加1000
-		upgradeMultiplier := 10000 + int64(equip.Level-1)*1000
+		upgradeMultiplier := PerTenThousandBase + int64(equip.Level-1)*UpgradePerLevelMultiplier
 
-		// 精炼属性（根据精炼等级计算，每级增加5%，使用万分比：500/10000）
+		// 精炼属性（根据精炼等级计算，每级增加5%，使用万分比）
 		// 基础倍率10000，每级增加500
-		refineMultiplier := int64(10000)
+		refineMultiplier := PerTenThousandBase
 		if equip.RefineLevel > 0 {
-			refineMultiplier = 10000 + int64(equip.RefineLevel)*500
+			refineMultiplier = PerTenThousandBase + int64(equip.RefineLevel)*RefinePerLevelMultiplier
+		}
+
+		// 计算倍率乘积，检查是否会溢出
+		baseMultiplier := upgradeMultiplier * refineMultiplier
+		if baseMultiplier < 0 || baseMultiplier > math.MaxInt64/PerTenThousandBase {
+			log.Errorf("equip attr multiplier overflow: upgrade=%d, refine=%d, base=%d", upgradeMultiplier, refineMultiplier, baseMultiplier)
+			continue // 跳过该装备，避免溢出
 		}
 
 		// 普通属性（所有装备都有）
@@ -373,8 +396,14 @@ func (es *EquipSys) CalculateEquipAttrs() map[uint32]int64 {
 			if attr == nil {
 				continue
 			}
+			attrValue := int64(attr.Value)
+			// 检查计算是否会溢出
+			if attrValue > 0 && baseMultiplier > math.MaxInt64/attrValue {
+				log.Errorf("equip attr value overflow: value=%d, multiplier=%d", attr.Value, baseMultiplier)
+				continue
+			}
 			// 先乘以倍率，再除以10000（万分比）
-			finalValue := (attr.Value * upgradeMultiplier * refineMultiplier) / 10000 / 10000
+			finalValue := (attrValue * baseMultiplier) / PerTenThousandBase / PerTenThousandBase
 			attrs[attr.Type] += finalValue
 		}
 
@@ -384,49 +413,84 @@ func (es *EquipSys) CalculateEquipAttrs() map[uint32]int64 {
 				if attr == nil {
 					continue
 				}
-				finalValue := (attr.Value * upgradeMultiplier * refineMultiplier) / 10000 / 10000
+				attrValue := int64(attr.Value)
+				if attrValue > 0 && baseMultiplier > math.MaxInt64/attrValue {
+					log.Errorf("equip rare attr value overflow: value=%d, multiplier=%d", attr.Value, baseMultiplier)
+					continue
+				}
+				finalValue := (attrValue * baseMultiplier) / PerTenThousandBase / PerTenThousandBase
 				attrs[attr.Type] += finalValue
 			}
 		}
 
 		// 星级属性（根据装备星级判断）
 		if itemConfig.Star > 0 {
+			starMultiplier := PerTenThousandBase + int64(itemConfig.Star)*StarPerLevelMultiplier
+			// 检查倍率乘积是否会溢出
+			starBaseMultiplier := baseMultiplier * starMultiplier
+			if starBaseMultiplier < 0 || starBaseMultiplier > math.MaxInt64/PerTenThousandBase {
+				log.Errorf("equip star attr multiplier overflow: base=%d, star=%d, total=%d", baseMultiplier, starMultiplier, starBaseMultiplier)
+				continue
+			}
 			for _, attr := range itemConfig.StarAttrs {
 				if attr == nil {
 					continue
 				}
-				// 星级属性按星级倍数计算（每星10%，使用万分比：1000/10000）
-				starMultiplier := 10000 + int64(itemConfig.Star)*1000
+				attrValue := int64(attr.Value)
+				if attrValue > 0 && starBaseMultiplier > math.MaxInt64/attrValue {
+					log.Errorf("equip star attr value overflow: value=%d, multiplier=%d", attr.Value, starBaseMultiplier)
+					continue
+				}
 				// 先乘以倍率，再除以10000（万分比）
-				finalValue := (attr.Value * upgradeMultiplier * refineMultiplier * starMultiplier) / 10000 / 10000 / 10000
+				finalValue := (attrValue * starBaseMultiplier) / PerTenThousandBase / PerTenThousandBase / PerTenThousandBase
 				attrs[attr.Type] += finalValue
 			}
 		}
 
 		// 品质属性（根据装备品质判断）
 		if itemConfig.Quality > 0 {
+			qualityMultiplier := PerTenThousandBase + int64(itemConfig.Quality)*QualityPerLevelMultiplier
+			// 检查倍率乘积是否会溢出
+			qualityBaseMultiplier := baseMultiplier * qualityMultiplier
+			if qualityBaseMultiplier < 0 || qualityBaseMultiplier > math.MaxInt64/PerTenThousandBase {
+				log.Errorf("equip quality attr multiplier overflow: base=%d, quality=%d, total=%d", baseMultiplier, qualityMultiplier, qualityBaseMultiplier)
+				continue
+			}
 			for _, attr := range itemConfig.QualityAttrs {
 				if attr == nil {
 					continue
 				}
-				// 品质属性按品质倍数计算（每品质10%，使用万分比：1000/10000）
-				qualityMultiplier := 10000 + int64(itemConfig.Quality)*1000
+				attrValue := int64(attr.Value)
+				if attrValue > 0 && qualityBaseMultiplier > math.MaxInt64/attrValue {
+					log.Errorf("equip quality attr value overflow: value=%d, multiplier=%d", attr.Value, qualityBaseMultiplier)
+					continue
+				}
 				// 先乘以倍率，再除以10000（万分比）
-				finalValue := (attr.Value * upgradeMultiplier * refineMultiplier * qualityMultiplier) / 10000 / 10000 / 10000
+				finalValue := (attrValue * qualityBaseMultiplier) / PerTenThousandBase / PerTenThousandBase / PerTenThousandBase
 				attrs[attr.Type] += finalValue
 			}
 		}
 
 		// 阶级属性（根据装备阶级判断）
 		if itemConfig.Tier > 0 {
+			tierMultiplier := PerTenThousandBase + int64(itemConfig.Tier)*TierPerLevelMultiplier
+			// 检查倍率乘积是否会溢出
+			tierBaseMultiplier := baseMultiplier * tierMultiplier
+			if tierBaseMultiplier < 0 || tierBaseMultiplier > math.MaxInt64/PerTenThousandBase {
+				log.Errorf("equip tier attr multiplier overflow: base=%d, tier=%d, total=%d", baseMultiplier, tierMultiplier, tierBaseMultiplier)
+				continue
+			}
 			for _, attr := range itemConfig.TierAttrs {
 				if attr == nil {
 					continue
 				}
-				// 阶级属性按阶级倍数计算（每阶级10%，使用万分比：1000/10000）
-				tierMultiplier := 10000 + int64(itemConfig.Tier)*1000
+				attrValue := int64(attr.Value)
+				if attrValue > 0 && tierBaseMultiplier > math.MaxInt64/attrValue {
+					log.Errorf("equip tier attr value overflow: value=%d, multiplier=%d", attr.Value, tierBaseMultiplier)
+					continue
+				}
 				// 先乘以倍率，再除以10000（万分比）
-				finalValue := (attr.Value * upgradeMultiplier * refineMultiplier * tierMultiplier) / 10000 / 10000 / 10000
+				finalValue := (attrValue * tierBaseMultiplier) / PerTenThousandBase / PerTenThousandBase / PerTenThousandBase
 				attrs[attr.Type] += finalValue
 			}
 		}
@@ -488,7 +552,7 @@ func (es *EquipSys) calculateSetEffects() map[uint32]int64 {
 		if bestEffect != nil && bestEffect.Attrs != nil {
 			for _, attr := range bestEffect.Attrs {
 				if attr != nil {
-					setAttrs[attr.Type] += attr.Value
+					setAttrs[attr.Type] += int64(attr.Value)
 				}
 			}
 		}
@@ -644,7 +708,7 @@ func (es *EquipSys) EnchantEquip(ctx context.Context, slot uint32) error {
 		if selectedAttr != nil {
 			equip.EnchantAttrs = append(equip.EnchantAttrs, &protocol.AttrSt{
 				Type:  selectedAttr.Type,
-				Value: selectedAttr.Value,
+				Value: int64(selectedAttr.Value),
 			})
 		}
 	}

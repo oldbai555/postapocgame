@@ -11,16 +11,27 @@ import (
 	"postapocgame/server/service/gameserver/internel/iface"
 )
 
+const (
+	// 默认背包类型（主背包）
+	DefaultBagType uint32 = 1
+	// 默认背包容量（如果配置不存在时使用）
+	DefaultBagSize uint32 = 100
+)
+
 // BagSys 背包系统
 type BagSys struct {
 	*BaseSystem
 	bagData *protocol.SiBagData
+	// 辅助索引：itemID -> []*ItemSt（用于快速查找，但不作为数据源）
+	// 注意：这个索引只用于查找优化，数据源仍然是bagData.Items
+	itemIndex map[uint32][]*protocol.ItemSt
 }
 
 // NewBagSys 创建背包系统
 func NewBagSys() *BagSys {
 	return &BagSys{
 		BaseSystem: NewBaseSystem(uint32(protocol.SystemId_SysBag)),
+		itemIndex:  make(map[uint32][]*protocol.ItemSt),
 	}
 }
 
@@ -66,17 +77,48 @@ func (bs *BagSys) OnInit(ctx context.Context) {
 	}
 	bs.bagData = binaryData.BagData
 
+	// 初始化辅助索引
+	bs.rebuildIndex()
+
 	log.Infof("BagSys initialized: ItemCount=%d", len(bs.bagData.Items))
 }
 
+// getBagSize 获取背包容量（从配置读取）
+func (bs *BagSys) getBagSize(bagType uint32) uint32 {
+	configMgr := jsonconf.GetConfigManager()
+	bagConfig, ok := configMgr.GetBagConfig(bagType)
+	if !ok || bagConfig == nil {
+		// 如果配置不存在，使用默认值
+		return DefaultBagSize
+	}
+	return bagConfig.Size
+}
+
+// rebuildIndex 重建辅助索引（在数据变更后调用）
+func (bs *BagSys) rebuildIndex() {
+	bs.itemIndex = make(map[uint32][]*protocol.ItemSt)
+	if bs.bagData == nil || bs.bagData.Items == nil {
+		return
+	}
+	for _, item := range bs.bagData.Items {
+		if item != nil {
+			bs.itemIndex[item.ItemId] = append(bs.itemIndex[item.ItemId], item)
+		}
+	}
+}
+
 // findItemByKey 根据itemID和bind查找物品（用于堆叠查找）
+// 使用辅助索引优化查找效率
 func (bs *BagSys) findItemByKey(itemID uint32, bind uint32) *protocol.ItemSt {
 	if bs.bagData == nil || bs.bagData.Items == nil {
 		return nil
 	}
-	for _, item := range bs.bagData.Items {
-		if item != nil && item.ItemId == itemID && item.Bind == bind {
-			return item
+	// 使用辅助索引快速定位
+	if items, exists := bs.itemIndex[itemID]; exists {
+		for _, item := range items {
+			if item != nil && item.ItemId == itemID && item.Bind == bind {
+				return item
+			}
 		}
 	}
 	return nil
@@ -131,8 +173,9 @@ func (bs *BagSys) AddItem(ctx context.Context, itemID uint32, count uint32, bind
 
 	// 如果还有剩余，创建新物品
 	if count > 0 {
-		// 检查背包容量（简单实现，可以扩展）
-		if len(bs.bagData.Items) >= 100 {
+		// 检查背包容量（从配置读取）
+		bagSize := bs.getBagSize(DefaultBagType)
+		if len(bs.bagData.Items) >= int(bagSize) {
 			return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "bag is full")
 		}
 
@@ -143,6 +186,8 @@ func (bs *BagSys) AddItem(ctx context.Context, itemID uint32, count uint32, bind
 			Bind:   bind,
 		}
 		bs.bagData.Items = append(bs.bagData.Items, newItem)
+		// 更新辅助索引
+		bs.itemIndex[itemID] = append(bs.itemIndex[itemID], newItem)
 	}
 
 	// 发布事件
@@ -154,7 +199,7 @@ func (bs *BagSys) AddItem(ctx context.Context, itemID uint32, count uint32, bind
 	return nil
 }
 
-// HasItem 检查是否拥有足够数量的指定物品
+// HasItem 检查是否拥有足够数量的指定物品（使用辅助索引优化查找）
 func (bs *BagSys) HasItem(itemID uint32, count uint32) bool {
 	if count == 0 {
 		return true
@@ -163,11 +208,14 @@ func (bs *BagSys) HasItem(itemID uint32, count uint32) bool {
 		return false
 	}
 	var total uint32
-	for _, item := range bs.bagData.Items {
-		if item != nil && item.ItemId == itemID {
-			total += item.Count
-			if total >= count {
-				return true
+	// 使用辅助索引快速定位
+	if items, exists := bs.itemIndex[itemID]; exists {
+		for _, item := range items {
+			if item != nil {
+				total += item.Count
+				if total >= count {
+					return true
+				}
 			}
 		}
 	}
@@ -213,6 +261,9 @@ func (bs *BagSys) RemoveItem(ctx context.Context, itemID uint32, count uint32) e
 		bs.bagData.Items = append(bs.bagData.Items[:idx], bs.bagData.Items[idx+1:]...)
 	}
 
+	// 重建辅助索引
+	bs.rebuildIndex()
+
 	// 发布事件
 	playerRole.Publish(gevent.OnItemRemove, map[string]interface{}{
 		"item_id": itemID,
@@ -222,15 +273,14 @@ func (bs *BagSys) RemoveItem(ctx context.Context, itemID uint32, count uint32) e
 	return nil
 }
 
-// GetItem 获取物品
+// GetItem 获取物品（使用辅助索引优化查找）
 func (bs *BagSys) GetItem(itemID uint32) *protocol.ItemSt {
 	if bs.bagData == nil || bs.bagData.Items == nil {
 		return nil
 	}
-	for _, item := range bs.bagData.Items {
-		if item != nil && item.ItemId == itemID {
-			return item
-		}
+	// 使用辅助索引快速定位
+	if items, exists := bs.itemIndex[itemID]; exists && len(items) > 0 {
+		return items[0] // 返回第一个匹配的物品
 	}
 	return nil
 }
@@ -281,6 +331,8 @@ func (bs *BagSys) RemoveItemTx(itemID uint32, count uint32) error {
 		// 从切片中删除
 		bs.bagData.Items = append(bs.bagData.Items[:idx], bs.bagData.Items[idx+1:]...)
 	}
+	// 重建辅助索引
+	bs.rebuildIndex()
 	return nil
 }
 
@@ -319,8 +371,9 @@ func (bs *BagSys) AddItemTx(itemID uint32, count uint32, bind uint32) error {
 
 	// 如果还有剩余，创建新物品
 	if count > 0 {
-		// 检查背包容量（默认100格）
-		if len(bs.bagData.Items) >= 100 {
+		// 检查背包容量（从配置读取）
+		bagSize := bs.getBagSize(DefaultBagType)
+		if len(bs.bagData.Items) >= int(bagSize) {
 			return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "bag is full")
 		}
 
@@ -330,6 +383,8 @@ func (bs *BagSys) AddItemTx(itemID uint32, count uint32, bind uint32) error {
 			Bind:   bind,
 		}
 		bs.bagData.Items = append(bs.bagData.Items, newItem)
+		// 更新辅助索引
+		bs.itemIndex[itemID] = append(bs.itemIndex[itemID], newItem)
 	}
 
 	return nil
@@ -372,6 +427,8 @@ func (bs *BagSys) RestoreItemsSnapshot(snapshot map[uint32]*protocol.ItemSt) {
 			bs.bagData.Items = append(bs.bagData.Items, item)
 		}
 	}
+	// 重建辅助索引
+	bs.rebuildIndex()
 }
 
 // 注册系统工厂

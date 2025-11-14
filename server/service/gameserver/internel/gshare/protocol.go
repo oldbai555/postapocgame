@@ -8,6 +8,7 @@ package gshare
 
 const (
 	DoNetWorkMsg = iota + 1
+	DoRunOneMsg
 )
 
 const (

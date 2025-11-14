@@ -34,6 +34,8 @@ message PlayerRoleMainData {
     uint32 level = 4;
     string role_name = 5;
     uint32 gm_level = 6;// GM等级: 0=普通玩家 1=GM 2=高级GM 3=超级GM
+    int64 last_login_time = 7;// 最近登录时间
+    int64 last_logout_time = 8;// 最近登出时间
 }
 
 message PlayerRoleBinaryData {
@@ -50,7 +52,7 @@ message PlayerRoleBinaryData {
     SiItemUseData item_use_data = 11;// 物品使用数据（冷却时间等）
     SiOfflineRewardData offline_reward_data = 12;// 离线收益数据
     SiAntiCheatData anti_cheat_data = 13;// 防作弊数据
-    SiDailyQuestData daily_quest_data = 14;// 每日任务数据
+    SiDailyActivityData daily_activity_data = 14;// 日常活跃数据
     SiAchievementData achievement_data = 15;// 成就数据
     SiNewbieData newbie_data = 16;// 新手保护数据
 }

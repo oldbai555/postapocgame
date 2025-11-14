@@ -3,6 +3,7 @@ package clientprotocol
 import (
 	"postapocgame/server/internal/network"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/dungeonserver/internel/gameserverlink"
 	"postapocgame/server/service/dungeonserver/internel/iface"
 )
 
@@ -36,4 +37,8 @@ func GetRegisteredProtocols() []uint16 {
 		protocols = append(protocols, protoId)
 	}
 	return protocols
+}
+
+func init() {
+	gameserverlink.RegisterProtocolProvider(GetRegisteredProtocols)
 }

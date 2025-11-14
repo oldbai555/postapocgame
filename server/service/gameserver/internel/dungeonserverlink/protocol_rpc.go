@@ -2,12 +2,13 @@ package dungeonserverlink
 
 import (
 	"context"
-	"postapocgame/server/internal"
+	"google.golang.org/protobuf/proto"
+	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/jsonconf"
-	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/manager"
 	"postapocgame/server/service/gameserver/internel/playeractor/entitysystem"
 )
@@ -15,7 +16,7 @@ import (
 // handleRegisterProtocols 处理DungeonServer注册协议的RPC请求
 func handleRegisterProtocols(ctx context.Context, sessionId string, data []byte) error {
 	var req protocol.D2GRegisterProtocolsReq
-	if err := internal.Unmarshal(data, &req); err != nil {
+	if err := proto.Unmarshal(data, &req); err != nil {
 		log.Errorf("unmarshal register protocols request failed: %v", err)
 		return customerr.Wrap(err)
 	}
@@ -48,7 +49,7 @@ func handleRegisterProtocols(ctx context.Context, sessionId string, data []byte)
 // handleUnregisterProtocols 处理DungeonServer注销协议的RPC请求
 func handleUnregisterProtocols(ctx context.Context, sessionId string, data []byte) error {
 	var req protocol.D2GUnregisterProtocolsReq
-	if err := internal.Unmarshal(data, &req); err != nil {
+	if err := proto.Unmarshal(data, &req); err != nil {
 		log.Errorf("unmarshal unregister protocols request failed: %v", err)
 		return customerr.Wrap(err)
 	}
@@ -69,7 +70,7 @@ func handleUnregisterProtocols(ctx context.Context, sessionId string, data []byt
 // handleSettleDungeon 处理副本结算的RPC请求
 func handleSettleDungeon(ctx context.Context, sessionId string, data []byte) error {
 	var req protocol.D2GSettleDungeonReq
-	if err := internal.Unmarshal(data, &req); err != nil {
+	if err := proto.Unmarshal(data, &req); err != nil {
 		log.Errorf("unmarshal settle dungeon request failed: %v", err)
 		return customerr.Wrap(err)
 	}
@@ -149,7 +150,7 @@ func handleSettleDungeon(ctx context.Context, sessionId string, data []byte) err
 // handleEnterDungeonSuccess 处理进入副本成功通知
 func handleEnterDungeonSuccess(ctx context.Context, sessionId string, data []byte) error {
 	var req protocol.D2GEnterDungeonSuccessReq
-	if err := internal.Unmarshal(data, &req); err != nil {
+	if err := proto.Unmarshal(data, &req); err != nil {
 		log.Errorf("unmarshal enter dungeon success request failed: %v", err)
 		return customerr.Wrap(err)
 	}
@@ -162,97 +163,69 @@ func handleEnterDungeonSuccess(ctx context.Context, sessionId string, data []byt
 // handleAddItem 处理添加物品请求（拾取掉落物）- 在Actor中异步处理
 func handleAddItem(ctx context.Context, sessionId string, data []byte) error {
 	var req protocol.D2GAddItemReq
-	if err := internal.Unmarshal(data, &req); err != nil {
+	if err := proto.Unmarshal(data, &req); err != nil {
 		log.Errorf("unmarshal add item request failed: %v", err)
-		sendAddItemResponse(ctx, false, "解析请求失败", req.ItemHdl)
-		return nil
+		return customerr.Wrap(err)
 	}
 
 	log.Infof("received add item request: RoleId=%d, ItemId=%d, Count=%d", req.RoleId, req.ItemId, req.Count)
 
-	// 获取玩家角色
 	playerRole := manager.GetPlayerRole(req.RoleId)
 	if playerRole == nil {
-		log.Errorf("player role not found: RoleId=%d", req.RoleId)
-		sendAddItemResponse(ctx, false, "玩家角色不存在", req.ItemHdl)
-		return nil
+		log.Errorf("player role not found: RoleId=%d, SessionId=%s", req.RoleId, sessionId)
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "player role not found")
 	}
 
-	// 添加物品到背包
 	roleCtx := playerRole.WithContext(ctx)
-	bagSys := entitysystem.GetBagSys(roleCtx)
-	if bagSys == nil {
-		log.Errorf("bag system not found: RoleId=%d", req.RoleId)
-		sendAddItemResponse(ctx, false, "背包系统未初始化", req.ItemHdl)
-		return nil
+	itemCfg, ok := jsonconf.GetConfigManager().GetItemConfig(req.ItemId)
+	if !ok {
+		log.Errorf("item config not found: ItemId=%d", req.ItemId)
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "item config not found")
 	}
 
-	// 添加物品
-	err := bagSys.AddItem(roleCtx, req.ItemId, req.Count, 0) // 0表示不绑定
-	if err != nil {
-		log.Errorf("add item failed: RoleId=%d, ItemId=%d, Count=%d, Error=%v", req.RoleId, req.ItemId, req.Count, err)
-		sendAddItemResponse(ctx, false, err.Error(), req.ItemHdl)
-		return nil
+	rewards := []*jsonconf.ItemAmount{
+		{
+			ItemType: itemCfg.Type,
+			ItemId:   req.ItemId,
+			Count:    int64(req.Count),
+			Bind:     0,
+		},
+	}
+
+	if err := playerRole.GrantRewards(roleCtx, rewards); err != nil {
+		log.Errorf("grant rewards failed: RoleId=%d, ItemId=%d, Count=%d, Error=%v", req.RoleId, req.ItemId, req.Count, err)
+		_ = playerRole.SendProtoMessage(uint16(protocol.S2CProtocol_S2CPickupItemResult), &protocol.S2CPickupItemResultReq{
+			Success: false,
+			Message: "拾取失败，请稍后重试",
+			ItemHdl: req.ItemHdl,
+		})
+		return customerr.Wrap(err)
+	}
+
+	if bagSys := entitysystem.GetBagSys(roleCtx); bagSys != nil {
+		if err := playerRole.SendProtoMessage(uint16(protocol.S2CProtocol_S2CBagData), &protocol.S2CBagDataReq{
+			BagData: bagSys.GetBagData(),
+		}); err != nil {
+			log.Warnf("send bag data failed: %v", err)
+		}
 	}
 
 	log.Infof("item added successfully: RoleId=%d, ItemId=%d, Count=%d", req.RoleId, req.ItemId, req.Count)
-	sendAddItemResponse(ctx, true, "", req.ItemHdl)
 	return nil
 }
 
-// sendAddItemResponse 发送添加物品的RPC响应
-func sendAddItemResponse(ctx context.Context, success bool, errorMsg string, itemHdl uint64) {
-	// 从context中获取RequestId和连接信息
-	requestId, ok := ctx.Value("rpcRequestId").(uint32)
-	if !ok {
-		log.Errorf("rpcRequestId not found in context")
-		return
-	}
-
-	conn, ok := ctx.Value("rpcConn").(network.IConnection)
-	if !ok {
-		log.Errorf("rpcConn not found in context")
-		return
-	}
-
-	// 构造响应
-	resp := &protocol.D2GAddItemResp{
-		Success:  success,
-		ErrorMsg: errorMsg,
-		ItemHdl:  itemHdl, // 传递掉落物句柄
-	}
-	respData, err := internal.Marshal(resp)
-	if err != nil {
-		log.Errorf("marshal D2GAddItemResp failed: %v", err)
-		return
-	}
-
-	// 发送RPC响应
-	rpcResp := &network.RPCResponse{
-		RequestId: requestId,
-		Success:   success,
-		Data:      respData,
-	}
-
-	// 获取codec并编码响应
-	codec := network.DefaultCodec()
-	respDataEncoded := codec.EncodeRPCResponse(rpcResp)
-	defer network.PutBuffer(respDataEncoded)
-
-	msg := network.GetMessage()
-	defer network.PutMessage(msg)
-	msg.Type = network.MsgTypeRPCResponse
-	msg.Payload = respDataEncoded
-
-	if err := conn.SendMessage(msg); err != nil {
-		log.Errorf("send RPC response failed: %v", err)
+func handleAddItemActorMessage(message actor.IActorMessage) {
+	ctx := message.GetContext()
+	sessionId, _ := ctx.Value(gshare.ContextKeySession).(string)
+	if err := handleAddItem(ctx, sessionId, message.GetData()); err != nil {
+		log.Errorf("handleAddItem failed: %v", err)
 	}
 }
 
 // handleSyncPosition 处理坐标同步的RPC请求
 func handleSyncPosition(ctx context.Context, sessionId string, data []byte) error {
 	var req protocol.D2GSyncPositionReq
-	if err := internal.Unmarshal(data, &req); err != nil {
+	if err := proto.Unmarshal(data, &req); err != nil {
 		log.Errorf("unmarshal sync position request failed: %v", err)
 		return customerr.Wrap(err)
 	}
@@ -286,6 +259,7 @@ func InitProtocolRegistration() {
 	RegisterRPCHandler(uint16(protocol.D2GRpcProtocol_D2GEnterDungeonSuccess), handleEnterDungeonSuccess)
 	// 注册添加物品的RPC处理器
 	RegisterRPCHandler(uint16(protocol.D2GRpcProtocol_D2GAddItem), handleAddItem)
+	gshare.RegisterHandler(uint16(protocol.D2GRpcProtocol_D2GAddItem), handleAddItemActorMessage)
 	RegisterRPCHandler(uint16(protocol.D2GRpcProtocol_D2GSyncPosition), handleSyncPosition)
 
 	log.Infof("protocol registration RPC handlers initialized")

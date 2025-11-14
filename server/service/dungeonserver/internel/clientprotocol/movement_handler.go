@@ -1,7 +1,7 @@
 package clientprotocol
 
 import (
-	"postapocgame/server/internal"
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/service/dungeonserver/internel/iface"
@@ -15,7 +15,7 @@ func init() {
 
 func handleStartMove(entity iface.IEntity, msg *network.ClientMessage) error {
 	var req protocol.C2SStartMoveReq
-	if err := internal.Unmarshal(msg.Data, &req); err != nil {
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
 		return err
 	}
 
@@ -32,7 +32,7 @@ func handleStartMove(entity iface.IEntity, msg *network.ClientMessage) error {
 
 func handleUpdateMove(entity iface.IEntity, msg *network.ClientMessage) error {
 	var req protocol.C2SUpdateMoveReq
-	if err := internal.Unmarshal(msg.Data, &req); err != nil {
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
 		return err
 	}
 
@@ -49,7 +49,7 @@ func handleUpdateMove(entity iface.IEntity, msg *network.ClientMessage) error {
 
 func handleEndMove(entity iface.IEntity, msg *network.ClientMessage) error {
 	var req protocol.C2SEndMoveReq
-	if err := internal.Unmarshal(msg.Data, &req); err != nil {
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
 		return err
 	}
 

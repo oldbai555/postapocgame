@@ -55,8 +55,6 @@ func main() {
 		log.Fatalf("Start dungeon actor failed: %v", err)
 	}
 
-	fbMgr.StartCleanupRoutine(ctx)
-
 	if err := ds.Start(ctx); err != nil {
 		log.Fatalf("Start DungeonServer failed: %v", err)
 	}

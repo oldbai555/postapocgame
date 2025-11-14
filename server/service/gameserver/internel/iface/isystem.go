@@ -11,6 +11,11 @@ type ISystem interface {
 	OnRoleReconnect(ctx context.Context)
 	OnRoleLogout(ctx context.Context)
 	OnRoleClose(ctx context.Context)
+	OnNewHour(ctx context.Context)
+	OnNewDay(ctx context.Context)
+	OnNewWeek(ctx context.Context)
+	OnNewMonth(ctx context.Context)
+	OnNewYear(ctx context.Context)
 	IsOpened() bool
 	SetOpened(opened bool)
 }
@@ -22,6 +27,11 @@ type ISystemMgr interface {
 	CheckAllSysOpen(ctx context.Context)
 	OnRoleLogin(ctx context.Context)
 	OnRoleReconnect(ctx context.Context)
+	OnNewHour(ctx context.Context)
+	OnNewDay(ctx context.Context)
+	OnNewWeek(ctx context.Context)
+	OnNewMonth(ctx context.Context)
+	OnNewYear(ctx context.Context)
 }
 
 // SystemFactory 系统工厂函数

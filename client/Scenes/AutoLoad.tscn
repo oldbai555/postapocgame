@@ -1,0 +1,13 @@
+[gd_scene load_steps=3 format=3 uid="uid://autoload_scene_001"]
+
+[ext_resource type="Script" path="res://Scripts/Network/NetworkManager.cs" id="1_network"]
+[ext_resource type="Script" path="res://Scripts/Network/MessageReceiver.cs" id="2_receiver"]
+
+[node name="AutoLoad" type="Node"]
+
+[node name="NetworkManager" type="Node" parent="."]
+script = ExtResource("1_network")
+
+[node name="MessageReceiver" type="Node" parent="."]
+script = ExtResource("2_receiver")
+

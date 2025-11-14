@@ -7,8 +7,6 @@ import (
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/dungeonserver/internel/config"
 	"postapocgame/server/service/dungeonserver/internel/gameserverlink"
-	"sync"
-	"time"
 )
 
 // DungeonServer DungeonServer实现
@@ -18,7 +16,6 @@ type DungeonServer struct {
 	networkHandler *gameserverlink.NetworkHandler
 
 	stopChan chan struct{}
-	wg       sync.WaitGroup
 }
 
 // NewDungeonServer 创建DungeonServer
@@ -76,20 +73,6 @@ func (ds *DungeonServer) Stop(ctx context.Context) error {
 	// 3. 停止TCP服务器
 	if ds.tcpServer != nil {
 		ds.tcpServer.Stop(ctx)
-	}
-
-	// 4. 等待所有请求完成（带超时）
-	done := make(chan struct{})
-	go func() {
-		ds.wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		log.Infof("All requests completed gracefully")
-	case <-time.After(30 * time.Second):
-		log.Warnf("Force shutdown after 30s timeout")
 	}
 
 	log.Infof("DungeonServer stopped")

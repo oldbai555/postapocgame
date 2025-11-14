@@ -11,7 +11,7 @@ import (
 var (
 	ErrInvalidMessage = errors.New("invalid message")
 	ErrFrameTooLarge  = errors.New("frame too large")
-	DefaultByteOrder  = binary.LittleEndian
+	DefaultByteOrder  = binary.BigEndian // 改为BigEndian以匹配C# BitConverter的默认行为（网络字节序）
 	defaultCodec      = NewCodec()
 )
 

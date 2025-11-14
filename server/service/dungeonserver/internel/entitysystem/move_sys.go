@@ -3,10 +3,9 @@ package entitysystem
 import (
 	"context"
 	"math"
-	"sync"
 	"time"
 
-	"postapocgame/server/internal"
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/argsdef"
 	"postapocgame/server/internal/attrdef"
 	"postapocgame/server/internal/protocol"
@@ -48,7 +47,6 @@ type MoveSys struct {
 	lastTick   time.Time
 
 	// 客户端移动状态（玩家用）
-	mu    sync.Mutex
 	state *MoveState
 }
 
@@ -170,8 +168,6 @@ func (ms *MoveSys) completeAutoMove() {
 
 // ResetState 重置移动状态
 func (ms *MoveSys) ResetState() {
-	ms.mu.Lock()
-	defer ms.mu.Unlock()
 	ms.ensureStateLocked(true)
 }
 
@@ -263,7 +259,7 @@ func (ms *MoveSys) syncPositionToGameServer(scene iface.IScene, pos *argsdef.Pos
 	}
 
 	// 构造RPC请求
-	reqData, err := internal.Marshal(&protocol.D2GSyncPositionReq{
+	reqData, err := proto.Marshal(&protocol.D2GSyncPositionReq{
 		SessionId: sessionId,
 		RoleId:    roleId,
 		SceneId:   scene.GetSceneId(),
@@ -308,7 +304,7 @@ func (ms *MoveSys) broadcastMove(protoId uint16, x, y, speed, seq uint32) {
 		resp = nil
 	}
 
-	var payload interface{}
+	var payload proto.Message
 	if protoId == uint16(protocol.S2CProtocol_S2CEntityMove) {
 		payload = resp
 	} else {
@@ -320,7 +316,7 @@ func (ms *MoveSys) broadcastMove(protoId uint16, x, y, speed, seq uint32) {
 		}
 	}
 
-	data, err := internal.Marshal(payload)
+	data, err := proto.Marshal(payload)
 	if err != nil {
 		log.Errorf("marshal move payload failed: %v", err)
 		return
@@ -335,7 +331,7 @@ func (ms *MoveSys) sendStop(seq uint32) {
 	if pos == nil {
 		return
 	}
-	_ = ms.entity.SendJsonMessage(uint16(protocol.S2CProtocol_S2CEntityStopMove), &protocol.S2CEntityStopMoveReq{
+	_ = ms.entity.SendProtoMessage(uint16(protocol.S2CProtocol_S2CEntityStopMove), &protocol.S2CEntityStopMoveReq{
 		EntityHdl: ms.entity.GetHdl(),
 		PosX:      pos.X,
 		PosY:      pos.Y,
@@ -377,7 +373,7 @@ func (ms *MoveSys) notifyAppear(receiver iface.IEntity, subject iface.IEntity) {
 	if entitySt == nil {
 		return
 	}
-	_ = receiver.SendJsonMessage(uint16(protocol.S2CProtocol_S2CEntityAppear), &protocol.S2CEntityAppearReq{
+	_ = receiver.SendProtoMessage(uint16(protocol.S2CProtocol_S2CEntityAppear), &protocol.S2CEntityAppearReq{
 		Entity: entitySt,
 	})
 }
@@ -389,7 +385,7 @@ func (ms *MoveSys) notifyDisappear(receiver iface.IEntity, targetHdl uint64) {
 	if receiver.GetEntityType() != uint32(protocol.EntityType_EtRole) {
 		return
 	}
-	_ = receiver.SendJsonMessage(uint16(protocol.S2CProtocol_S2CEntityDisappear), &protocol.S2CEntityDisappearReq{
+	_ = receiver.SendProtoMessage(uint16(protocol.S2CProtocol_S2CEntityDisappear), &protocol.S2CEntityDisappearReq{
 		EntityHdl: targetHdl,
 	})
 }
@@ -403,16 +399,13 @@ func (ms *MoveSys) notifyDisappearByHandle(receiverHdl uint64, subjectHdl uint64
 	if !ok || target.GetEntityType() != uint32(protocol.EntityType_EtRole) {
 		return
 	}
-	_ = target.SendJsonMessage(uint16(protocol.S2CProtocol_S2CEntityDisappear), &protocol.S2CEntityDisappearReq{
+	_ = target.SendProtoMessage(uint16(protocol.S2CProtocol_S2CEntityDisappear), &protocol.S2CEntityDisappearReq{
 		EntityHdl: subjectHdl,
 	})
 }
 
 // handleStart 处理移动开始
 func (ms *MoveSys) handleStart(scene iface.IScene, seq uint32, fromX, fromY, toX, toY, speed uint32) (*argsdef.Position, uint32, error) {
-	ms.mu.Lock()
-	defer ms.mu.Unlock()
-
 	state := ms.ensureStateLocked(false)
 	if state == nil {
 		return nil, 0, customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "movement state not found")
@@ -458,9 +451,6 @@ func (ms *MoveSys) handleStart(scene iface.IScene, seq uint32, fromX, fromY, toX
 
 // handleUpdate 处理移动更新
 func (ms *MoveSys) handleUpdate(scene iface.IScene, seq, posX, posY, speed uint32) (*argsdef.Position, uint32, error) {
-	ms.mu.Lock()
-	defer ms.mu.Unlock()
-
 	state := ms.ensureStateLocked(false)
 	if state == nil {
 		return nil, 0, customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "movement state not found")
@@ -509,9 +499,6 @@ func (ms *MoveSys) handleUpdate(scene iface.IScene, seq, posX, posY, speed uint3
 
 // handleEnd 处理移动结束
 func (ms *MoveSys) handleEnd(scene iface.IScene, seq, posX, posY uint32) (*argsdef.Position, error) {
-	ms.mu.Lock()
-	defer ms.mu.Unlock()
-
 	state := ms.ensureStateLocked(false)
 	if state == nil {
 		return nil, customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "movement state not found")
@@ -539,7 +526,7 @@ func (ms *MoveSys) handleEnd(scene iface.IScene, seq, posX, posY uint32) (*argsd
 	return &targetPos, nil
 }
 
-// ensureStateLocked 确保状态存在（必须在锁内调用）
+// ensureStateLocked 确保状态存在
 func (ms *MoveSys) ensureStateLocked(force bool) *MoveState {
 	if ms.entity == nil {
 		return nil

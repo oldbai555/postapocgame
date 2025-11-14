@@ -16,32 +16,33 @@ type ConfigManager struct {
 	mu         sync.RWMutex
 
 	// 各类配置
-	itemConfigs          map[uint32]*ItemConfig
-	levelConfigs         map[uint32]*LevelConfig
-	vipConfigs           map[uint32]*VipConfig
-	moneyConfigs         map[uint32]*MoneyConfig
-	questConfigs         map[uint32]*QuestConfig
-	mailTemplateConfigs  map[uint32]*MailTemplateConfig
-	monsterConfigs       map[uint32]*MonsterConfig
-	skillConfigs         map[uint32]*SkillConfig
-	buffConfigs          map[uint32]*BuffConfig
-	dungeonConfigs       map[uint32]*DungeonConfig
-	consumeConfigs       map[uint32]*ConsumeConfig
-	rewardConfigs        map[uint32]*RewardConfig
-	equipUpgradeConfigs  map[uint32]*EquipUpgradeConfig
-	itemUseEffectConfigs map[uint32]*ItemUseEffectConfig
-	itemRecycleConfigs   map[uint32]*ItemRecycleConfig
-	shopConfigs          map[uint32]*ShopConfig // key: itemId
-	jobConfigs           map[uint32]*JobConfig
-	sceneConfigs         map[uint32]*SceneConfig
-	monsterSceneConfigs  []*MonsterSceneConfig // 列表形式，因为一个场景可能有多个怪物配置
-	npcSceneConfigs      []*NPCSceneConfig     // 列表形式，因为一个场景可能有多个NPC
-	teleportConfigs      map[uint32]*TeleportConfig
-	dailyQuestConfigs    map[uint32]*DailyQuestConfig
-	achievementConfigs   map[uint32]*AchievementConfig
-	equipRefineConfigs   map[uint32]*EquipRefineConfig
-	equipEnchantConfigs  map[uint32]*EquipEnchantConfig
-	equipSetConfigs      map[uint32]*EquipSetConfig
+	itemConfigs                map[uint32]*ItemConfig
+	levelConfigs               map[uint32]*LevelConfig
+	vipConfigs                 map[uint32]*VipConfig
+	moneyConfigs               map[uint32]*MoneyConfig
+	questConfigs               map[uint32]*QuestConfig
+	mailTemplateConfigs        map[uint32]*MailTemplateConfig
+	monsterConfigs             map[uint32]*MonsterConfig
+	skillConfigs               map[uint32]*SkillConfig
+	buffConfigs                map[uint32]*BuffConfig
+	dungeonConfigs             map[uint32]*DungeonConfig
+	consumeConfigs             map[uint32]*ConsumeConfig
+	rewardConfigs              map[uint32]*RewardConfig
+	equipUpgradeConfigs        map[uint32]*EquipUpgradeConfig
+	itemUseEffectConfigs       map[uint32]*ItemUseEffectConfig
+	itemRecycleConfigs         map[uint32]*ItemRecycleConfig
+	shopConfigs                map[uint32]*ShopConfig // key: itemId
+	jobConfigs                 map[uint32]*JobConfig
+	sceneConfigs               map[uint32]*SceneConfig
+	monsterSceneConfigs        []*MonsterSceneConfig // 列表形式，因为一个场景可能有多个怪物配置
+	npcSceneConfigs            []*NPCSceneConfig     // 列表形式，因为一个场景可能有多个NPC
+	teleportConfigs            map[uint32]*TeleportConfig
+	dailyActivityRewardConfigs map[uint32]*DailyActivityRewardConfig
+	achievementConfigs         map[uint32]*AchievementConfig
+	equipRefineConfigs         map[uint32]*EquipRefineConfig
+	equipEnchantConfigs        map[uint32]*EquipEnchantConfig
+	equipSetConfigs            map[uint32]*EquipSetConfig
+	bagConfigs                 map[uint32]*BagConfig // key: bagType
 }
 
 var (
@@ -53,32 +54,32 @@ var (
 func GetConfigManager() *ConfigManager {
 	configOnce.Do(func() {
 		globalConfigManager = &ConfigManager{
-			itemConfigs:          make(map[uint32]*ItemConfig),
-			levelConfigs:         make(map[uint32]*LevelConfig),
-			vipConfigs:           make(map[uint32]*VipConfig),
-			moneyConfigs:         make(map[uint32]*MoneyConfig),
-			questConfigs:         make(map[uint32]*QuestConfig),
-			mailTemplateConfigs:  make(map[uint32]*MailTemplateConfig),
-			monsterConfigs:       make(map[uint32]*MonsterConfig),
-			skillConfigs:         make(map[uint32]*SkillConfig),
-			buffConfigs:          make(map[uint32]*BuffConfig),
-			dungeonConfigs:       make(map[uint32]*DungeonConfig),
-			consumeConfigs:       make(map[uint32]*ConsumeConfig),
-			rewardConfigs:        make(map[uint32]*RewardConfig),
-			equipUpgradeConfigs:  make(map[uint32]*EquipUpgradeConfig),
-			itemUseEffectConfigs: make(map[uint32]*ItemUseEffectConfig),
-			itemRecycleConfigs:   make(map[uint32]*ItemRecycleConfig),
-			shopConfigs:          make(map[uint32]*ShopConfig),
-			jobConfigs:           make(map[uint32]*JobConfig),
-			sceneConfigs:         make(map[uint32]*SceneConfig),
-			monsterSceneConfigs:  make([]*MonsterSceneConfig, 0),
-			npcSceneConfigs:      make([]*NPCSceneConfig, 0),
-			teleportConfigs:      make(map[uint32]*TeleportConfig),
-			dailyQuestConfigs:    make(map[uint32]*DailyQuestConfig),
-			achievementConfigs:   make(map[uint32]*AchievementConfig),
-			equipRefineConfigs:   make(map[uint32]*EquipRefineConfig),
-			equipEnchantConfigs:  make(map[uint32]*EquipEnchantConfig),
-			equipSetConfigs:      make(map[uint32]*EquipSetConfig),
+			itemConfigs:                make(map[uint32]*ItemConfig),
+			levelConfigs:               make(map[uint32]*LevelConfig),
+			vipConfigs:                 make(map[uint32]*VipConfig),
+			moneyConfigs:               make(map[uint32]*MoneyConfig),
+			questConfigs:               make(map[uint32]*QuestConfig),
+			mailTemplateConfigs:        make(map[uint32]*MailTemplateConfig),
+			monsterConfigs:             make(map[uint32]*MonsterConfig),
+			skillConfigs:               make(map[uint32]*SkillConfig),
+			buffConfigs:                make(map[uint32]*BuffConfig),
+			dungeonConfigs:             make(map[uint32]*DungeonConfig),
+			consumeConfigs:             make(map[uint32]*ConsumeConfig),
+			rewardConfigs:              make(map[uint32]*RewardConfig),
+			equipUpgradeConfigs:        make(map[uint32]*EquipUpgradeConfig),
+			itemUseEffectConfigs:       make(map[uint32]*ItemUseEffectConfig),
+			itemRecycleConfigs:         make(map[uint32]*ItemRecycleConfig),
+			shopConfigs:                make(map[uint32]*ShopConfig),
+			jobConfigs:                 make(map[uint32]*JobConfig),
+			sceneConfigs:               make(map[uint32]*SceneConfig),
+			monsterSceneConfigs:        make([]*MonsterSceneConfig, 0),
+			npcSceneConfigs:            make([]*NPCSceneConfig, 0),
+			teleportConfigs:            make(map[uint32]*TeleportConfig),
+			dailyActivityRewardConfigs: make(map[uint32]*DailyActivityRewardConfig),
+			achievementConfigs:         make(map[uint32]*AchievementConfig),
+			equipRefineConfigs:         make(map[uint32]*EquipRefineConfig),
+			equipEnchantConfigs:        make(map[uint32]*EquipEnchantConfig),
+			equipSetConfigs:            make(map[uint32]*EquipSetConfig),
 		}
 	})
 	return globalConfigManager
@@ -207,8 +208,8 @@ func (cm *ConfigManager) LoadAllConfigs() error {
 		return customerr.Wrap(err)
 	}
 
-	// 加载每日任务配置
-	if err := cm.loadDailyQuestConfigs(); err != nil {
+	// 加载日常活跃奖励配置
+	if err := cm.loadDailyActivityRewardConfigs(); err != nil {
 		return customerr.Wrap(err)
 	}
 
@@ -232,6 +233,12 @@ func (cm *ConfigManager) LoadAllConfigs() error {
 	// 加载装备套装配置（可选）
 	if err := cm.loadEquipSetConfigs(); err != nil {
 		log.Warnf("load equip set configs failed: %v", err)
+		// 不返回错误，允许配置不存在
+	}
+
+	// 加载背包配置（可选）
+	if err := cm.loadBagConfigs(); err != nil {
+		log.Warnf("load bag configs failed: %v", err)
 		// 不返回错误，允许配置不存在
 	}
 
@@ -590,6 +597,22 @@ func (cm *ConfigManager) GetQuestConfig(questId uint32) (*QuestConfig, bool) {
 	defer cm.mu.RUnlock()
 	cfg, ok := cm.questConfigs[questId]
 	return cfg, ok
+}
+
+// GetQuestConfigsByType 根据类型获取任务配置
+func (cm *ConfigManager) GetQuestConfigsByType(questType uint32) []*QuestConfig {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	result := make([]*QuestConfig, 0)
+	for _, cfg := range cm.questConfigs {
+		if cfg == nil {
+			continue
+		}
+		if cfg.Type == questType {
+			result = append(result, cfg)
+		}
+	}
+	return result
 }
 
 // GetMailTemplateConfig 获取邮件模板配置
@@ -1037,54 +1060,53 @@ func (cm *ConfigManager) GetTeleportConfigsByScene(sceneId uint32) []*TeleportCo
 	return result
 }
 
-// loadDailyQuestConfigs 加载每日任务配置
-func (cm *ConfigManager) loadDailyQuestConfigs() error {
-	filePath := filepath.Join(cm.configPath, "daily_quest_config.json")
+// loadDailyActivityRewardConfigs 加载日常活跃奖励配置
+func (cm *ConfigManager) loadDailyActivityRewardConfigs() error {
+	filePath := filepath.Join(cm.configPath, "daily_activity_reward_config.json")
 	data, err := os.ReadFile(filePath)
 	if err != nil {
-		// 如果文件不存在，使用空配置（允许可选）
 		if os.IsNotExist(err) {
-			log.Warnf("daily_quest_config.json not found, using empty config")
-			cm.dailyQuestConfigs = make(map[uint32]*DailyQuestConfig)
+			log.Warnf("daily_activity_reward_config.json not found, using empty config")
+			cm.dailyActivityRewardConfigs = make(map[uint32]*DailyActivityRewardConfig)
 			return nil
 		}
-		return fmt.Errorf("read daily quest config failed: %w", err)
+		return fmt.Errorf("read daily activity reward config failed: %w", err)
 	}
 
-	var configs []*DailyQuestConfig
+	var configs []*DailyActivityRewardConfig
 	if err := internal.Unmarshal(data, &configs); err != nil {
-		return fmt.Errorf("unmarshal daily quest config failed: %w", err)
+		return fmt.Errorf("unmarshal daily activity reward config failed: %w", err)
 	}
 
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
-	cm.dailyQuestConfigs = make(map[uint32]*DailyQuestConfig)
+	cm.dailyActivityRewardConfigs = make(map[uint32]*DailyActivityRewardConfig)
 	for _, cfg := range configs {
 		if cfg != nil {
-			cm.dailyQuestConfigs[cfg.QuestId] = cfg
+			cm.dailyActivityRewardConfigs[cfg.RewardId] = cfg
 		}
 	}
 
-	log.Infof("Loaded %d daily quest configs", len(cm.dailyQuestConfigs))
+	log.Infof("Loaded %d daily activity reward configs", len(cm.dailyActivityRewardConfigs))
 	return nil
 }
 
-// GetDailyQuestConfig 获取每日任务配置
-func (cm *ConfigManager) GetDailyQuestConfig(questId uint32) (*DailyQuestConfig, bool) {
+// GetDailyActivityRewardConfig 获取日常活跃奖励配置
+func (cm *ConfigManager) GetDailyActivityRewardConfig(rewardId uint32) (*DailyActivityRewardConfig, bool) {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.dailyQuestConfigs[questId]
+	cfg, ok := cm.dailyActivityRewardConfigs[rewardId]
 	return cfg, ok
 }
 
-// GetAllDailyQuestConfigs 获取所有每日任务配置
-func (cm *ConfigManager) GetAllDailyQuestConfigs() []*DailyQuestConfig {
+// GetAllDailyActivityRewardConfigs 获取所有日常活跃奖励配置
+func (cm *ConfigManager) GetAllDailyActivityRewardConfigs() []*DailyActivityRewardConfig {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 
-	result := make([]*DailyQuestConfig, 0, len(cm.dailyQuestConfigs))
-	for _, cfg := range cm.dailyQuestConfigs {
+	result := make([]*DailyActivityRewardConfig, 0, len(cm.dailyActivityRewardConfigs))
+	for _, cfg := range cm.dailyActivityRewardConfigs {
 		if cfg != nil {
 			result = append(result, cfg)
 		}
@@ -1267,5 +1289,48 @@ func (cm *ConfigManager) GetEquipSetConfig(setId uint32) (*EquipSetConfig, bool)
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	cfg, ok := cm.equipSetConfigs[setId]
+	return cfg, ok
+}
+
+// loadBagConfigs 加载背包配置
+func (cm *ConfigManager) loadBagConfigs() error {
+	filePath := filepath.Join(cm.configPath, "bag_config.json")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		// 如果文件不存在，使用空配置（允许可选）
+		if os.IsNotExist(err) {
+			log.Warnf("bag_config.json not found, using empty config")
+			cm.mu.Lock()
+			cm.bagConfigs = make(map[uint32]*BagConfig)
+			cm.mu.Unlock()
+			return nil
+		}
+		return fmt.Errorf("read bag config failed: %w", err)
+	}
+
+	var configs []*BagConfig
+	if err := internal.Unmarshal(data, &configs); err != nil {
+		return fmt.Errorf("unmarshal bag config failed: %w", err)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	cm.bagConfigs = make(map[uint32]*BagConfig)
+	for _, cfg := range configs {
+		if cfg != nil {
+			cm.bagConfigs[cfg.BagType] = cfg
+		}
+	}
+
+	log.Infof("Loaded %d bag configs", len(cm.bagConfigs))
+	return nil
+}
+
+// GetBagConfig 获取背包配置（通过bagType）
+func (cm *ConfigManager) GetBagConfig(bagType uint32) (*BagConfig, bool) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	cfg, ok := cm.bagConfigs[bagType]
 	return cfg, ok
 }

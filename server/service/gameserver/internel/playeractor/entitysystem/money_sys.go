@@ -101,6 +101,12 @@ func (ms *MoneySys) AddMoney(ctx context.Context, moneyID uint32, amount int64) 
 			return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "level system not ready")
 		}
 		return levelSys.AddExp(ctx, uint64(amount))
+	case uint32(protocol.MoneyType_MoneyTypeActivePoint):
+		activitySys := GetDailyActivitySys(ctx)
+		if activitySys == nil {
+			return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "activity system not ready")
+		}
+		return activitySys.AddActivePoints(ctx, uint32(amount))
 	default:
 		// 普通货币由货币系统处理
 		return ms.updateBalance(ctx, moneyID, amount)
@@ -123,6 +129,12 @@ func (ms *MoneySys) SubMoney(ctx context.Context, moneyID uint32, amount int64) 
 		}
 		// 经验通常不能扣除，这里返回错误
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "experience cannot be deducted")
+	case uint32(protocol.MoneyType_MoneyTypeActivePoint):
+		activitySys := GetDailyActivitySys(ctx)
+		if activitySys == nil {
+			return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "activity system not ready")
+		}
+		return activitySys.CostActivePoints(ctx, uint32(amount))
 	default:
 		// 普通货币由货币系统处理
 		return ms.updateBalance(ctx, moneyID, -amount)
@@ -165,6 +177,13 @@ func (ms *MoneySys) UpdateBalanceTx(ctx context.Context, moneyID uint32, delta i
 
 	current := ms.moneyData.MoneyMap[moneyID]
 	newAmount := current + delta
+
+	// 检查是否溢出（int64最大值）
+	const maxInt64 = int64(^uint64(0) >> 1)
+	if newAmount > maxInt64 {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "money overflow: amount exceeds maximum")
+	}
+
 	if newAmount < 0 {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "money not enough")
 	}

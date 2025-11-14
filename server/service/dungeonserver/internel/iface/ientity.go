@@ -7,6 +7,7 @@
 package iface
 
 import (
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/argsdef"
 	"time"
 )
@@ -26,7 +27,7 @@ type IEntity interface {
 	GetStateFlags() uint64
 
 	SendMessage(protoId uint16, data []byte) error
-	SendJsonMessage(protoId uint16, v interface{}) error
+	SendProtoMessage(protoId uint16, v proto.Message) error
 
 	// 属性相关
 	GetHP() int64

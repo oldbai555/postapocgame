@@ -3,12 +3,14 @@ package dungeonserverlink
 import (
 	"context"
 	"fmt"
-	"postapocgame/server/internal"
+	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/service/gameserver/internel/gshare"
 	"sync"
 	"time"
 
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/config"
@@ -46,7 +48,7 @@ func (h *DungeonMessageHandler) RegisterRPCHandler(msgId uint16, handler RPCHand
 func (h *DungeonMessageHandler) HandleMessage(ctx context.Context, conn network.IConnection, msg *network.Message) error {
 	switch msg.Type {
 	case network.MsgTypeRPCRequest:
-		return h.handleRPCRequest(ctx, msg)
+		return h.handleRPCRequest(ctx, conn, msg)
 	case network.MsgTypeHeartbeat:
 		return nil
 	case network.MsgTypeClient:
@@ -57,7 +59,7 @@ func (h *DungeonMessageHandler) HandleMessage(ctx context.Context, conn network.
 	}
 }
 
-func (h *DungeonMessageHandler) handleRPCRequest(ctx context.Context, msg *network.Message) error {
+func (h *DungeonMessageHandler) handleRPCRequest(ctx context.Context, conn network.IConnection, msg *network.Message) error {
 	req, err := h.codec.DecodeRPCRequest(msg.Payload)
 	if err != nil {
 		log.Errorf("decode rpc request failed: %v", err)
@@ -73,82 +75,55 @@ func (h *DungeonMessageHandler) handleRPCRequest(ctx context.Context, msg *netwo
 	if !ok {
 		log.Errorf("no rpc handler registered for msgId: %d", req.MsgId)
 		// 发送错误响应
-		resp := &network.RPCResponse{
-			RequestId: req.RequestId,
-			Success:   false,
-			Data:      []byte("no handler for msgId"),
-		}
-		respData, _ := h.codec.EncodeRPCResponse(resp)
-		return msg.Conn.SendMessage(&network.Message{
-			Type:    network.MsgTypeRPCResponse,
-			Payload: respData,
-		})
+		return h.sendRPCResponse(conn, req.RequestId, -1, []byte("no handler for msgId"))
 	}
 
-	// 对于需要异步处理的RPC（如D2GAddItem），发送到PlayerRole的Actor中处理
-	// 其他RPC直接同步处理
-	if req.MsgId == uint16(protocol.D2GRpcProtocol_D2GAddItem) {
-		// 异步处理：发送到PlayerRole的Actor
-		if req.SessionId != "" {
-			// 创建包含RequestId和连接信息的context
-			rpcCtx := context.WithValue(ctx, "rpcRequestId", req.RequestId)
-			rpcCtx = context.WithValue(rpcCtx, "rpcConn", msg.Conn)
-
-			// 发送到PlayerRole的Actor异步处理
-			actorMsg := actor.NewBaseMessage(rpcCtx, uint16(protocol.D2GRpcProtocol_D2GAddItem), req.Data)
-			if err := gshare.SendMessageAsync(req.SessionId, actorMsg); err != nil {
-				log.Errorf("send to actor failed: %v", err)
-				// 发送错误响应
-				resp := &network.RPCResponse{
-					RequestId: req.RequestId,
-					Success:   false,
-					Data:      []byte(err.Error()),
-				}
-				respData, _ := h.codec.EncodeRPCResponse(resp)
-				return msg.Conn.SendMessage(&network.Message{
-					Type:    network.MsgTypeRPCResponse,
-					Payload: respData,
-				})
-			}
-			// 异步处理已发送，等待Actor处理完成后发送响应
-			return nil
+	// 对于需要在玩家Actor中串行处理的RPC，直接发送到Actor，由业务逻辑自行回包/通知客户端
+	if req.MsgId == uint16(protocol.D2GRpcProtocol_D2GAddItem) && req.SessionId != "" {
+		rpcCtx := context.WithValue(ctx, gshare.ContextKeySession, req.SessionId)
+		actorMsg := actor.NewBaseMessage(rpcCtx, uint16(protocol.D2GRpcProtocol_D2GAddItem), req.Data)
+		if err := gshare.SendMessageAsync(req.SessionId, actorMsg); err != nil {
+			log.Errorf("send to actor failed: %v", err)
+			return customerr.Wrap(err)
 		}
+		return nil
 	}
 
 	// 调用处理器（同步处理）
 	if err := handler(ctx, req.SessionId, req.Data); err != nil {
 		log.Errorf("handle rpc request failed: %v", err)
 		// 发送错误响应
-		resp := &network.RPCResponse{
-			RequestId: req.RequestId,
-			Success:   false,
-			Data:      []byte(err.Error()),
-		}
-		respData, _ := h.codec.EncodeRPCResponse(resp)
-		return msg.Conn.SendMessage(&network.Message{
-			Type:    network.MsgTypeRPCResponse,
-			Payload: respData,
-		})
+		return h.sendRPCResponse(conn, req.RequestId, -1, []byte(err.Error()))
 	}
 
 	// 检查context中是否有响应数据
 	if respData := ctx.Value(RPCResponseKeyValue); respData != nil {
 		// 发送响应
-		resp := &network.RPCResponse{
-			RequestId: req.RequestId,
-			Success:   true,
-			Data:      respData.([]byte),
-		}
-		respDataEncoded, _ := h.codec.EncodeRPCResponse(resp)
-		return msg.Conn.SendMessage(&network.Message{
-			Type:    network.MsgTypeRPCResponse,
-			Payload: respDataEncoded,
-		})
+		return h.sendRPCResponse(conn, req.RequestId, 0, respData.([]byte))
 	}
 
 	// 如果处理器返回了数据（通过context或其他方式），发送成功响应
 	// 这里暂时不发送响应，因为大多数RPC不需要响应
 	return nil
+}
+
+func (h *DungeonMessageHandler) sendRPCResponse(conn network.IConnection, requestId uint32, code int32, data []byte) error {
+	resp := &network.RPCResponse{
+		RequestId: requestId,
+		Code:      code,
+		Data:      data,
+	}
+	respData := h.codec.EncodeRPCResponse(resp)
+	respMsg := network.GetMessage()
+	respMsg.Type = network.MsgTypeRPCResponse
+	respMsg.Payload = respData
+
+	err := conn.SendMessage(respMsg)
+
+	network.PutMessage(respMsg)
+	network.PutBuffer(respData)
+
+	return err
 }
 
 func (h *DungeonMessageHandler) handleClientMessage(msg *network.Message) error {
@@ -203,7 +178,7 @@ func (dc *DungeonClient) Connect(ctx context.Context, srvType uint8, addr string
 				PlatformId: gshare.GetPlatformId(),
 				SrvId:      gshare.GetSrvId(),
 			}
-			marshal, _ := internal.Marshal(p)
+			marshal, _ := proto.Marshal(p)
 			message := network.GetMessage()
 			message.Type = network.MsgTypeHandshake
 			message.Payload = marshal

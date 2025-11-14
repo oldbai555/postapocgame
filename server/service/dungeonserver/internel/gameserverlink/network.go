@@ -2,13 +2,12 @@ package gameserverlink
 
 import (
 	"context"
-	"postapocgame/server/internal"
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/service/dungeonserver/internel/clientprotocol"
 	"postapocgame/server/service/dungeonserver/internel/dshare"
 )
 
@@ -112,39 +111,8 @@ func (h *NetworkHandler) handleRPCResponse(msg *network.Message) error {
 		return customerr.Wrap(err)
 	}
 
-	log.Debugf("Received RPC Response: RequestId=%d, Success=%v", resp.RequestId, resp.Success)
-
-	// 对于D2GAddItem响应，发送到Actor系统处理（通过SessionId路由）
-	// 其他响应通过MessageSender处理（用于同步RPC）
-	if resp.Success && len(resp.Data) > 0 {
-		// 尝试解析为D2GAddItemResp，如果成功则发送到Actor
-		var addItemResp protocol.D2GAddItemResp
-		if err := internal.Unmarshal(resp.Data, &addItemResp); err == nil && addItemResp.ItemHdl > 0 {
-			// 这是D2GAddItem响应，从MessageSender获取SessionId
-			sender := GetMessageSender()
-			sender.asyncRpcMu.RLock()
-			sessionId, ok := sender.asyncRpcSessions[resp.RequestId]
-			sender.asyncRpcMu.RUnlock()
-
-			if ok && sessionId != "" {
-				// 删除SessionId映射
-				sender.asyncRpcMu.Lock()
-				delete(sender.asyncRpcSessions, resp.RequestId)
-				sender.asyncRpcMu.Unlock()
-
-				// 发送到Actor系统处理（通过SessionId路由）
-				ctx := context.WithValue(context.Background(), dshare.ContextKeySession, sessionId)
-				actorMsg := actor.NewBaseMessage(ctx, uint16(protocol.D2GRpcProtocol_D2GAddItem), resp.Data)
-				if err := dshare.SendMessageAsync(sessionId, actorMsg); err != nil {
-					log.Errorf("send RPC response to actor failed: %v", err)
-				}
-				return nil
-			}
-		}
-	}
-
-	// 通知MessageSender处理响应（用于同步RPC）
-	GetMessageSender().HandleRPCResponse(resp)
+	log.Debugf("Received RPC Response (ignored): RequestId=%d, Code=%d, DataLen=%d", resp.RequestId, resp.Code, len(resp.Data))
+	// 当前设计中所有跨服交互均采用单向异步RPC，请求端不再等待响应
 	return nil
 }
 
@@ -174,12 +142,12 @@ func (h *NetworkHandler) Close() error {
 
 func (h *NetworkHandler) handleHandshake(conn network.IConnection, msg *network.Message) error {
 	var req protocol.G2DSyncGameDataReq
-	if err := internal.Unmarshal(msg.Payload, &req); err != nil {
+	if err := proto.Unmarshal(msg.Payload, &req); err != nil {
 		return customerr.Wrap(err)
 	}
 	GetMessageSender().RegisterGameServer(req.PlatformId, req.SrvId, conn)
 	log.Infof("game server connected: %d %d", req.PlatformId, req.SrvId)
-	if err := TryRegisterProtocols(context.Background(), clientprotocol.GetRegisteredProtocols); err != nil {
+	if err := TryRegisterProtocols(context.Background()); err != nil {
 		log.Warnf("register protocols skipped: %v", err)
 	}
 	return nil

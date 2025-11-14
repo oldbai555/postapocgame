@@ -10,14 +10,13 @@ import (
 	"math/rand"
 	"time"
 
-	"postapocgame/server/internal"
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/attrdef"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/dungeonserver/internel/entitymgr"
-	"postapocgame/server/service/dungeonserver/internel/fuben"
 	"postapocgame/server/service/dungeonserver/internel/gameserverlink"
 	"postapocgame/server/service/dungeonserver/internel/iface"
 )
@@ -213,8 +212,8 @@ func (r *RoleEntity) SendMessage(protoId uint16, data []byte) error {
 	return gameserverlink.SendToClient(r.sessionId, protoId, data)
 }
 
-func (r *RoleEntity) SendJsonMessage(protoId uint16, v interface{}) error {
-	bytes, err := internal.Marshal(v)
+func (r *RoleEntity) SendProtoMessage(protoId uint16, v proto.Message) error {
+	bytes, err := proto.Marshal(v)
 	if err != nil {
 		return customerr.Wrap(err)
 	}
@@ -286,27 +285,21 @@ func (r *RoleEntity) OnDie(killer iface.IEntity) {
 
 // Revive 复活角色到新手村
 func (r *RoleEntity) Revive() error {
-	// 获取默认副本和新手村场景（场景ID=1）
-	defaultFuBen := fuben.GetDefaultFuBen()
-	if defaultFuBen == nil {
-		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "default fuben not found")
-	}
-
-	newbieScene := defaultFuBen.GetScene(1) // 场景1是新手村
+	// 获取复活场景（默认新手村场景ID=1）
+	newbieScene := getReviveScene()
 	if newbieScene == nil {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "newbie scene not found")
 	}
 
 	// 获取当前场景
-	currentScene, err := entitymgr.GetEntityMgr().GetSceneByHandle(r.GetHdl())
-	if err == nil && currentScene != nil {
+	if currentScene, ok := entitymgr.GetEntityMgr().GetSceneByHandle(r.GetHdl()); ok && currentScene != nil {
 		// 从当前场景移除
 		currentScene.RemoveEntity(r.GetHdl())
 	}
 
 	// 获取新手村出生点
 	configMgr := jsonconf.GetConfigManager()
-	sceneConfig := configMgr.GetSceneConfig(1)
+	sceneConfig, _ := configMgr.GetSceneConfig(1)
 	var x, y uint32 = 100, 100 // 默认位置
 	if sceneConfig != nil && sceneConfig.BornArea != nil {
 		bornArea := sceneConfig.BornArea
@@ -344,7 +337,7 @@ func (r *RoleEntity) Revive() error {
 		PosX:    x,
 		PosY:    y,
 	}
-	r.SendJsonMessage(uint16(protocol.S2CProtocol_S2CReviveResult), resp)
+	r.SendProtoMessage(uint16(protocol.S2CProtocol_S2CReviveResult), resp)
 
 	log.Infof("Role %d revived at scene 1, pos=(%d,%d)", r.GetRoleId(), x, y)
 	return nil

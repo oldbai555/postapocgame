@@ -13,8 +13,17 @@ option go_package = "server/internal/protocol";
 // 任务类型枚举
 enum QuestType {
     QuestTypeNil = 0;
-    QuestTypeTalkToNPC = 1;    // 和NPC对话，ids配置npcId，count为对话次数
-    QuestTypeLearnSkill = 2;   // 学习任意技能，ids不需要配置，count为学习技能次数
-    QuestTypeKillMonster = 3;  // 击杀任意怪物，ids不需要配置，count为击杀怪物数量
+    QuestTypeTalkToNPC = 1;    // 和NPC对话，ids 配置 npcId，count 为对话次数
+    QuestTypeLearnSkill = 2;   // 学习任意技能，ids 不需要配置，count 为学习技能次数
+    QuestTypeKillMonster = 3;  // 击杀任意怪物，ids 不需要配置，count 为击杀怪物数量
+}
+
+// 任务大类（主线/支线/日常/周常等）
+enum QuestCategory {
+    QuestCategoryNil    = 0; // 未知/未分类
+    QuestCategoryMain   = 1; // 主线任务
+    QuestCategoryBranch = 2; // 支线任务
+    QuestCategoryDaily  = 3; // 日常任务（跨天时整体刷新）
+    QuestCategoryWeekly = 4; // 周常任务（跨周时整体刷新）
 }
 

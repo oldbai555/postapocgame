@@ -1,7 +1,7 @@
 package clientprotocol
 
 import (
-	"postapocgame/server/internal"
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
@@ -20,11 +20,11 @@ func getSceneByEntity(entity iface.IEntity) (iface.IScene, error) {
 	return scene, nil
 }
 
-func broadcastSceneMessage(scene iface.IScene, protoId uint16, payload interface{}) {
+func broadcastSceneMessage(scene iface.IScene, protoId uint16, payload proto.Message) {
 	if scene == nil || payload == nil {
 		return
 	}
-	data, err := internal.Marshal(payload)
+	data, err := proto.Marshal(payload)
 	if err != nil {
 		log.Errorf("broadcast marshal failed: %v", err)
 		return
@@ -39,7 +39,7 @@ func sendStopToEntity(entity iface.IEntity, seq uint32) {
 		return
 	}
 	pos := entity.GetPosition()
-	_ = entity.SendJsonMessage(uint16(protocol.S2CProtocol_S2CEntityStopMove), &protocol.S2CEntityStopMoveReq{
+	_ = entity.SendProtoMessage(uint16(protocol.S2CProtocol_S2CEntityStopMove), &protocol.S2CEntityStopMoveReq{
 		EntityHdl: entity.GetHdl(),
 		PosX:      pos.X,
 		PosY:      pos.Y,

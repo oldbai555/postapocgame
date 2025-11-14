@@ -1,0 +1,80 @@
+[gd_scene load_steps=2 format=3 uid="uid://roleselect_scene_001"]
+
+[ext_resource type="Script" uid="uid://31xt40o2ulgv" path="res://Scripts/UI/RoleSelectUI.cs" id="1_roleselect"]
+
+[node name="RoleSelect" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_roleselect")
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="TitleLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "选择角色"
+horizontal_alignment = 1
+
+[node name="RoleListScrollContainer" type="ScrollContainer" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(300, 120)
+size_flags_vertical = 0
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 1
+
+[node name="RoleListContainer" type="VBoxContainer" parent="CenterContainer/VBoxContainer/RoleListScrollContainer"]
+layout_mode = 1
+size_flags_horizontal = 3
+theme_override_constants/separation = 5
+
+[node name="RoleInfoLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(300, 0)
+theme_override_font_sizes/font_size = 14
+text = "请选择角色"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="CreateRoleButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "创建角色"
+
+[node name="EnterGameButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "进入游戏"
+
+[node name="DeleteRoleButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "删除角色"
+
+[node name="ErrorLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+visible = false
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0, 0, 1)
+theme_override_font_sizes/font_size = 14
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="StatusLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+visible = false
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.5, 0.5, 0.5, 1)
+theme_override_font_sizes/font_size = 12
+horizontal_alignment = 1
+

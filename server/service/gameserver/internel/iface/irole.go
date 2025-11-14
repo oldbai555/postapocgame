@@ -8,6 +8,7 @@ package iface
 
 import (
 	"context"
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
@@ -25,7 +26,7 @@ type IPlayerRole interface {
 	OnLogout() error
 
 	SendMessage(protoId uint16, data []byte) error
-	SendJsonMessage(protoId uint16, v interface{}) error
+	SendProtoMessage(protoId uint16, v proto.Message) error
 
 	GetPlayerRoleId() uint64
 	GetReconnectKey() string
@@ -33,7 +34,9 @@ type IPlayerRole interface {
 	GetBinaryData() *protocol.PlayerRoleBinaryData
 	GetDungeonSrvType() uint8
 	SetDungeonSrvType(srvType uint8)
-	GetGMLevel() uint32 // 获取GM等级
+	GetGMLevel() uint32                      // 获取GM等级
+	GetJob() uint32                          // 获取职业ID
+	GetRoleInfo() *protocol.PlayerSimpleData // 获取角色信息
 
 	GetSysMgr() ISystemMgr
 	GetSystem(sysId uint32) ISystem
@@ -41,11 +44,20 @@ type IPlayerRole interface {
 	GetSysStatusData() map[uint32]uint32
 	SetSysStatus(sysId uint32, isOpen bool)
 
-	CheckConsume(items []*jsonconf.ItemAmount) error
+	CheckConsume(ctx context.Context, items []*jsonconf.ItemAmount) error
 	ApplyConsume(ctx context.Context, items []*jsonconf.ItemAmount) error
 	GrantRewards(ctx context.Context, items []*jsonconf.ItemAmount) error
 
+	// CallDungeonServer 异步调用DungeonServer的RPC方法（用于解耦，避免循环依赖）
+	CallDungeonServer(ctx context.Context, msgId uint16, data []byte) error
+
 	SaveToDB() error
+	RunOne()
+	OnNewHour(ctx context.Context)
+	OnNewDay(ctx context.Context)
+	OnNewWeek(ctx context.Context)
+	OnNewMonth(ctx context.Context)
+	OnNewYear(ctx context.Context)
 }
 
 type IPlayerEvent interface {

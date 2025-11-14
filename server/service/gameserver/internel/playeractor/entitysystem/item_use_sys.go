@@ -7,9 +7,13 @@ import (
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/service/gameserver/internel/dungeonserverlink"
 	"postapocgame/server/service/gameserver/internel/iface"
 	"time"
+)
+
+const (
+	// 默认物品使用冷却时间（秒）
+	DefaultItemUseCooldownSeconds int64 = 5
 )
 
 // ItemUseSys 物品使用系统（管理冷却时间等）
@@ -142,7 +146,6 @@ func (ius *ItemUseSys) UseItem(ctx context.Context, itemID uint32, count uint32)
 		sessionId := playerRole.GetSessionId()
 		if sessionId != "" {
 			roleID := playerRole.GetPlayerRoleId()
-			srvType := playerRole.GetDungeonSrvType()
 
 			// 构造RPC请求
 			reqData, err := internal.Marshal(&protocol.G2DUpdateHpMpReq{
@@ -154,8 +157,8 @@ func (ius *ItemUseSys) UseItem(ctx context.Context, itemID uint32, count uint32)
 			if err != nil {
 				log.Errorf("marshal update hp/mp request failed: %v", err)
 			} else {
-				// 异步调用DungeonServer更新HP/MP
-				err = dungeonserverlink.AsyncCall(ctx, srvType, sessionId, uint16(protocol.G2DRpcProtocol_G2DUpdateHpMp), reqData)
+				// 异步调用DungeonServer更新HP/MP（通过IPlayerRole接口，避免循环依赖）
+				err = playerRole.CallDungeonServer(ctx, uint16(protocol.G2DRpcProtocol_G2DUpdateHpMp), reqData)
 				if err != nil {
 					log.Errorf("call dungeon server update hp/mp failed: %v", err)
 					// 不返回错误，继续执行
@@ -168,7 +171,7 @@ func (ius *ItemUseSys) UseItem(ctx context.Context, itemID uint32, count uint32)
 	if expDelta > 0 {
 		levelSys := GetLevelSys(ctx)
 		if levelSys != nil {
-			err := levelSys.AddExp(ctx, uint32(expDelta))
+			err := levelSys.AddExp(ctx, uint64(expDelta))
 			if err != nil {
 				log.Errorf("add exp failed: %v", err)
 			}
@@ -182,7 +185,7 @@ func (ius *ItemUseSys) UseItem(ctx context.Context, itemID uint32, count uint32)
 	}
 
 	// 设置冷却时间（默认5秒，可以根据配置调整）
-	cooldownSeconds := int64(5)
+	cooldownSeconds := DefaultItemUseCooldownSeconds
 	if ius.itemUseData.CooldownMap == nil {
 		ius.itemUseData.CooldownMap = make(map[uint32]int64)
 	}

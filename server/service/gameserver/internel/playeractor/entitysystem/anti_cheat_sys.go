@@ -3,7 +3,6 @@ package entitysystem
 import (
 	"context"
 	"postapocgame/server/internal/protocol"
-	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/iface"
 	"time"

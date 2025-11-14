@@ -2,13 +2,11 @@ package entitysystem
 
 import (
 	"context"
-	"fmt"
 	"postapocgame/server/internal"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/service/gameserver/internel/dungeonserverlink"
 	"postapocgame/server/service/gameserver/internel/iface"
 )
 
@@ -210,13 +208,6 @@ func (ss *SkillSys) syncSkillToDungeonServer(ctx context.Context, skillId, level
 		return
 	}
 
-	// 获取DungeonServer类型
-	srvType := playerRole.GetDungeonSrvType()
-	if srvType == "" {
-		log.Errorf("dungeon server type is empty")
-		return
-	}
-
 	// 构造RPC请求
 	reqData, err := internal.Marshal(&protocol.G2DUpdateSkillReq{
 		SessionId:  sessionId,
@@ -229,8 +220,8 @@ func (ss *SkillSys) syncSkillToDungeonServer(ctx context.Context, skillId, level
 		return
 	}
 
-	// 异步调用DungeonServer更新技能
-	err = dungeonserverlink.AsyncCall(ctx, srvType, sessionId, uint16(protocol.G2DRpcProtocol_G2DUpdateSkill), reqData)
+	// 异步调用DungeonServer更新技能（通过IPlayerRole接口，避免循环依赖）
+	err = playerRole.CallDungeonServer(ctx, uint16(protocol.G2DRpcProtocol_G2DUpdateSkill), reqData)
 	if err != nil {
 		log.Errorf("call dungeon server update skill failed: %v", err)
 		// 不返回错误，继续执行

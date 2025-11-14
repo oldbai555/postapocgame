@@ -26,16 +26,23 @@ enum SystemId {
     SysItemUse = 13;// 物品使用系统
     SysOfflineReward = 14;// 离线收益系统
     SysAntiCheat = 15;// 防作弊系统
-    SysDailyQuest = 16;// 每日任务系统
+    SysDailyActivity = 16;// 日常活跃系统
     SysAchievement = 17;// 成就系统
     SysNewbie = 18;// 新手保护系统
+    SysGM = 19;// GM系统
 
-    SysIdMax = 19;// 最大系统ID 手动递增
+    SysIdMax = 20;// 最大系统ID 手动递增
 }
 
 // 任务系统
-message SiQuestData {
+message QuestTypeList {
     repeated QuestData quests = 1;
+}
+
+message SiQuestData {
+    map<uint32, QuestTypeList> quest_map = 1; // key: 任务类型
+    map<uint32, int64> last_reset_map = 2; // key: 任务类型 value: 上次刷新时间
+    map<uint32, uint32> quest_finish_count = 3; // key: 任务ID value: 当天/当周已完成次数（用于 MaxCount 限制）
 }
 
 // 等级系统
@@ -121,16 +128,17 @@ message SiAntiCheatData {
     int64 ban_end_time = 6;// 封禁结束时间（Unix时间戳，0表示永久封禁）
 }
 
-// 每日任务系统
-message SiDailyQuestData {
-    repeated DailyQuestData daily_quests = 1;// 每日任务列表
-    int64 last_refresh_time = 2;// 最后刷新时间（Unix时间戳）
+// 日常活跃系统
+message SiDailyActivityData {
+    int64 balance = 1; // 当前活跃点余额
+    uint32 today_points = 2; // 今日累计活跃点
+    int64 last_reset_time = 3; // 最后重置时间（Unix时间戳）
+    repeated DailyActivityRewardState reward_states = 4; // 奖励领取状态
 }
 
-message DailyQuestData {
-    uint32 quest_id = 1;// 任务ID
-    repeated uint32 progress = 2;// 当前进度
-    int64 accept_time = 3;// 接受时间（Unix时间戳）
+message DailyActivityRewardState {
+    uint32 reward_id = 1;// 奖励ID
+    bool claimed = 2;// 是否已领取
 }
 
 // 成就系统

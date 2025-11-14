@@ -3,10 +3,8 @@ package entitysystem
 import (
 	"context"
 	"postapocgame/server/internal"
-	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/service/gameserver/internel/dungeonserverlink"
 	"postapocgame/server/service/gameserver/internel/iface"
 )
 
@@ -62,12 +60,6 @@ func (as *AttrSys) OnInit(ctx context.Context) {
 
 // registerCalculators 注册所有属性计算器
 func (as *AttrSys) registerCalculators(ctx context.Context) {
-	playerRole, err := GetIPlayerRoleByContext(ctx)
-	if err != nil {
-		log.Errorf("register calculators get role err:%v", err)
-		return
-	}
-
 	// 注册等级系统属性计算器
 	levelSys := GetLevelSys(ctx)
 	if levelSys != nil {
@@ -96,6 +88,7 @@ func (as *AttrSys) MarkDirty(saAttrSysId uint32) {
 }
 
 // CalculateAllAttrs 计算所有系统的属性（首次登录时调用）
+// 优化：只计算未计算过的系统，避免重复计算
 func (as *AttrSys) CalculateAllAttrs(ctx context.Context) map[uint32]*protocol.AttrVec {
 	result := make(map[uint32]*protocol.AttrVec)
 
@@ -103,6 +96,15 @@ func (as *AttrSys) CalculateAllAttrs(ctx context.Context) map[uint32]*protocol.A
 	for saAttrSysId, calculator := range as.calculators {
 		if calculator == nil {
 			continue
+		}
+
+		// 优化：如果已经计算过且没有标记为dirty，跳过计算
+		if existingAttrVec, exists := as.attrDataMap[saAttrSysId]; exists {
+			if !as.dirtySystems[saAttrSysId] {
+				// 使用已计算的结果，避免重复计算
+				result[saAttrSysId] = existingAttrVec
+				continue
+			}
 		}
 
 		// 计算该系统的属性
@@ -113,8 +115,14 @@ func (as *AttrSys) CalculateAllAttrs(ctx context.Context) map[uint32]*protocol.A
 			}
 			result[saAttrSysId] = attrVec
 			as.attrDataMap[saAttrSysId] = attrVec
+		} else {
+			// 如果属性为空，删除该系统的属性数据
+			delete(as.attrDataMap, saAttrSysId)
 		}
 	}
+
+	// 清空所有脏标记（首次计算后，所有系统都是干净的）
+	as.dirtySystems = make(map[uint32]bool)
 
 	log.Infof("AttrSys calculated all attrs: %d systems", len(result))
 	return result
@@ -184,9 +192,8 @@ func (as *AttrSys) syncAttrsToDungeonServer(ctx context.Context, playerRole ifac
 		return
 	}
 
-	// 发送RPC请求到DungeonServer
-	srvType := playerRole.GetDungeonSrvType()
-	err = dungeonserverlink.AsyncCall(ctx, srvType, playerRole.GetSessionId(), uint16(protocol.G2DRpcProtocol_G2DSyncAttrs), reqData)
+	// 发送RPC请求到DungeonServer（通过IPlayerRole接口，避免循环依赖）
+	err = playerRole.CallDungeonServer(ctx, uint16(protocol.G2DRpcProtocol_G2DSyncAttrs), reqData)
 	if err != nil {
 		log.Errorf("sync attrs to dungeon server failed: %v", err)
 		return

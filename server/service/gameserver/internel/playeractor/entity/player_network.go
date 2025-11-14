@@ -9,7 +9,7 @@ package entity
 import (
 	"context"
 	"fmt"
-	"postapocgame/server/internal"
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/database"
 	"postapocgame/server/internal/event"
@@ -35,7 +35,7 @@ func handleRegister(ctx context.Context, msg *network.ClientMessage) error {
 
 	// 解析注册请求
 	var req protocol.C2SRegisterReq
-	err := internal.Unmarshal(msg.Data, &req)
+	err := proto.Unmarshal(msg.Data, &req)
 	if err != nil {
 		log.Errorf("unmarshal register request failed: %v", err)
 		return customerr.Wrap(err)
@@ -43,13 +43,13 @@ func handleRegister(ctx context.Context, msg *network.ClientMessage) error {
 
 	// 验证用户名和密码
 	if len(req.Username) < 3 || len(req.Username) > 32 {
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CRegisterResult), &protocol.S2CRegisterResultReq{
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CRegisterResult), &protocol.S2CRegisterResultReq{
 			Success: false,
 			Message: "用户名长度必须在3-32个字符之间",
 		})
 	}
 	if len(req.Password) < 6 {
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CRegisterResult), &protocol.S2CRegisterResultReq{
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CRegisterResult), &protocol.S2CRegisterResultReq{
 			Success: false,
 			Message: "密码长度至少6个字符",
 		})
@@ -59,7 +59,7 @@ func handleRegister(ctx context.Context, msg *network.ClientMessage) error {
 	_, err = database.GetAccountByUsername(req.Username)
 	if err == nil {
 		// 用户名已存在
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CRegisterResult), &protocol.S2CRegisterResultReq{
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CRegisterResult), &protocol.S2CRegisterResultReq{
 			Success: false,
 			Message: "用户名已存在",
 		})
@@ -69,7 +69,7 @@ func handleRegister(ctx context.Context, msg *network.ClientMessage) error {
 	account, err := database.CreateAccount(req.Username, req.Password)
 	if err != nil {
 		log.Errorf("create account failed: %v", err)
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CRegisterResult), &protocol.S2CRegisterResultReq{
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CRegisterResult), &protocol.S2CRegisterResultReq{
 			Success: false,
 			Message: "注册失败，请稍后重试",
 		})
@@ -88,7 +88,7 @@ func handleRegister(ctx context.Context, msg *network.ClientMessage) error {
 	log.Infof("Account registered: AccountID=%d, Username=%s", account.ID, account.Username)
 
 	// 返回注册成功
-	return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CRegisterResult), &protocol.S2CRegisterResultReq{
+	return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CRegisterResult), &protocol.S2CRegisterResultReq{
 		Success: true,
 		Message: "注册成功",
 		Token:   token,
@@ -102,7 +102,7 @@ func handleLogin(ctx context.Context, msg *network.ClientMessage) error {
 
 	// 解析登录请求
 	var req protocol.C2SLoginReq
-	err := internal.Unmarshal(msg.Data, &req)
+	err := proto.Unmarshal(msg.Data, &req)
 	if err != nil {
 		log.Errorf("unmarshal login request failed: %v", err)
 		return customerr.Wrap(err)
@@ -112,7 +112,7 @@ func handleLogin(ctx context.Context, msg *network.ClientMessage) error {
 	account, err := database.GetAccountByUsername(req.Username)
 	if err != nil {
 		log.Errorf("account not found: %v", err)
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CLoginResult), &protocol.S2CLoginResultReq{
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CLoginResult), &protocol.S2CLoginResultReq{
 			Success: false,
 			Message: "用户名或密码错误",
 		})
@@ -121,7 +121,7 @@ func handleLogin(ctx context.Context, msg *network.ClientMessage) error {
 	// 验证密码
 	if !account.CheckPassword(req.Password) {
 		log.Errorf("password incorrect for account: %s", req.Username)
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CLoginResult), &protocol.S2CLoginResultReq{
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CLoginResult), &protocol.S2CLoginResultReq{
 			Success: false,
 			Message: "用户名或密码错误",
 		})
@@ -140,7 +140,7 @@ func handleLogin(ctx context.Context, msg *network.ClientMessage) error {
 	log.Infof("Account logged in: AccountID=%d, Username=%s", account.ID, account.Username)
 
 	// 返回登录成功
-	return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CLoginResult), &protocol.S2CLoginResultReq{
+	return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CLoginResult), &protocol.S2CLoginResultReq{
 		Success: true,
 		Message: "登录成功",
 		Token:   token,
@@ -164,7 +164,7 @@ func handleQueryRoles(ctx context.Context, msg *network.ClientMessage) error {
 	// 获取账号ID
 	accountID := session.GetAccountID()
 	if accountID == 0 {
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CRoleList), &protocol.S2CRoleListReq{
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CRoleList), &protocol.S2CRoleListReq{
 			RoleList: []*protocol.PlayerSimpleData{},
 		})
 	}
@@ -188,16 +188,12 @@ func handleQueryRoles(ctx context.Context, msg *network.ClientMessage) error {
 		})
 	}
 
-	// 序列化为JSON
-	jsonData, err := internal.Marshal(&protocol.S2CRoleListReq{
+	resp := &protocol.S2CRoleListReq{
 		RoleList: roleList,
-	})
-	if err != nil {
-		return customerr.Wrap(err)
 	}
 
 	// 发送给客户端
-	return gatewaylink.SendToSession(sessionId, uint16(protocol.S2CProtocol_S2CRoleList), jsonData)
+	return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CRoleList), resp)
 }
 
 func handleEnterGame(ctx context.Context, msg *network.ClientMessage) error {
@@ -206,7 +202,7 @@ func handleEnterGame(ctx context.Context, msg *network.ClientMessage) error {
 
 	// 解析选择角色请求
 	var req protocol.C2SEnterGameReq
-	err := internal.Unmarshal(msg.Data, &req)
+	err := proto.Unmarshal(msg.Data, &req)
 	if err != nil {
 		log.Errorf("unmarshal select player role request failed: %v", err)
 		return err
@@ -262,7 +258,7 @@ func handleCreateRole(ctx context.Context, msg *network.ClientMessage) error {
 
 	// 解析创建角色请求
 	var req protocol.C2SCreateRoleReq
-	err := internal.Unmarshal(msg.Data, &req)
+	err := proto.Unmarshal(msg.Data, &req)
 	if err != nil {
 		log.Errorf("unmarshal create role request failed: %v", err)
 		return customerr.Wrap(err)
@@ -277,7 +273,7 @@ func handleCreateRole(ctx context.Context, msg *network.ClientMessage) error {
 	// 验证是否已登录
 	accountID := session.GetAccountID()
 	if accountID == 0 {
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CCreateRoleResult), &protocol.S2CCreateRoleResultReq{
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CCreateRoleResult), &protocol.S2CCreateRoleResultReq{
 			Job:      0,
 			Sex:      0,
 			RoleName: "",
@@ -286,7 +282,7 @@ func handleCreateRole(ctx context.Context, msg *network.ClientMessage) error {
 
 	// 验证角色名
 	if req.RoleData == nil || len(req.RoleData.RoleName) == 0 {
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CCreateRoleResult), &protocol.S2CCreateRoleResultReq{
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CCreateRoleResult), &protocol.S2CCreateRoleResultReq{
 			Job:      0,
 			Sex:      0,
 			RoleName: "",
@@ -300,7 +296,7 @@ func handleCreateRole(ctx context.Context, msg *network.ClientMessage) error {
 		return customerr.Wrap(err)
 	}
 	if exists {
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CCreateRoleResult), &protocol.S2CCreateRoleResultReq{
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CCreateRoleResult), &protocol.S2CCreateRoleResultReq{
 			Job:      0,
 			Sex:      0,
 			RoleName: "",
@@ -314,7 +310,7 @@ func handleCreateRole(ctx context.Context, msg *network.ClientMessage) error {
 		return customerr.Wrap(err)
 	}
 	if len(players) >= 3 {
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CCreateRoleResult), &protocol.S2CCreateRoleResultReq{
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CCreateRoleResult), &protocol.S2CCreateRoleResultReq{
 			Job:      0,
 			Sex:      0,
 			RoleName: "",
@@ -331,7 +327,7 @@ func handleCreateRole(ctx context.Context, msg *network.ClientMessage) error {
 	log.Infof("Player created: AccountID=%d, RoleId=%d, RoleName=%s", accountID, dbPlayer.ID, dbPlayer.RoleName)
 
 	// 返回创建成功
-	return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CCreateRoleResult), &protocol.S2CCreateRoleResultReq{
+	return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CCreateRoleResult), &protocol.S2CCreateRoleResultReq{
 		Job:      uint32(dbPlayer.Job),
 		Sex:      uint32(dbPlayer.Sex),
 		RoleName: dbPlayer.RoleName,
@@ -347,7 +343,7 @@ func handleOpenBag(ctx context.Context, _ *network.ClientMessage) error {
 	} else {
 		bagData = &protocol.SiBagData{}
 	}
-	return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CBagData), &protocol.S2CBagDataReq{
+	return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CBagData), &protocol.S2CBagDataReq{
 		BagData: bagData,
 	})
 }
@@ -363,7 +359,7 @@ func handleOpenMoney(ctx context.Context, _ *network.ClientMessage) error {
 			MoneyMap: map[uint32]int64{},
 		}
 	}
-	return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CMoneyData), &protocol.S2CMoneyDataReq{
+	return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CMoneyData), &protocol.S2CMoneyDataReq{
 		MoneyData: moneyData,
 	})
 }
@@ -371,7 +367,7 @@ func handleOpenMoney(ctx context.Context, _ *network.ClientMessage) error {
 func handleShopBuy(ctx context.Context, msg *network.ClientMessage) error {
 	sessionId := ctx.Value(gshare.ContextKeySession).(string)
 	var req protocol.C2SShopBuyReq
-	if err := internal.Unmarshal(msg.Data, &req); err != nil {
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
 		return err
 	}
 	resp := &protocol.S2CShopBuyResultReq{
@@ -379,7 +375,7 @@ func handleShopBuy(ctx context.Context, msg *network.ClientMessage) error {
 		Count:  req.Count,
 	}
 	sendResp := func() error {
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CShopBuyResult), resp)
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CShopBuyResult), resp)
 	}
 
 	if req.ItemId == 0 || req.Count == 0 {
@@ -410,7 +406,7 @@ func handleShopBuy(ctx context.Context, msg *network.ClientMessage) error {
 func handleEquipItem(ctx context.Context, msg *network.ClientMessage) error {
 	sessionId := ctx.Value(gshare.ContextKeySession).(string)
 	var req protocol.C2SEquipItemReq
-	if err := internal.Unmarshal(msg.Data, &req); err != nil {
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
 		return err
 	}
 	resp := &protocol.S2CEquipResultReq{
@@ -420,13 +416,13 @@ func handleEquipItem(ctx context.Context, msg *network.ClientMessage) error {
 	equipSys := entitysystem.GetEquipSys(ctx)
 	if equipSys == nil {
 		resp.ErrCode = uint32(protocol.ErrorCode_Internal_Error)
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CEquipResult), resp)
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CEquipResult), resp)
 	}
 
 	err := equipSys.EquipItem(ctx, req.ItemId, req.Slot)
 	resp.ErrCode = errCodeFromError(err)
 
-	if sendErr := gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CEquipResult), resp); sendErr != nil {
+	if sendErr := gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CEquipResult), resp); sendErr != nil {
 		return sendErr
 	}
 	if err == nil {
@@ -439,7 +435,7 @@ func handleEquipItem(ctx context.Context, msg *network.ClientMessage) error {
 func handleUseItem(ctx context.Context, msg *network.ClientMessage) error {
 	sessionId := ctx.Value(gshare.ContextKeySession).(string)
 	var req protocol.C2SUseItemReq
-	if err := internal.Unmarshal(msg.Data, &req); err != nil {
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
 		return err
 	}
 
@@ -463,7 +459,7 @@ func handleUseItem(ctx context.Context, msg *network.ClientMessage) error {
 			Message: "物品使用系统未初始化",
 			ItemId:  req.ItemId,
 		}
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CUseItemResult), resp)
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CUseItemResult), resp)
 	}
 
 	// 使用物品
@@ -494,7 +490,7 @@ func handleUseItem(ctx context.Context, msg *network.ClientMessage) error {
 	}
 
 	// 发送响应
-	if sendErr := gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CUseItemResult), resp); sendErr != nil {
+	if sendErr := gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CUseItemResult), resp); sendErr != nil {
 		return sendErr
 	}
 
@@ -505,7 +501,7 @@ func handleUseItem(ctx context.Context, msg *network.ClientMessage) error {
 func handleRecycleItem(ctx context.Context, msg *network.ClientMessage) error {
 	sessionId := ctx.Value(gshare.ContextKeySession).(string)
 	var req protocol.C2SRecycleItemReq
-	if err := internal.Unmarshal(msg.Data, &req); err != nil {
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
 		return err
 	}
 
@@ -547,7 +543,7 @@ func handleRecycleItem(ctx context.Context, msg *network.ClientMessage) error {
 	}
 
 	// 发送响应
-	if sendErr := gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CRecycleItemResult), resp); sendErr != nil {
+	if sendErr := gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CRecycleItemResult), resp); sendErr != nil {
 		return sendErr
 	}
 
@@ -560,7 +556,7 @@ func handleGMCommand(ctx context.Context, msg *network.ClientMessage) error {
 
 	// 解析GM命令请求
 	var req protocol.C2SGMCommandReq
-	if err := internal.Unmarshal(msg.Data, &req); err != nil {
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
 		log.Errorf("unmarshal GM command request failed: %v", err)
 		return err
 	}
@@ -572,9 +568,14 @@ func handleGMCommand(ctx context.Context, msg *network.ClientMessage) error {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "player role not found")
 	}
 
+	roleCtx := playerRole.WithContext(ctx)
+
 	// 执行GM命令
-	gmManager := entitysystem.GetGMManager()
-	success, message := gmManager.ExecuteCommand(ctx, playerRole, req.GmName, req.Args)
+	gmSys := entitysystem.GetGMSys(roleCtx)
+	if gmSys == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "gm system not ready")
+	}
+	success, message := gmSys.ExecuteCommand(roleCtx, req.GmName, req.Args)
 
 	// 发送GM命令结果
 	resp := &protocol.S2CGMCommandResultReq{
@@ -582,7 +583,7 @@ func handleGMCommand(ctx context.Context, msg *network.ClientMessage) error {
 		Message: message,
 	}
 
-	if err := gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CGMCommandResult), resp); err != nil {
+	if err := gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CGMCommandResult), resp); err != nil {
 		log.Errorf("send GM command result failed: %v", err)
 		return err
 	}
@@ -597,7 +598,7 @@ func handleGMCommand(ctx context.Context, msg *network.ClientMessage) error {
 func handleTalkToNPC(ctx context.Context, msg *network.ClientMessage) error {
 	sessionId := ctx.Value(gshare.ContextKeySession).(string)
 	var req protocol.C2STalkToNPCReq
-	if err := internal.Unmarshal(msg.Data, &req); err != nil {
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
 		return err
 	}
 
@@ -617,13 +618,13 @@ func handleTalkToNPC(ctx context.Context, msg *network.ClientMessage) error {
 			Message: "NPC不存在",
 			NpcId:   req.NpcId,
 		}
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CTalkToNPCResult), resp)
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CTalkToNPCResult), resp)
 	}
 
 	// 触发任务事件（和NPC对话）
 	questSys := entitysystem.GetQuestSys(ctx)
 	if questSys != nil {
-		questSys.UpdateQuestProgressByType(ctx, uint32(protocol.QuestType_QuestTypeTalkToNPC), req.NpcId)
+		questSys.UpdateQuestProgressByType(ctx, uint32(protocol.QuestType_QuestTypeTalkToNPC), req.NpcId, 1)
 	}
 
 	// 发送对话结果
@@ -633,14 +634,14 @@ func handleTalkToNPC(ctx context.Context, msg *network.ClientMessage) error {
 		NpcId:   req.NpcId,
 	}
 
-	return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CTalkToNPCResult), resp)
+	return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CTalkToNPCResult), resp)
 }
 
 // handleLearnSkill 处理学习技能
 func handleLearnSkill(ctx context.Context, msg *network.ClientMessage) error {
 	sessionId := ctx.Value(gshare.ContextKeySession).(string)
 	var req protocol.C2SLearnSkillReq
-	if err := internal.Unmarshal(msg.Data, &req); err != nil {
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
 		return err
 	}
 
@@ -659,7 +660,7 @@ func handleLearnSkill(ctx context.Context, msg *network.ClientMessage) error {
 			Message: "技能系统未初始化",
 			SkillId: req.SkillId,
 		}
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CLearnSkillResult), resp)
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CLearnSkillResult), resp)
 	}
 
 	// 学习技能
@@ -678,18 +679,18 @@ func handleLearnSkill(ctx context.Context, msg *network.ClientMessage) error {
 		// 触发任务事件（学习技能）
 		questSys := entitysystem.GetQuestSys(ctx)
 		if questSys != nil {
-			questSys.UpdateQuestProgressByType(ctx, uint32(protocol.QuestType_QuestTypeLearnSkill), 0)
+			questSys.UpdateQuestProgressByType(ctx, uint32(protocol.QuestType_QuestTypeLearnSkill), 0, 1)
 		}
 	}
 
-	return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CLearnSkillResult), resp)
+	return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CLearnSkillResult), resp)
 }
 
 // handleUpgradeSkill 处理升级技能
 func handleUpgradeSkill(ctx context.Context, msg *network.ClientMessage) error {
 	sessionId := ctx.Value(gshare.ContextKeySession).(string)
 	var req protocol.C2SUpgradeSkillReq
-	if err := internal.Unmarshal(msg.Data, &req); err != nil {
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
 		return err
 	}
 
@@ -708,7 +709,7 @@ func handleUpgradeSkill(ctx context.Context, msg *network.ClientMessage) error {
 			Message: "技能系统未初始化",
 			SkillId: req.SkillId,
 		}
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CUpgradeSkillResult), resp)
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CUpgradeSkillResult), resp)
 	}
 
 	// 升级技能
@@ -727,14 +728,14 @@ func handleUpgradeSkill(ctx context.Context, msg *network.ClientMessage) error {
 		resp.Message = "升级成功"
 	}
 
-	return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CUpgradeSkillResult), resp)
+	return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CUpgradeSkillResult), resp)
 }
 
 // handleEnterDungeon 处理进入副本请求（限时副本）
 func handleEnterDungeon(ctx context.Context, msg *network.ClientMessage) error {
 	sessionId := ctx.Value(gshare.ContextKeySession).(string)
 	var req protocol.C2SEnterDungeonReq
-	if err := internal.Unmarshal(msg.Data, &req); err != nil {
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
 		return err
 	}
 
@@ -747,7 +748,7 @@ func handleEnterDungeon(ctx context.Context, msg *network.ClientMessage) error {
 			Message:   "玩家角色不存在",
 			DungeonId: req.DungeonId,
 		}
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
 	}
 
 	// 获取副本配置
@@ -759,7 +760,7 @@ func handleEnterDungeon(ctx context.Context, msg *network.ClientMessage) error {
 			Message:   "副本不存在",
 			DungeonId: req.DungeonId,
 		}
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
 	}
 
 	// 检查是否为限时副本
@@ -769,14 +770,14 @@ func handleEnterDungeon(ctx context.Context, msg *network.ClientMessage) error {
 			Message:   "该副本不是限时副本",
 			DungeonId: req.DungeonId,
 		}
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
 	}
 
 	// 检查难度是否有效
 	var difficultyCfg *jsonconf.DungeonDifficulty
 	for i := range dungeonCfg.Difficulties {
 		if dungeonCfg.Difficulties[i].Difficulty == req.Difficulty {
-			difficultyCfg = &dungeonCfg.Difficulties[i]
+			difficultyCfg = dungeonCfg.Difficulties[i]
 			break
 		}
 	}
@@ -786,7 +787,7 @@ func handleEnterDungeon(ctx context.Context, msg *network.ClientMessage) error {
 			Message:   "难度不存在",
 			DungeonId: req.DungeonId,
 		}
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
 	}
 
 	// 获取副本系统
@@ -798,7 +799,7 @@ func handleEnterDungeon(ctx context.Context, msg *network.ClientMessage) error {
 			Message:   "副本系统未初始化",
 			DungeonId: req.DungeonId,
 		}
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
 	}
 
 	// 检查每日进入次数
@@ -820,20 +821,20 @@ func handleEnterDungeon(ctx context.Context, msg *network.ClientMessage) error {
 				Message:   "今日进入次数已用完",
 				DungeonId: req.DungeonId,
 			}
-			return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
+			return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
 		}
 	}
 
 	// 检查消耗物品（如通天令）
 	if len(difficultyCfg.ConsumeItems) > 0 {
 		// 检查消耗是否足够
-		if err := playerRole.CheckConsume(difficultyCfg.ConsumeItems); err != nil {
+		if err := playerRole.CheckConsume(ctx, difficultyCfg.ConsumeItems); err != nil {
 			resp := &protocol.S2CEnterDungeonResultReq{
 				Success:   false,
 				Message:   "消耗物品不足",
 				DungeonId: req.DungeonId,
 			}
-			return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
+			return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
 		}
 		// 扣除消耗（在Actor中执行）
 		roleCtx := playerRole.WithContext(ctx)
@@ -844,7 +845,7 @@ func handleEnterDungeon(ctx context.Context, msg *network.ClientMessage) error {
 				Message:   "扣除消耗失败",
 				DungeonId: req.DungeonId,
 			}
-			return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
+			return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
 		}
 	}
 
@@ -856,7 +857,7 @@ func handleEnterDungeon(ctx context.Context, msg *network.ClientMessage) error {
 			Message:   "进入副本失败",
 			DungeonId: req.DungeonId,
 		}
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
 	}
 
 	// 获取角色信息
@@ -867,7 +868,7 @@ func handleEnterDungeon(ctx context.Context, msg *network.ClientMessage) error {
 			Message:   "角色信息不存在",
 			DungeonId: req.DungeonId,
 		}
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
 	}
 
 	// 汇总属性
@@ -892,7 +893,7 @@ func handleEnterDungeon(ctx context.Context, msg *network.ClientMessage) error {
 	}
 
 	// 构造进入副本请求
-	reqData, err := internal.Marshal(&protocol.G2DEnterDungeonReq{
+	reqData, err := proto.Marshal(&protocol.G2DEnterDungeonReq{
 		SessionId:    sessionId,
 		PlatformId:   gshare.GetPlatformId(),
 		SrvId:        gshare.GetSrvId(),
@@ -908,7 +909,7 @@ func handleEnterDungeon(ctx context.Context, msg *network.ClientMessage) error {
 			Message:   "系统错误",
 			DungeonId: req.DungeonId,
 		}
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
 	}
 
 	// 使用带SessionId的异步RPC调用
@@ -921,7 +922,7 @@ func handleEnterDungeon(ctx context.Context, msg *network.ClientMessage) error {
 			Message:   "进入副本失败",
 			DungeonId: req.DungeonId,
 		}
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
 	}
 
 	// 发送成功响应
@@ -930,14 +931,14 @@ func handleEnterDungeon(ctx context.Context, msg *network.ClientMessage) error {
 		Message:   "进入副本成功",
 		DungeonId: req.DungeonId,
 	}
-	return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
+	return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CEnterDungeonResult), resp)
 }
 
 // handleClaimOfflineReward 处理领取离线收益请求
 func handleClaimOfflineReward(ctx context.Context, msg *network.ClientMessage) error {
 	sessionId := ctx.Value(gshare.ContextKeySession).(string)
 	var req protocol.C2SClaimOfflineRewardReq
-	if err := internal.Unmarshal(msg.Data, &req); err != nil {
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
 		return err
 	}
 
@@ -949,7 +950,7 @@ func handleClaimOfflineReward(ctx context.Context, msg *network.ClientMessage) e
 			Success: false,
 			Message: "玩家角色不存在",
 		}
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CClaimOfflineRewardResult), resp)
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CClaimOfflineRewardResult), resp)
 	}
 
 	// 获取离线收益系统
@@ -960,7 +961,7 @@ func handleClaimOfflineReward(ctx context.Context, msg *network.ClientMessage) e
 			Success: false,
 			Message: "离线收益系统未初始化",
 		}
-		return gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CClaimOfflineRewardResult), resp)
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CClaimOfflineRewardResult), resp)
 	}
 
 	// 获取离线时间
@@ -999,7 +1000,7 @@ func handleClaimOfflineReward(ctx context.Context, msg *network.ClientMessage) e
 	}
 
 	// 发送响应
-	if sendErr := gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CClaimOfflineRewardResult), resp); sendErr != nil {
+	if sendErr := gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CClaimOfflineRewardResult), resp); sendErr != nil {
 		return sendErr
 	}
 
@@ -1011,7 +1012,7 @@ func pushBagData(ctx context.Context, sessionId string) {
 	if bagSys == nil {
 		return
 	}
-	if err := gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CBagData), &protocol.S2CBagDataReq{
+	if err := gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CBagData), &protocol.S2CBagDataReq{
 		BagData: bagSys.GetBagData(),
 	}); err != nil {
 		log.Errorf("push bag data failed: %v", err)
@@ -1023,7 +1024,7 @@ func pushMoneyData(ctx context.Context, sessionId string) {
 	if moneySys == nil {
 		return
 	}
-	if err := gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CMoneyData), &protocol.S2CMoneyDataReq{
+	if err := gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CMoneyData), &protocol.S2CMoneyDataReq{
 		MoneyData: moneySys.GetMoneyData(),
 	}); err != nil {
 		log.Errorf("push money data failed: %v", err)
@@ -1058,7 +1059,7 @@ func enterGame(sessionId string, roleInfo *protocol.PlayerSimpleData) error {
 	playerRole.SetDungeonSrvType(srvType)
 
 	// 先调用OnLogin初始化系统
-	err = playerRole.OnLogin()
+	err := playerRole.OnLogin()
 	if err != nil {
 		return customerr.Wrap(err)
 	}
@@ -1087,7 +1088,7 @@ func enterGame(sessionId string, roleInfo *protocol.PlayerSimpleData) error {
 
 	// 构造进入副本请求
 
-	reqData, err := internal.Marshal(&protocol.G2DEnterDungeonReq{
+	reqData, err := proto.Marshal(&protocol.G2DEnterDungeonReq{
 		SessionId:    sessionId,
 		PlatformId:   gshare.GetPlatformId(),
 		SrvId:        gshare.GetSrvId(),
@@ -1149,7 +1150,7 @@ func handleDoNetWorkMsg(message actor.IActorMessage) {
 		}
 
 		log.Errorf("handleDoNetWorkMsg failed, err:%v", err)
-		err = gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
+		err = gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
 			Code: -1,
 			Msg:  err.Error(),
 		})
@@ -1164,7 +1165,7 @@ func handleDoNetWorkMsg(message actor.IActorMessage) {
 	if !protocolMgr.IsDungeonProtocol(cliMsg.MsgId) {
 		// 协议既不在GameServer也不在DungeonServer
 		log.Errorf("protocol %d not found in GameServer or DungeonServer", cliMsg.MsgId)
-		err = gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
+		err = gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
 			Code: -1,
 			Msg:  fmt.Sprintf("protocol %d not supported", cliMsg.MsgId),
 		})
@@ -1189,7 +1190,7 @@ func handleDoNetWorkMsg(message actor.IActorMessage) {
 		pr := manager.GetPlayerRole(roleId)
 		if pr == nil {
 			log.Errorf("player role not found: roleId=%d", roleId)
-			err = gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
+			err = gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
 				Code: -1,
 				Msg:  "player role not found",
 			})
@@ -1213,7 +1214,7 @@ func handleDoNetWorkMsg(message actor.IActorMessage) {
 	err = dungeonserverlink.AsyncCall(ctx, targetSrvType, sessionId, 0, message.GetData())
 	if err != nil {
 		log.Errorf("forward to DungeonServer failed: srvType=%d, err:%v", targetSrvType, err)
-		err = gatewaylink.SendToSessionJSON(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
+		err = gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
 			Code: -1,
 			Msg:  fmt.Sprintf("forward to DungeonServer failed: %v", err),
 		})
@@ -1226,9 +1227,23 @@ func handleDoNetWorkMsg(message actor.IActorMessage) {
 	log.Debugf("successfully forwarded protocol %d to DungeonServer: srvType=%d", cliMsg.MsgId, targetSrvType)
 }
 
+func handleRunOneMsg(message actor.IActorMessage) {
+	sessionId := message.GetContext().Value(gshare.ContextKeySession).(string)
+	session := gatewaylink.GetSession(sessionId)
+	if session == nil {
+		return
+	}
+	iPlayerRole := manager.GetPlayerRoleManager().GetBySession(sessionId)
+	if iPlayerRole == nil {
+		return
+	}
+	iPlayerRole.RunOne()
+}
+
 func init() {
 	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
 		gshare.RegisterHandler(gshare.DoNetWorkMsg, handleDoNetWorkMsg)
+		gshare.RegisterHandler(gshare.DoRunOneMsg, handleRunOneMsg)
 
 		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SRegister), handleRegister)
 		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SLogin), handleLogin)

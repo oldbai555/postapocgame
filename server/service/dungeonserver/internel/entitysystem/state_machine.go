@@ -3,7 +3,6 @@ package entitysystem
 import (
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/service/dungeonserver/internel/iface"
-	"sync"
 	"time"
 )
 
@@ -19,7 +18,6 @@ var (
 
 // StateMachine 状态机
 type StateMachine struct {
-	mu             sync.RWMutex
 	currentState   uint32
 	stateStartTime time.Time
 	stateDuration  time.Duration // 状态持续时间
@@ -39,16 +37,11 @@ func NewStateMachine(entity iface.IEntity) *StateMachine {
 
 // GetState 获取当前状态
 func (sm *StateMachine) GetState() uint32 {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
 	return sm.currentState
 }
 
 // SetState 设置状态
 func (sm *StateMachine) SetState(state uint32, duration time.Duration) {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-
 	sm.currentState = state
 	sm.stateStartTime = time.Now()
 	sm.stateDuration = duration
@@ -85,9 +78,6 @@ func (sm *StateMachine) SetState(state uint32, duration time.Duration) {
 
 // CanChangeState 检查是否可以切换状态
 func (sm *StateMachine) CanChangeState(newState uint32) bool {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
-
 	currentState := sm.currentState
 
 	// 死亡状态不能切换到其他状态（除了无敌）
@@ -110,9 +100,6 @@ func (sm *StateMachine) CanChangeState(newState uint32) bool {
 
 // Update 更新状态机（检查状态是否过期）
 func (sm *StateMachine) Update() {
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
-
 	// 如果状态有持续时间且已过期，自动切换到待命
 	if sm.stateDuration > 0 {
 		elapsed := time.Since(sm.stateStartTime)
@@ -143,16 +130,11 @@ func (sm *StateMachine) Update() {
 
 // IsInState 检查是否在指定状态
 func (sm *StateMachine) IsInState(state uint32) bool {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
 	return sm.currentState == state
 }
 
 // CanAttack 检查是否可以攻击
 func (sm *StateMachine) CanAttack() bool {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
-
 	switch sm.currentState {
 	case StateIdle, StateCasting:
 		return true
@@ -163,9 +145,6 @@ func (sm *StateMachine) CanAttack() bool {
 
 // CanMove 检查是否可以移动
 func (sm *StateMachine) CanMove() bool {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
-
 	switch sm.currentState {
 	case StateIdle:
 		return true
@@ -179,8 +158,6 @@ func (sm *StateMachine) AddExtraState(state uint32, duration time.Duration) {
 	if state == 0 {
 		return
 	}
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
 	expire := time.Time{}
 	if duration > 0 {
 		expire = time.Now().Add(duration)
@@ -193,7 +170,5 @@ func (sm *StateMachine) RemoveExtraState(state uint32) {
 	if state == 0 {
 		return
 	}
-	sm.mu.Lock()
-	defer sm.mu.Unlock()
 	delete(sm.extraStates, state)
 }

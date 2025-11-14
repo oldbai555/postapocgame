@@ -1,7 +1,7 @@
 package network
 
 import (
-	"encoding/json"
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 )
@@ -12,9 +12,8 @@ type IMessageSender interface {
 	ForwardClientMsg(sessionId string, payload []byte) error
 	SendRPCRequest(req *RPCRequest) error
 	SendRPCResponse(resp *RPCResponse) error
-
 	// 扩展功能
-	SendToClientJSON(sessionId string, msgId uint16, v interface{}) error
+	SendToClientProto(sessionId string, msgId uint16, message proto.Message) error
 }
 
 // BaseMessageSender 基础消息发送器
@@ -80,20 +79,12 @@ func (s *BaseMessageSender) SendToClient(sessionId string, msgId uint16, data []
 	return s.conn.SendMessage(message)
 }
 
-// SendToClientJSON 发送JSON消息给客户端
-func (s *BaseMessageSender) SendToClientJSON(sessionId string, msgId uint16, v interface{}) error {
-	var data []byte
-	var err error
-
-	if d, ok := v.([]byte); ok {
-		data = d
-	} else {
-		data, err = json.Marshal(v)
-		if err != nil {
-			return err
-		}
+// SendToClientProto 发送Proto消息给客户端
+func (s *BaseMessageSender) SendToClientProto(sessionId string, msgId uint16, message proto.Message) error {
+	data, err := proto.Marshal(message)
+	if err != nil {
+		return customerr.Wrap(err, int32(protocol.ErrorCode_Internal_Error))
 	}
-
 	return s.SendToClient(sessionId, msgId, data)
 }
 

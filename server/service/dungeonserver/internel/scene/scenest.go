@@ -9,7 +9,6 @@ import (
 	"postapocgame/server/service/dungeonserver/internel/entity"
 	"postapocgame/server/service/dungeonserver/internel/entitymgr"
 	"postapocgame/server/service/dungeonserver/internel/iface"
-	"sync"
 )
 
 // SceneSt 场景结构
@@ -20,9 +19,10 @@ type SceneSt struct {
 	width   int
 	height  int
 
+	fuBen iface.IFuBen
+
 	// 实体管理
 	entities map[uint64]iface.IEntity
-	entityMu sync.RWMutex
 
 	// AOI管理器
 	aoiMgr *AOIManager
@@ -31,20 +31,20 @@ type SceneSt struct {
 	walkableMap [][]bool // 可行走地图
 
 	// 怪物管理
-	monsters  map[uint64]*entity.MonsterEntity
-	monsterMu sync.RWMutex
+	monsters map[uint64]*entity.MonsterEntity
 
 	nextEntityId uint64
 }
 
 // NewSceneSt 创建场景
-func NewSceneSt(sceneId, fuBenId uint32, name string, wIdth, height int) *SceneSt {
+func NewSceneSt(fuBen iface.IFuBen, sceneId, fuBenId uint32, name string, wIdth, height int) *SceneSt {
 	scene := &SceneSt{
 		sceneId:      sceneId,
 		fuBenId:      fuBenId,
 		name:         name,
 		width:        wIdth,
 		height:       height,
+		fuBen:        fuBen,
 		entities:     make(map[uint64]iface.IEntity),
 		monsters:     make(map[uint64]*entity.MonsterEntity),
 		aoiMgr:       NewAOIManager(),
@@ -55,6 +55,10 @@ func NewSceneSt(sceneId, fuBenId uint32, name string, wIdth, height int) *SceneS
 	scene.initMap()
 
 	return scene
+}
+
+func (s *SceneSt) GetFuBen() iface.IFuBen {
+	return s.fuBen
 }
 
 // initMap 初始化地图
@@ -104,9 +108,6 @@ func (s *SceneSt) GetRandomWalkablePos() (uint32, uint32) {
 
 // AddEntity 添加实体到场景
 func (s *SceneSt) AddEntity(e iface.IEntity) error {
-	s.entityMu.Lock()
-	defer s.entityMu.Unlock()
-
 	hdl := e.GetHdl()
 	if _, exists := s.entities[hdl]; exists {
 		return fmt.Errorf("entity already exists in scene: hdl=%d", hdl)
@@ -140,9 +141,6 @@ func (s *SceneSt) AddEntity(e iface.IEntity) error {
 
 // RemoveEntity 从场景移除实体
 func (s *SceneSt) RemoveEntity(hdl uint64) error {
-	s.entityMu.Lock()
-	defer s.entityMu.Unlock()
-
 	e, exists := s.entities[hdl]
 	if !exists {
 		return fmt.Errorf("entity not found in scene: hdl=%d", hdl)
@@ -172,18 +170,12 @@ func (s *SceneSt) RemoveEntity(hdl uint64) error {
 
 // GetEntity 获取实体
 func (s *SceneSt) GetEntity(hdl uint64) (iface.IEntity, bool) {
-	s.entityMu.RLock()
-	defer s.entityMu.RUnlock()
-
 	e, ok := s.entities[hdl]
 	return e, ok
 }
 
 // GetAllEntities 获取所有实体
 func (s *SceneSt) GetAllEntities() []iface.IEntity {
-	s.entityMu.RLock()
-	defer s.entityMu.RUnlock()
-
 	entities := make([]iface.IEntity, 0, len(s.entities))
 	for _, e := range s.entities {
 		entities = append(entities, e)
@@ -229,9 +221,7 @@ func (s *SceneSt) SpawnMonster(monsterId uint32, x, y uint32) (*entity.MonsterEn
 		return nil, err
 	}
 
-	s.monsterMu.Lock()
 	s.monsters[monster.GetHdl()] = monster
-	s.monsterMu.Unlock()
 
 	log.Infof("Monster spawned: hdl=%d, monsterId=%d, name=%s, pos=(%d,%d)", monster.GetHdl(), monsterId, monsterCfg.Name, x, y)
 
@@ -240,46 +230,40 @@ func (s *SceneSt) SpawnMonster(monsterId uint32, x, y uint32) (*entity.MonsterEn
 
 // RemoveMonster 移除怪物
 func (s *SceneSt) RemoveMonster(hdl uint64) {
-	s.monsterMu.Lock()
 	delete(s.monsters, hdl)
-	s.monsterMu.Unlock()
 
 	s.RemoveEntity(hdl)
 }
 
 // GetMonsterCount 获取怪物数量
 func (s *SceneSt) GetMonsterCount() int {
-	s.monsterMu.RLock()
-	defer s.monsterMu.RUnlock()
 	return len(s.monsters)
 }
 
 // InitMonsters 初始化场景怪物（根据MonsterSceneConfig配置）
 func (s *SceneSt) InitMonsters() {
 	configMgr := jsonconf.GetConfigManager()
-	monsterSceneConfigs := configMgr.GetMonsterSceneConfigs()
+	monsterSceneConfigs := configMgr.GetMonsterSceneConfigs(s.sceneId)
 
 	// 查找该场景的怪物配置
 	for _, cfg := range monsterSceneConfigs {
-		if cfg.SceneId == s.sceneId {
-			// 根据配置生成怪物
-			for i := 0; i < int(cfg.Count); i++ {
-				var x, y uint32
-				if cfg.BornArea != nil && cfg.BornArea.X2 > cfg.BornArea.X1 && cfg.BornArea.Y2 > cfg.BornArea.Y1 {
-					// 从出生点范围随机选择
-					x = cfg.BornArea.X1 + uint32(rand.Intn(int(cfg.BornArea.X2-cfg.BornArea.X1)))
-					y = cfg.BornArea.Y1 + uint32(rand.Intn(int(cfg.BornArea.Y2-cfg.BornArea.Y1)))
-				} else {
-					// 使用随机可行走位置
-					x, y = s.GetRandomWalkablePos()
-				}
-				_, err := s.SpawnMonster(cfg.MonsterId, x, y)
-				if err != nil {
-					log.Warnf("Failed to spawn monster %d in scene %d: %v", cfg.MonsterId, s.sceneId, err)
-				}
+		// 根据配置生成怪物
+		for i := 0; i < int(cfg.Count); i++ {
+			var x, y uint32
+			if cfg.BornArea != nil && cfg.BornArea.X2 > cfg.BornArea.X1 && cfg.BornArea.Y2 > cfg.BornArea.Y1 {
+				// 从出生点范围随机选择
+				x = cfg.BornArea.X1 + uint32(rand.Intn(int(cfg.BornArea.X2-cfg.BornArea.X1)))
+				y = cfg.BornArea.Y1 + uint32(rand.Intn(int(cfg.BornArea.Y2-cfg.BornArea.Y1)))
+			} else {
+				// 使用随机可行走位置
+				x, y = s.GetRandomWalkablePos()
 			}
-			log.Infof("Scene %d: Spawned %d monsters (monsterId=%d)", s.sceneId, cfg.Count, cfg.MonsterId)
+			_, err := s.SpawnMonster(cfg.MonsterId, x, y)
+			if err != nil {
+				log.Warnf("Failed to spawn monster %d in scene %d: %v", cfg.MonsterId, s.sceneId, err)
+			}
 		}
+		log.Infof("Scene %d: Spawned %d monsters (monsterId=%d)", s.sceneId, cfg.Count, cfg.MonsterId)
 	}
 
 	// 如果没有找到配置，记录日志

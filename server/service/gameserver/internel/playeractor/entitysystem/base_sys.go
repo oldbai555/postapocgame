@@ -43,6 +43,13 @@ func (bs *BaseSystem) OnRoleLogout(context.Context) {
 func (bs *BaseSystem) OnRoleClose(context.Context) {
 }
 
+func (bs *BaseSystem) OnNewHour(context.Context) {}
+func (bs *BaseSystem) OnNewDay(context.Context)  {}
+func (bs *BaseSystem) OnNewWeek(context.Context) {}
+func (bs *BaseSystem) OnNewMonth(context.Context) {
+}
+func (bs *BaseSystem) OnNewYear(context.Context) {}
+
 func (bs *BaseSystem) IsOpened() bool {
 	return bs.opened
 }

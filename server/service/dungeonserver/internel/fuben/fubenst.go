@@ -2,16 +2,14 @@ package fuben
 
 import (
 	"fmt"
-	"math/rand"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/dungeonserver/internel/entity"
 	"postapocgame/server/service/dungeonserver/internel/entitymgr"
-	"postapocgame/server/service/dungeonserver/internel/fbmgr"
 	"postapocgame/server/service/dungeonserver/internel/iface"
 	"postapocgame/server/service/dungeonserver/internel/scene"
 	"postapocgame/server/service/dungeonserver/internel/scenemgr"
-	"sync"
 	"time"
 )
 
@@ -43,8 +41,6 @@ type FuBenSt struct {
 	// 世界状态
 	isNight         bool
 	nextCycleUpdate time.Time
-
-	mu sync.RWMutex
 }
 
 // NewFuBenSt 创建副本
@@ -78,11 +74,8 @@ func NewFuBenSt(fbId uint32, name string, fbType uint32, maxPlayers int, maxDura
 
 // InitScenes 初始化场景
 func (fb *FuBenSt) InitScenes(sceneConfigs []jsonconf.SceneConfig) {
-	fb.mu.Lock()
-	defer fb.mu.Unlock()
-
 	for _, cfg := range sceneConfigs {
-		scene := scene.NewSceneSt(cfg.SceneId, fb.fbId, cfg.Name, cfg.WIdth, cfg.Height)
+		scene := scene.NewSceneSt(fb, cfg.SceneId, fb.fbId, cfg.Name, cfg.Width, cfg.Height)
 		fb.sceneMgr.AddScene(scene)
 
 		// 初始化场景怪物
@@ -104,9 +97,6 @@ func (fb *FuBenSt) GetAllScenes() []iface.IScene {
 
 // CanEnter 检查是否可以进入副本
 func (fb *FuBenSt) CanEnter() bool {
-	fb.mu.RLock()
-	defer fb.mu.RUnlock()
-
 	// 检查副本状态
 	if fb.state != uint32(protocol.FuBenState_FuBenStateNormal) {
 		return false
@@ -127,9 +117,6 @@ func (fb *FuBenSt) CanEnter() bool {
 
 // OnPlayerEnter 玩家进入
 func (fb *FuBenSt) OnPlayerEnter(sessionId string) error {
-	fb.mu.Lock()
-	defer fb.mu.Unlock()
-
 	if fb.state != uint32(protocol.FuBenState_FuBenStateNormal) {
 		return fmt.Errorf("fuben is not available")
 	}
@@ -153,9 +140,6 @@ func (fb *FuBenSt) OnPlayerEnter(sessionId string) error {
 
 // OnPlayerLeave 玩家离开
 func (fb *FuBenSt) OnPlayerLeave(sessionId string) {
-	fb.mu.Lock()
-	defer fb.mu.Unlock()
-
 	if fb.playerCount > 0 {
 		fb.playerCount--
 	}
@@ -171,37 +155,26 @@ func (fb *FuBenSt) OnPlayerLeave(sessionId string) {
 
 // SetDifficulty 设置难度
 func (fb *FuBenSt) SetDifficulty(difficulty uint32) {
-	fb.mu.Lock()
-	defer fb.mu.Unlock()
 	fb.difficulty = difficulty
 }
 
 // GetDifficulty 获取难度
 func (fb *FuBenSt) GetDifficulty() uint32 {
-	fb.mu.RLock()
-	defer fb.mu.RUnlock()
 	return fb.difficulty
 }
 
 // AddKillCount 增加击杀数
 func (fb *FuBenSt) AddKillCount(count uint32) {
-	fb.mu.Lock()
-	defer fb.mu.Unlock()
 	fb.killCount += count
 }
 
 // GetKillCount 获取击杀数
 func (fb *FuBenSt) GetKillCount() uint32 {
-	fb.mu.RLock()
-	defer fb.mu.RUnlock()
 	return fb.killCount
 }
 
 // Complete 完成副本（结算）
 func (fb *FuBenSt) Complete(success bool) {
-	fb.mu.Lock()
-	defer fb.mu.Unlock()
-
 	// 使用Closing状态，后续会自动关闭
 	fb.state = uint32(protocol.FuBenState_FuBenStateClosing)
 
@@ -241,16 +214,11 @@ func (fb *FuBenSt) Complete(success bool) {
 
 // GetPlayerCount 获取玩家数量
 func (fb *FuBenSt) GetPlayerCount() int {
-	fb.mu.RLock()
-	defer fb.mu.RUnlock()
 	return fb.playerCount
 }
 
 // IsExpired 检查是否过期
 func (fb *FuBenSt) IsExpired() bool {
-	fb.mu.RLock()
-	defer fb.mu.RUnlock()
-
 	if fb.expireTime.IsZero() {
 		return false
 	}
@@ -260,47 +228,29 @@ func (fb *FuBenSt) IsExpired() bool {
 
 // Close 关闭副本
 func (fb *FuBenSt) Close() {
-	fb.mu.Lock()
-	defer fb.mu.Unlock()
-
 	fb.state = uint32(protocol.FuBenState_FuBenStateClosed)
 
 	// 踢出所有玩家（将玩家移回默认副本）
 	entityMgr := entitymgr.GetEntityMgr()
 	for sessionId := range fb.playerSessions {
-		entity, ok := entityMgr.GetBySession(sessionId)
+		roleEntity, ok := entityMgr.GetBySession(sessionId)
 		if !ok {
 			log.Warnf("Entity not found for session %s when closing FuBen", sessionId)
 			continue
 		}
 
 		// 从当前场景移除实体
-		currentScene := entity.GetScene()
-		if currentScene != nil {
-			currentScene.RemoveEntity(entity.GetHdl())
+		if currentScene, ok := entityMgr.GetSceneByHandle(roleEntity.GetHdl()); ok && currentScene != nil {
+			if err := currentScene.RemoveEntity(roleEntity.GetHdl()); err != nil {
+				log.Warnf("remove entity from scene failed: %v", err)
+			}
 		}
 
-		// 将玩家移回默认副本（fbId=0）的场景1（新手村）
-		defaultFuBen, ok := fbmgr.GetFuBenMgr().GetFuBen(0)
-		if ok && defaultFuBen != nil {
-			defaultScene := defaultFuBen.GetScene(1)
-			if defaultScene != nil {
-				// 获取默认场景的出生点
-				sceneConfig := jsonconf.GetConfigManager().GetSceneConfig(1)
-				var x, y uint32
-				if sceneConfig != nil && sceneConfig.BornArea != nil {
-					// 从出生点范围随机选择
-					bornArea := sceneConfig.BornArea
-					x = bornArea.X1 + uint32(rand.Intn(int(bornArea.X2-bornArea.X1)))
-					y = bornArea.Y1 + uint32(rand.Intn(int(bornArea.Y2-bornArea.Y1)))
-				} else {
-					// 使用默认位置
-					x, y = 100, 100
-				}
-				entity.SetPosition(x, y)
-				entity.SetSceneId(1)
-				defaultScene.AddEntity(entity)
-				log.Infof("Player %s moved to default FuBen scene 1", sessionId)
+		if reviveScene := entity.GetReviveScene(); reviveScene != nil {
+			x, y := reviveScene.GetRandomWalkablePos()
+			roleEntity.SetPosition(x, y)
+			if err := reviveScene.AddEntity(roleEntity); err != nil {
+				log.Warnf("Failed to move entity to revive scene: %v", err)
 			}
 		}
 
@@ -350,16 +300,11 @@ func (fb *FuBenSt) GetFbType() uint32 {
 
 // GetState 获取副本状态
 func (fb *FuBenSt) GetState() uint32 {
-	fb.mu.RLock()
-	defer fb.mu.RUnlock()
 	return fb.state
 }
 
 // RunOne 副本常驻逻辑
 func (fb *FuBenSt) RunOne(now time.Time) {
-	fb.mu.Lock()
-	defer fb.mu.Unlock()
-
 	// 限时副本过期检查
 	if fb.fbType == uint32(protocol.FuBenType_FuBenTypeTimed) {
 		if !fb.expireTime.IsZero() && now.After(fb.expireTime) {

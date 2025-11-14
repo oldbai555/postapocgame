@@ -1,6 +1,7 @@
 package entity
 
 import (
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/argsdef"
 	"postapocgame/server/internal/attrdef"
 	"postapocgame/server/internal/protocol"
@@ -8,13 +9,11 @@ import (
 	"postapocgame/server/service/dungeonserver/internel/entitymgr"
 	"postapocgame/server/service/dungeonserver/internel/entitysystem"
 	"postapocgame/server/service/dungeonserver/internel/iface"
-	"sync"
 	"time"
 )
 
 // BaseEntity 实体基类
 type BaseEntity struct {
-	mu         sync.RWMutex
 	hdl        uint64 // 全局唯一句柄
 	Id         uint64 // 实体Id(玩家Id/怪物Id)
 	entityType uint32
@@ -79,39 +78,27 @@ func (e *BaseEntity) GetLevel() uint32 {
 }
 
 func (e *BaseEntity) GetPosition() *argsdef.Position {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
 	return &argsdef.Position{X: e.position.X, Y: e.position.Y}
 }
 
 func (e *BaseEntity) SetPosition(x, y uint32) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
 	e.position.X = x
 	e.position.Y = y
 }
 
 func (e *BaseEntity) GetSceneId() uint32 {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
 	return e.sceneId
 }
 
 func (e *BaseEntity) SetSceneId(sceneId uint32) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
 	e.sceneId = sceneId
 }
 
 func (e *BaseEntity) GetFuBenId() uint32 {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
 	return e.fuBenId
 }
 
 func (e *BaseEntity) SetFuBenId(fuBenId uint32) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
 	e.fuBenId = fuBenId
 }
 
@@ -147,20 +134,14 @@ func (e *BaseEntity) GetMaxMP() int64 {
 }
 
 func (e *BaseEntity) IsDead() bool {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
 	return e.stateFlags&stateFlagDead != 0
 }
 
 func (e *BaseEntity) IsInvincible() bool {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
 	return e.stateFlags&stateFlagInvincible != 0
 }
 
 func (e *BaseEntity) SetInvincible(invincible bool) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
 	if invincible {
 		e.stateFlags |= stateFlagInvincible
 	} else {
@@ -169,14 +150,10 @@ func (e *BaseEntity) SetInvincible(invincible bool) {
 }
 
 func (e *BaseEntity) CannotAttack() bool {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
 	return e.stateFlags&stateFlagCannotAttack != 0
 }
 
 func (e *BaseEntity) SetCannotAttack(cannot bool) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
 	if cannot {
 		e.stateFlags |= stateFlagCannotAttack
 	} else {
@@ -185,14 +162,10 @@ func (e *BaseEntity) SetCannotAttack(cannot bool) {
 }
 
 func (e *BaseEntity) CannotMove() bool {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
 	return e.stateFlags&stateFlagCannotMove != 0
 }
 
 func (e *BaseEntity) SetCannotMove(cannot bool) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
 	if cannot {
 		e.stateFlags |= stateFlagCannotMove
 	} else {
@@ -201,14 +174,10 @@ func (e *BaseEntity) SetCannotMove(cannot bool) {
 }
 
 func (e *BaseEntity) CanBeAttacked() bool {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
 	return e.stateFlags&stateFlagDead == 0 && e.stateFlags&stateFlagInvincible == 0
 }
 
 func (e *BaseEntity) GetStateFlags() uint64 {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
 	return e.stateFlags
 }
 
@@ -266,9 +235,7 @@ func (e *BaseEntity) OnAttacked(attacker iface.IEntity, damage int64) {
 }
 
 func (e *BaseEntity) OnDie(killer iface.IEntity) {
-	e.mu.Lock()
 	e.stateFlags |= stateFlagDead
-	e.mu.Unlock()
 
 	// 广播死亡消息给视野内的玩家
 	e.broadcastDeath(killer)
@@ -300,7 +267,7 @@ func (e *BaseEntity) SendMessage(protoId uint16, data []byte) error {
 	return nil
 }
 
-func (e *BaseEntity) SendJsonMessage(protoId uint16, v interface{}) error {
+func (e *BaseEntity) SendProtoMessage(protoId uint16, v proto.Message) error {
 	return nil
 }
 
@@ -331,7 +298,7 @@ func (e *BaseEntity) broadcastHpChange() {
 	for _, target := range visibleEntities {
 		if target.GetEntityType() == uint32(protocol.EntityType_EtRole) {
 			// 使用S2CEntityAppear协议更新实体信息（包含属性变化）
-			_ = target.SendJsonMessage(uint16(protocol.S2CProtocol_S2CEntityAppear), &protocol.S2CEntityAppearReq{
+			_ = target.SendProtoMessage(uint16(protocol.S2CProtocol_S2CEntityAppear), &protocol.S2CEntityAppearReq{
 				Entity: entitySt,
 			})
 		}
@@ -360,7 +327,7 @@ func (e *BaseEntity) broadcastDeath(killer iface.IEntity) {
 	for _, target := range visibleEntities {
 		if target.GetEntityType() == uint32(protocol.EntityType_EtRole) {
 			// 使用S2CEntityAppear协议更新实体信息（StateFlags包含死亡标记）
-			_ = target.SendJsonMessage(uint16(protocol.S2CProtocol_S2CEntityAppear), &protocol.S2CEntityAppearReq{
+			_ = target.SendProtoMessage(uint16(protocol.S2CProtocol_S2CEntityAppear), &protocol.S2CEntityAppearReq{
 				Entity: entitySt,
 			})
 		}

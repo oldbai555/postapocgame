@@ -8,21 +8,21 @@ package jsonconf
 
 // SkillConfig 技能配置
 type SkillConfig struct {
-	SkillId          uint32        `json:"skillId"`          // 技能Id
-	Name             string        `json:"name"`             // 技能名称
-	Type             uint32        `json:"type"`             // 类型: 1=主动 2=被动
-	TargetType       uint32        `json:"targetType"`       // 目标类型: 1=敌人 2=自己 3=队友
-	CoolDown         uint32        `json:"coolDown"`         // 冷却时间(毫秒)
-	ManaCost         uint32        `json:"manaCost"`         // 魔法消耗
-	Damage           uint32        `json:"damage"`           // 伤害值
-	DamageType       uint32        `json:"damageType"`       // 伤害类型: 1=物理 2=魔法
-	Range            uint32        `json:"range"`            // 攻击范围
-	Effects          []SkillEffect `json:"effects"`          // 技能效果
-	Description      string        `json:"description"`      // 描述
-	LevelRequirement uint32        `json:"levelRequirement"` // 学习等级要求（0表示无要求）
-	MaxLevel         uint32        `json:"maxLevel"`         // 最大等级（默认10）
-	LearnConsume     []ItemAmount  `json:"learnConsume"`     // 学习消耗（技能点、材料等）
-	UpgradeConsume   []ItemAmount  `json:"upgradeConsume"`   // 升级消耗（技能点、材料等）
+	SkillId          uint32         `json:"skillId"`          // 技能Id
+	Name             string         `json:"name"`             // 技能名称
+	Type             uint32         `json:"type"`             // 类型: 1=主动 2=被动
+	TargetType       uint32         `json:"targetType"`       // 目标类型: 1=敌人 2=自己 3=队友
+	CoolDown         uint32         `json:"coolDown"`         // 冷却时间(毫秒)
+	ManaCost         uint32         `json:"manaCost"`         // 魔法消耗
+	Damage           uint32         `json:"damage"`           // 伤害值
+	DamageType       uint32         `json:"damageType"`       // 伤害类型: 1=物理 2=魔法
+	Range            uint32         `json:"range"`            // 攻击范围
+	Effects          []*SkillEffect `json:"effects"`          // 技能效果
+	Description      string         `json:"description"`      // 描述
+	LevelRequirement uint32         `json:"levelRequirement"` // 学习等级要求（0表示无要求）
+	MaxLevel         uint32         `json:"maxLevel"`         // 最大等级（默认10）
+	LearnConsume     []*ItemAmount  `json:"learnConsume"`     // 学习消耗（技能点、材料等）
+	UpgradeConsume   []*ItemAmount  `json:"upgradeConsume"`   // 升级消耗（技能点、材料等）
 }
 
 // SkillEffect 技能效果

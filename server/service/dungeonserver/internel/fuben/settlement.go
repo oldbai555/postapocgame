@@ -2,8 +2,8 @@ package fuben
 
 import (
 	"context"
+	"google.golang.org/protobuf/proto"
 	"math/rand"
-	"postapocgame/server/internal"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
@@ -32,8 +32,8 @@ func CalculateRewards(settlement *DungeonSettlement) ([]RewardItem, error) {
 	// 查找对应难度的配置
 	var difficultyConfig *jsonconf.DungeonDifficulty
 	for _, diff := range dungeonConfig.Difficulties {
-		if diff.Difficulty == settlement.Difficulty {
-			difficultyConfig = &diff
+		if diff != nil && diff.Difficulty == settlement.Difficulty {
+			difficultyConfig = diff
 			break
 		}
 	}
@@ -120,7 +120,7 @@ func SettleDungeon(settlement *DungeonSettlement) error {
 	}
 
 	// 序列化请求
-	data, err := internal.Marshal(req)
+	data, err := proto.Marshal(req)
 	if err != nil {
 		log.Errorf("Marshal D2GSettleDungeonReq failed: %v", err)
 		return err

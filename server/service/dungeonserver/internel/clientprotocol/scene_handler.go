@@ -1,14 +1,13 @@
 package clientprotocol
 
 import (
+	"google.golang.org/protobuf/proto"
 	"math/rand"
-	"postapocgame/server/internal"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/service/dungeonserver/internel/fbmgr"
 	"postapocgame/server/service/dungeonserver/internel/iface"
 )
 
@@ -18,7 +17,7 @@ func init() {
 
 func handleChangeScene(entity iface.IEntity, msg *network.ClientMessage) error {
 	var req protocol.C2SChangeSceneReq
-	if err := internal.Unmarshal(msg.Data, &req); err != nil {
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
 		return err
 	}
 
@@ -32,15 +31,9 @@ func handleChangeScene(entity iface.IEntity, msg *network.ClientMessage) error {
 	currentFuBenId := scene.GetFuBenId()
 	targetSceneId := req.SceneId
 
-	// 获取副本管理器
-	fuBenMgr := fbmgr.GetFuBenMgr()
-	if fuBenMgr == nil {
-		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "副本管理器不存在")
-	}
-
-	// 获取当前副本
-	fuBen, ok := fuBenMgr.GetFuBen(currentFuBenId)
-	if !ok || fuBen == nil {
+	// 获取当前副本实例
+	fuBen := scene.GetFuBen()
+	if fuBen == nil {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "副本不存在")
 	}
 
@@ -52,7 +45,7 @@ func handleChangeScene(entity iface.IEntity, msg *network.ClientMessage) error {
 			Message: "目标场景不存在",
 			SceneId: targetSceneId,
 		}
-		return entity.SendJsonMessage(uint16(protocol.S2CProtocol_S2CChangeSceneResult), resp)
+		return entity.SendProtoMessage(uint16(protocol.S2CProtocol_S2CChangeSceneResult), resp)
 	}
 
 	// 检查是否在同一副本内（不同副本不能跨副本场景切换）
@@ -62,7 +55,7 @@ func handleChangeScene(entity iface.IEntity, msg *network.ClientMessage) error {
 			Message: "不能跨副本切换场景",
 			SceneId: targetSceneId,
 		}
-		return entity.SendJsonMessage(uint16(protocol.S2CProtocol_S2CChangeSceneResult), resp)
+		return entity.SendProtoMessage(uint16(protocol.S2CProtocol_S2CChangeSceneResult), resp)
 	}
 
 	// 如果目标场景就是当前场景，直接返回成功
@@ -72,7 +65,7 @@ func handleChangeScene(entity iface.IEntity, msg *network.ClientMessage) error {
 			Message: "切换成功",
 			SceneId: targetSceneId,
 		}
-		return entity.SendJsonMessage(uint16(protocol.S2CProtocol_S2CChangeSceneResult), resp)
+		return entity.SendProtoMessage(uint16(protocol.S2CProtocol_S2CChangeSceneResult), resp)
 	}
 
 	// 从当前场景移除实体
@@ -81,7 +74,7 @@ func handleChangeScene(entity iface.IEntity, msg *network.ClientMessage) error {
 	// 将实体添加到目标场景
 	// 从场景配置获取出生点
 	configMgr := jsonconf.GetConfigManager()
-	sceneConfig := configMgr.GetSceneConfig(targetSceneId)
+	sceneConfig, _ := configMgr.GetSceneConfig(targetSceneId)
 	var x, y uint32
 	if sceneConfig != nil && sceneConfig.BornArea != nil {
 		// 从出生点范围随机选择
@@ -108,5 +101,5 @@ func handleChangeScene(entity iface.IEntity, msg *network.ClientMessage) error {
 		Message: "切换成功",
 		SceneId: targetSceneId,
 	}
-	return entity.SendJsonMessage(uint16(protocol.S2CProtocol_S2CChangeSceneResult), resp)
+	return entity.SendProtoMessage(uint16(protocol.S2CProtocol_S2CChangeSceneResult), resp)
 }

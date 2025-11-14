@@ -7,12 +7,10 @@ import (
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/service/dungeonserver/internel/buff"
 	"postapocgame/server/service/dungeonserver/internel/iface"
-	"sync"
 	"time"
 )
 
 type BuffSys struct {
-	mu    sync.RWMutex
 	owner iface.IEntity
 	buffs map[uint32]*buff.BData
 	dots  map[uint32][]*dotRuntime
@@ -35,9 +33,6 @@ func NewBuffSystem(owner iface.IEntity) *BuffSys {
 
 // AddBuff 添加Buff
 func (bs *BuffSys) AddBuff(buffId uint32, caster iface.IEntity) error {
-	bs.mu.Lock()
-	defer bs.mu.Unlock()
-
 	buffInfo, ok := jsonconf.GetConfigManager().GetBuffConfig(buffId)
 	if !ok {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), fmt.Sprintf("buff %d not found", buffId))
@@ -80,9 +75,6 @@ func (bs *BuffSys) AddBuff(buffId uint32, caster iface.IEntity) error {
 
 // RemoveBuff 移除Buff
 func (bs *BuffSys) RemoveBuff(buffId uint32) error {
-	bs.mu.Lock()
-	defer bs.mu.Unlock()
-
 	if _, ok := bs.buffs[buffId]; !ok {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "buff not found")
 	}
@@ -93,16 +85,11 @@ func (bs *BuffSys) RemoveBuff(buffId uint32) error {
 
 // HasBuff 检查是否有某个Buff
 func (bs *BuffSys) HasBuff(buffId uint32) bool {
-	bs.mu.RLock()
-	defer bs.mu.RUnlock()
-
 	_, ok := bs.buffs[buffId]
 	return ok
 }
 
 func (bs *BuffSys) ClearAllBuffs() {
-	bs.mu.Lock()
-	defer bs.mu.Unlock()
 	for buffId := range bs.buffs {
 		bs.cleanupBuff(buffId)
 	}
@@ -111,8 +98,6 @@ func (bs *BuffSys) ClearAllBuffs() {
 }
 
 func (bs *BuffSys) RunOne(now time.Time) {
-	bs.mu.Lock()
-	defer bs.mu.Unlock()
 	for buffId, b := range bs.buffs {
 		if now.After(b.EndTime) {
 			bs.cleanupBuff(buffId)

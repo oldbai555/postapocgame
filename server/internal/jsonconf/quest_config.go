@@ -19,6 +19,8 @@ type QuestConfig struct {
 	Rewards     []ItemSt      `json:"rewards"`     // 任务奖励
 	ExpReward   uint64        `json:"expReward"`   // 经验奖励
 	AutoTrack   bool          `json:"autoTrack"`   // 是否自动追踪
+	MaxCount    uint32        `json:"maxCount"`    // 每日/周任务可完成次数（0表示不限）
+	ActivePoint uint32        `json:"activePoint"` // 完成后奖励的活跃点
 }
 
 // QuestTarget 任务目标

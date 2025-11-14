@@ -125,6 +125,7 @@ message D2GAddItemReq {
 message D2GAddItemResp {
     bool success = 1;// 是否成功
     string error_msg = 2;// 错误信息
+    uint64 item_hdl = 3;// 掉落物句柄（用于DungeonServer清理）
 }
 
 // 更新技能请求（学习/升级）

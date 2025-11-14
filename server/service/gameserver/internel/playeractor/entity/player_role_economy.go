@@ -13,12 +13,11 @@ import (
 	"postapocgame/server/service/gameserver/internel/playeractor/entitysystem"
 )
 
-func (pr *PlayerRole) CheckConsume(items []*jsonconf.ItemAmount) error {
+func (pr *PlayerRole) CheckConsume(ctx context.Context, items []*jsonconf.ItemAmount) error {
 	normalized := normalizeAmounts(items)
 	if len(normalized) == 0 {
 		return nil
 	}
-	ctx := pr.WithContext(nil)
 	bagSys := entitysystem.GetBagSys(ctx)
 	moneySys := entitysystem.GetMoneySys(ctx)
 
@@ -38,7 +37,7 @@ func (pr *PlayerRole) CheckConsume(items []*jsonconf.ItemAmount) error {
 }
 
 func (pr *PlayerRole) ApplyConsume(ctx context.Context, items []*jsonconf.ItemAmount) error {
-	if err := pr.CheckConsume(items); err != nil {
+	if err := pr.CheckConsume(ctx, items); err != nil {
 		return err
 	}
 	normalized := normalizeAmounts(items)
@@ -61,11 +60,20 @@ func (pr *PlayerRole) ApplyConsume(ctx context.Context, items []*jsonconf.ItemAm
 	var rollbacks []rollbackInfo
 	var bagSnapshot map[uint32]*protocol.ItemSt
 
+	// 在开始操作前记录背包快照（用于回滚）
+	if bagSys != nil {
+		bagSnapshot = bagSys.GetItemsSnapshot()
+	}
+
 	// 执行所有消耗操作（不再需要数据库事务，数据已存储在BinaryData中）
 	for _, item := range normalized {
 		switch item.ItemType {
 		case uint32(protocol.ItemType_ItemTypeMoney):
 			if moneySys == nil {
+				// 回滚已操作的内存状态
+				if bagSys != nil && bagSnapshot != nil {
+					bagSys.RestoreItemsSnapshot(bagSnapshot)
+				}
 				return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "money system not ready")
 			}
 			currentAmount := moneySys.GetAmount(item.ItemId)
@@ -74,7 +82,7 @@ func (pr *PlayerRole) ApplyConsume(ctx context.Context, items []*jsonconf.ItemAm
 			if err := moneySys.UpdateBalanceTx(ctx, item.ItemId, -int64(item.Count), nil); err != nil {
 				// 回滚已操作的内存状态
 				for _, rb := range rollbacks {
-					if rb.moneyID > 0 {
+					if rb.moneyID > 0 && moneySys != nil {
 						moneySys.UpdateBalanceOnlyMemory(rb.moneyID, rb.amount)
 					}
 				}
@@ -85,28 +93,33 @@ func (pr *PlayerRole) ApplyConsume(ctx context.Context, items []*jsonconf.ItemAm
 			}
 		default:
 			if bagSys == nil {
+				// 回滚已操作的内存状态
+				for _, rb := range rollbacks {
+					if rb.moneyID > 0 && moneySys != nil {
+						moneySys.UpdateBalanceOnlyMemory(rb.moneyID, rb.amount)
+					}
+				}
 				return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "bag system not ready")
 			}
 			// 先检查是否有足够物品
 			if !bagSys.HasItem(item.ItemId, uint32(item.Count)) {
 				// 回滚已操作的内存状态
 				for _, rb := range rollbacks {
-					if rb.moneyID > 0 {
+					if rb.moneyID > 0 && moneySys != nil {
 						moneySys.UpdateBalanceOnlyMemory(rb.moneyID, rb.amount)
 					}
 				}
+				if bagSnapshot != nil {
+					bagSys.RestoreItemsSnapshot(bagSnapshot)
+				}
 				return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "item not enough")
-			}
-			// 记录快照用于回滚（只记录一次）
-			if bagSnapshot == nil {
-				bagSnapshot = bagSys.GetItemsSnapshot()
 			}
 
 			// 更新内存状态
 			if err := bagSys.RemoveItemTx(item.ItemId, uint32(item.Count)); err != nil {
 				// 回滚已操作的内存状态
 				for _, rb := range rollbacks {
-					if rb.moneyID > 0 {
+					if rb.moneyID > 0 && moneySys != nil {
 						moneySys.UpdateBalanceOnlyMemory(rb.moneyID, rb.amount)
 					}
 				}

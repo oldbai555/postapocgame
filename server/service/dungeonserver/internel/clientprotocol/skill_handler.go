@@ -1,7 +1,7 @@
 package clientprotocol
 
 import (
-	"postapocgame/server/internal"
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/argsdef"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
@@ -20,7 +20,7 @@ func init() {
 
 func handleUseSkill(entity iface.IEntity, msg *network.ClientMessage) error {
 	var req protocol.C2SUseSkillReq
-	if err := internal.Unmarshal(msg.Data, &req); err != nil {
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
 		return err
 	}
 
@@ -65,7 +65,7 @@ func handleUseSkill(entity iface.IEntity, msg *network.ClientMessage) error {
 		broadcastSceneMessage(scene, uint16(protocol.S2CProtocol_S2CSkillCastResult), resp)
 	} else {
 		log.Warnf("skill cast failed: hdl=%d skill=%d err=%d", entity.GetHdl(), skillId, errCode)
-		_ = entity.SendJsonMessage(uint16(protocol.S2CProtocol_S2CSkillCastResult), resp)
+		_ = entity.SendProtoMessage(uint16(protocol.S2CProtocol_S2CSkillCastResult), resp)
 	}
 
 	return nil

@@ -22,10 +22,10 @@ type IActorContext interface {
 	ExecuteAsync(message IActorMessage)
 
 	// GetData 获取绑定的数据
-	GetData() interface{}
+	GetData(key string) interface{}
 
 	// SetData 设置绑定的数据
-	SetData(data interface{})
+	SetData(key string, data interface{})
 
 	// IsRunning 是否正在运行
 	IsRunning() bool
@@ -58,6 +58,8 @@ type IActorHandler interface {
 	OnInit()
 	OnStart()
 	OnStop()
+
+	SetActorContext(IActorContext)
 }
 
 type IActorMessage interface {

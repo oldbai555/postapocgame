@@ -1,8 +1,8 @@
 package clientprotocol
 
 import (
+	"google.golang.org/protobuf/proto"
 	"math"
-	"postapocgame/server/internal"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
@@ -14,19 +14,19 @@ func init() {
 	Register(uint16(protocol.C2SProtocol_C2SGetNearestMonster), handleGetNearestMonster)
 }
 
-func handleGetNearestMonster(entity iface.IEntity, msg *network.ClientMessage) error {
+func handleGetNearestMonster(role iface.IEntity, msg *network.ClientMessage) error {
 	var req protocol.C2SGetNearestMonsterReq
-	if err := internal.Unmarshal(msg.Data, &req); err != nil {
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
 		return err
 	}
 
-	scene, err := getSceneByEntity(entity)
+	scene, err := getSceneByEntity(role)
 	if err != nil {
 		return err
 	}
 
 	// 获取角色位置
-	rolePos := entity.GetPosition()
+	rolePos := role.GetPosition()
 	if rolePos == nil {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "role position not found")
 	}
@@ -91,5 +91,5 @@ func handleGetNearestMonster(entity iface.IEntity, msg *network.ClientMessage) e
 		resp.Message = "未找到怪物"
 	}
 
-	return entity.SendJsonMessage(uint16(protocol.S2CProtocol_S2CGetNearestMonsterResult), resp)
+	return role.SendProtoMessage(uint16(protocol.S2CProtocol_S2CGetNearestMonsterResult), resp)
 }

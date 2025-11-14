@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"postapocgame/server/internal"
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/attrdef"
 	"postapocgame/server/internal/network"
@@ -105,7 +105,7 @@ func (c *GameClient) Start(ctx context.Context) error {
 		return customerr.Wrap(err)
 	}
 	c.actorCtx = actorCtx
-	c.actorCtx.SetData(c)
+	c.actorCtx.SetData("gameClient", c)
 	return nil
 }
 
@@ -118,12 +118,15 @@ func (c *GameClient) Close() {
 	}
 }
 
-func (c *GameClient) sendJSONMessage(msgID uint16, payload interface{}) error {
-	data, err := internal.Marshal(payload)
+func (c *GameClient) sendProtoMessage(msgID uint16, payload proto.Message) error {
+	data, err := proto.Marshal(payload)
 	if err != nil {
 		return customerr.Wrap(err)
 	}
-	bytes, err := c.codec.EncodeClientMessageWithJSON(msgID, data)
+	bytes, err := c.codec.EncodeClientMessage(&network.ClientMessage{
+		MsgId: msgID,
+		Data:  data,
+	})
 	if err != nil {
 		return customerr.Wrap(err)
 	}
@@ -162,7 +165,7 @@ func (c *GameClient) RegisterAccount() error {
 		Username: c.username,
 		Password: c.password,
 	}
-	if err := c.sendJSONMessage(uint16(protocol.C2SProtocol_C2SRegister), req); err != nil {
+	if err := c.sendProtoMessage(uint16(protocol.C2SProtocol_C2SRegister), req); err != nil {
 		return err
 	}
 	resp, err := waitForResponse(c.flow.registerCh, defaultClientTimeout)
@@ -180,7 +183,7 @@ func (c *GameClient) LoginAccount() error {
 		Username: c.username,
 		Password: c.password,
 	}
-	if err := c.sendJSONMessage(uint16(protocol.C2SProtocol_C2SLogin), req); err != nil {
+	if err := c.sendProtoMessage(uint16(protocol.C2SProtocol_C2SLogin), req); err != nil {
 		return err
 	}
 	resp, err := waitForResponse(c.flow.loginCh, defaultClientTimeout)
@@ -218,7 +221,7 @@ func (c *GameClient) EnsureRole() (uint64, error) {
 }
 
 func (c *GameClient) QueryRoles() error {
-	return c.sendJSONMessage(uint16(protocol.C2SProtocol_C2SQueryRoles), &protocol.C2SQueryRolesReq{})
+	return c.sendProtoMessage(uint16(protocol.C2SProtocol_C2SQueryRoles), &protocol.C2SQueryRolesReq{})
 }
 
 func (c *GameClient) CreateRole() error {
@@ -229,7 +232,7 @@ func (c *GameClient) CreateRole() error {
 			Sex:      1,
 		},
 	}
-	if err := c.sendJSONMessage(uint16(protocol.C2SProtocol_C2SCreateRole), req); err != nil {
+	if err := c.sendProtoMessage(uint16(protocol.C2SProtocol_C2SCreateRole), req); err != nil {
 		return err
 	}
 	_, err := waitForResponse(c.flow.createRoleCh, defaultClientTimeout)
@@ -238,7 +241,7 @@ func (c *GameClient) CreateRole() error {
 
 func (c *GameClient) EnterGame(roleID uint64) error {
 	req := &protocol.C2SEnterGameReq{RoleId: roleID}
-	if err := c.sendJSONMessage(uint16(protocol.C2SProtocol_C2SEnterGame), req); err != nil {
+	if err := c.sendProtoMessage(uint16(protocol.C2SProtocol_C2SEnterGame), req); err != nil {
 		return err
 	}
 	_, err := waitForResponse(c.flow.enterSceneCh, defaultClientTimeout)
@@ -263,7 +266,7 @@ func (c *GameClient) NudgeMove(dx, dy int32) error {
 		Speed: 480,
 		Seq:   seq,
 	}
-	if err := c.sendJSONMessage(uint16(protocol.C2SProtocol_C2SStartMove), startReq); err != nil {
+	if err := c.sendProtoMessage(uint16(protocol.C2SProtocol_C2SStartMove), startReq); err != nil {
 		return err
 	}
 	time.Sleep(50 * time.Millisecond)
@@ -272,7 +275,7 @@ func (c *GameClient) NudgeMove(dx, dy int32) error {
 		PosY: targetY,
 		Seq:  seq + 1,
 	}
-	return c.sendJSONMessage(uint16(protocol.C2SProtocol_C2SEndMove), endReq)
+	return c.sendProtoMessage(uint16(protocol.C2SProtocol_C2SEndMove), endReq)
 }
 
 func (c *GameClient) CastNormalAttack(targetHdl uint64) error {
@@ -282,7 +285,7 @@ func (c *GameClient) CastNormalAttack(targetHdl uint64) error {
 		PosX:      c.posX,
 		PosY:      c.posY,
 	}
-	return c.sendJSONMessage(uint16(protocol.C2SProtocol_C2SUseSkill), req)
+	return c.sendProtoMessage(uint16(protocol.C2SProtocol_C2SUseSkill), req)
 }
 
 func (c *GameClient) WaitForEntityInView(timeout time.Duration) (*EntityView, error) {

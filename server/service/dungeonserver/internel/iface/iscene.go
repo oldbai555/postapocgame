@@ -17,4 +17,5 @@ type IScene interface {
 
 	GetSceneId() uint32
 	GetFuBenId() uint32
+	GetFuBen() IFuBen
 }

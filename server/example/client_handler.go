@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"postapocgame/server/internal"
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/attrdef"
 	"postapocgame/server/internal/network"
@@ -43,14 +43,14 @@ func (h *ClientHandler) getClient(msg actor.IActorMessage) (*GameClient, bool) {
 	if !ok {
 		return nil, false
 	}
-	client, ok := actorCtx.GetData().(*GameClient)
+	client, ok := actorCtx.GetData("gameClient").(*GameClient)
 	return client, ok
 }
 
 // handleError 处理错误消息
 func (h *ClientHandler) handleError(msg actor.IActorMessage) {
 	var errResp protocol.ErrorData
-	if err := internal.Unmarshal(msg.GetData(), &errResp); err == nil {
+	if err := proto.Unmarshal(msg.GetData(), &errResp); err == nil {
 		log.Infof("\n⚠️ 服务器错误: %s\n> ", errResp.Msg)
 	}
 }
@@ -61,7 +61,7 @@ func (h *ClientHandler) handleRegisterResult(msg actor.IActorMessage) {
 		return
 	}
 	var resp protocol.S2CRegisterResultReq
-	if err := internal.Unmarshal(msg.GetData(), &resp); err != nil {
+	if err := proto.Unmarshal(msg.GetData(), &resp); err != nil {
 		return
 	}
 	client.OnRegisterResult(&resp)
@@ -73,7 +73,7 @@ func (h *ClientHandler) handleLoginResult(msg actor.IActorMessage) {
 		return
 	}
 	var resp protocol.S2CLoginResultReq
-	if err := internal.Unmarshal(msg.GetData(), &resp); err != nil {
+	if err := proto.Unmarshal(msg.GetData(), &resp); err != nil {
 		return
 	}
 	client.OnLoginResult(&resp)
@@ -87,7 +87,7 @@ func (h *ClientHandler) handleRoleList(msg actor.IActorMessage) {
 	}
 
 	var resp protocol.S2CRoleListReq
-	if err := internal.Unmarshal(msg.GetData(), &resp); err != nil {
+	if err := proto.Unmarshal(msg.GetData(), &resp); err != nil {
 		log.Errorf("解析角色列表失败: %v", err)
 		return
 	}
@@ -106,7 +106,7 @@ func (h *ClientHandler) handleCreateRoleResult(msg actor.IActorMessage) {
 		return
 	}
 	var resp protocol.S2CCreateRoleResultReq
-	if err := internal.Unmarshal(msg.GetData(), &resp); err != nil {
+	if err := proto.Unmarshal(msg.GetData(), &resp); err != nil {
 		return
 	}
 	client.OnCreateRoleResult(&resp)
@@ -120,7 +120,7 @@ func (h *ClientHandler) handleEnterScene(msg actor.IActorMessage) {
 	}
 
 	var resp protocol.S2CEnterSceneReq
-	if err := internal.Unmarshal(msg.GetData(), &resp); err != nil {
+	if err := proto.Unmarshal(msg.GetData(), &resp); err != nil {
 		log.Errorf("解析进入场景响应失败: %v", err)
 		return
 	}
@@ -138,7 +138,7 @@ func (h *ClientHandler) handleEnterScene(msg actor.IActorMessage) {
 
 func (h *ClientHandler) handleLoginSuccess(msg actor.IActorMessage) {
 	var resp protocol.S2CLoginSuccessReq
-	if err := internal.Unmarshal(msg.GetData(), &resp); err != nil {
+	if err := proto.Unmarshal(msg.GetData(), &resp); err != nil {
 		log.Errorf("S2CLoginSuccessReq: %v", err)
 		return
 	}
@@ -146,7 +146,7 @@ func (h *ClientHandler) handleLoginSuccess(msg actor.IActorMessage) {
 }
 func (h *ClientHandler) handleReconnectSuccess(msg actor.IActorMessage) {
 	var resp protocol.S2CReconnectSuccessReq
-	if err := internal.Unmarshal(msg.GetData(), &resp); err != nil {
+	if err := proto.Unmarshal(msg.GetData(), &resp); err != nil {
 		log.Errorf("S2CReconnectSuccessReq: %v", err)
 		return
 	}
@@ -159,7 +159,7 @@ func (h *ClientHandler) handleEntityMove(msg actor.IActorMessage) {
 		return
 	}
 	var resp protocol.S2CEntityMoveReq
-	if err := internal.Unmarshal(msg.GetData(), &resp); err != nil {
+	if err := proto.Unmarshal(msg.GetData(), &resp); err != nil {
 		log.Errorf("解析 EntityMove 失败: %v", err)
 		return
 	}
@@ -172,7 +172,7 @@ func (h *ClientHandler) handleEntityStopMove(msg actor.IActorMessage) {
 		return
 	}
 	var resp protocol.S2CEntityStopMoveReq
-	if err := internal.Unmarshal(msg.GetData(), &resp); err != nil {
+	if err := proto.Unmarshal(msg.GetData(), &resp); err != nil {
 		log.Errorf("解析 EntityStopMove 失败: %v", err)
 		return
 	}
@@ -185,7 +185,7 @@ func (h *ClientHandler) handleSkillCastResult(msg actor.IActorMessage) {
 		return
 	}
 	var resp protocol.S2CSkillCastResultReq
-	if err := internal.Unmarshal(msg.GetData(), &resp); err != nil {
+	if err := proto.Unmarshal(msg.GetData(), &resp); err != nil {
 		log.Errorf("解析 SkillCastResult 失败: %v", err)
 		return
 	}

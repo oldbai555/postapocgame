@@ -3,12 +3,10 @@ package scene
 import (
 	"postapocgame/server/internal/argsdef"
 	"postapocgame/server/service/dungeonserver/internel/iface"
-	"sync"
 )
 
 // AOIManager AOI管理器（场景级别）
 type AOIManager struct {
-	mu    sync.RWMutex
 	grIds map[argsdef.GrIdSt]map[uint64]iface.IEntity // grIdId -> entityId -> entity
 }
 
@@ -21,9 +19,6 @@ func NewAOIManager() *AOIManager {
 
 // AddEntity 添加实体到AOI管理器
 func (am *AOIManager) AddEntity(entity iface.IEntity) {
-	am.mu.Lock()
-	defer am.mu.Unlock()
-
 	pos := entity.GetPosition()
 	grIds := argsdef.GetNineGrIds(pos)
 
@@ -40,9 +35,6 @@ func (am *AOIManager) AddEntity(entity iface.IEntity) {
 
 // RemoveEntity 从AOI管理器移除实体
 func (am *AOIManager) RemoveEntity(entity iface.IEntity) {
-	am.mu.Lock()
-	defer am.mu.Unlock()
-
 	pos := entity.GetPosition()
 	grIds := argsdef.GetNineGrIds(pos)
 
@@ -93,8 +85,6 @@ func (am *AOIManager) UpdateEntity(entity iface.IEntity, oldPos, newPos *argsdef
 		}
 	}
 
-	// 快速更新（持锁）
-	am.mu.Lock()
 	for _, grId := range toLeave {
 		if entities, ok := am.grIds[grId]; ok {
 			delete(entities, entity.GetId())
@@ -110,7 +100,6 @@ func (am *AOIManager) UpdateEntity(entity iface.IEntity, oldPos, newPos *argsdef
 		}
 		am.grIds[grId][entity.GetId()] = entity
 	}
-	am.mu.Unlock()
 
 	// 更新可见列表（无锁）
 	am.updateEntityVisibility(entity)
@@ -154,9 +143,6 @@ func (am *AOIManager) updateEntityVisibility(entity iface.IEntity) {
 
 // GetEntitiesInRange 获取范围内的所有实体
 func (am *AOIManager) GetEntitiesInRange(pos *argsdef.Position) []iface.IEntity {
-	am.mu.RLock()
-	defer am.mu.RUnlock()
-
 	grIds := argsdef.GetNineGrIds(pos)
 
 	entitiesMap := make(map[uint64]iface.IEntity)

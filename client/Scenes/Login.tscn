@@ -1,0 +1,68 @@
+[gd_scene load_steps=2 format=3 uid="uid://w1ucdgqruwxt"]
+
+[ext_resource type="Script" uid="uid://bfwgs5swyp40x" path="res://Scripts/UI/LoginUI.cs" id="1_login"]
+
+[node name="Login" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_login")
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="TitleLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "后启示录游戏"
+horizontal_alignment = 1
+
+[node name="UsernameInput" type="LineEdit" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+placeholder_text = "请输入账号"
+
+[node name="PasswordInput" type="LineEdit" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+placeholder_text = "请输入密码"
+secret = true
+
+[node name="RememberPasswordCheck" type="CheckBox" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "记住密码"
+
+[node name="LoginButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "登录"
+
+[node name="RegisterButton" type="Button" parent="CenterContainer/VBoxContainer"]
+layout_mode = 2
+text = "注册"
+
+[node name="ErrorLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+visible = false
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0, 0, 1)
+theme_override_font_sizes/font_size = 14
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="StatusLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+visible = false
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.5, 0.5, 0.5, 1)
+theme_override_font_sizes/font_size = 12
+horizontal_alignment = 1

@@ -1,7 +1,7 @@
 package clientprotocol
 
 import (
-	"postapocgame/server/internal"
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
@@ -13,14 +13,14 @@ func init() {
 	Register(uint16(protocol.C2SProtocol_C2SRevive), handleRevive)
 }
 
-func handleRevive(entity iface.IEntity, msg *network.ClientMessage) error {
+func handleRevive(role iface.IEntity, msg *network.ClientMessage) error {
 	var req protocol.C2SReviveReq
-	if err := internal.Unmarshal(msg.Data, &req); err != nil {
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
 		return err
 	}
 
 	// 检查实体是否为角色实体
-	roleEntity, ok := entity.(*entity.RoleEntity)
+	roleEntity, ok := role.(*entity.RoleEntity)
 	if !ok {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "entity is not a role entity")
 	}
@@ -31,7 +31,7 @@ func handleRevive(entity iface.IEntity, msg *network.ClientMessage) error {
 			Success: false,
 			Message: "角色未死亡，无需复活",
 		}
-		return roleEntity.SendJsonMessage(uint16(protocol.S2CProtocol_S2CReviveResult), resp)
+		return roleEntity.SendProtoMessage(uint16(protocol.S2CProtocol_S2CReviveResult), resp)
 	}
 
 	// 执行复活
@@ -41,7 +41,7 @@ func handleRevive(entity iface.IEntity, msg *network.ClientMessage) error {
 			Success: false,
 			Message: err.Error(),
 		}
-		return roleEntity.SendJsonMessage(uint16(protocol.S2CProtocol_S2CReviveResult), resp)
+		return roleEntity.SendProtoMessage(uint16(protocol.S2CProtocol_S2CReviveResult), resp)
 	}
 
 	// Revive方法内部已经发送了响应，这里不需要再发送

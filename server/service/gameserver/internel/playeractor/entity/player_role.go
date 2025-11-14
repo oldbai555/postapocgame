@@ -2,13 +2,14 @@ package entity
 
 import (
 	"context"
-	"postapocgame/server/internal"
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/database"
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
+	"postapocgame/server/service/gameserver/internel/dungeonserverlink"
 	"postapocgame/server/service/gameserver/internel/gatewaylink"
 	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
@@ -22,6 +23,7 @@ type PlayerRole struct {
 	// 基础信息
 	SessionId  string
 	SimpleData *protocol.PlayerSimpleData
+	MainData   *protocol.PlayerRoleMainData
 	BinaryData *protocol.PlayerRoleBinaryData
 
 	// 重连相关
@@ -36,7 +38,18 @@ type PlayerRole struct {
 	eventBus *event.Bus
 
 	// 系统管理器
-	sysMgr iface.ISystemMgr
+	sysMgr       iface.ISystemMgr
+	_5minChecker *tool.TimeChecker
+	timeCursor   timeCursorMark
+}
+
+type timeCursorMark struct {
+	hour     int
+	day      int
+	month    int
+	year     int
+	week     int
+	weekYear int
 }
 
 // NewPlayerRole 创建玩家角色
@@ -61,13 +74,40 @@ func NewPlayerRole(sessionId string, roleInfo *protocol.PlayerSimpleData) *Playe
 			SysOpenStatus: make(map[uint32]uint32),
 		}
 	}
+	// 确保BinaryData不为nil
+	if binaryData == nil {
+		binaryData = &protocol.PlayerRoleBinaryData{
+			SysOpenStatus: make(map[uint32]uint32),
+		}
+	}
 	pr.BinaryData = binaryData
+
+	mainData, err := database.GetPlayerMainData(uint(roleInfo.RoleId))
+	if err != nil {
+		log.Warnf("load player main data failed: %v", err)
+		mainData = &protocol.PlayerRoleMainData{
+			RoleId:   roleInfo.RoleId,
+			Job:      roleInfo.Job,
+			Sex:      roleInfo.Sex,
+			Level:    roleInfo.Level,
+			RoleName: roleInfo.RoleName,
+			GmLevel:  roleInfo.GmLevel,
+		}
+	} else {
+		mainData.RoleName = roleInfo.RoleName
+		mainData.GmLevel = roleInfo.GmLevel
+	}
+	pr.MainData = mainData
 
 	err = pr.sysMgr.OnInit(pr.WithContext(nil))
 	if err != nil {
 		log.Errorf("sys mgr on init failed, err:%v", err)
 		return nil
 	}
+
+	pr._5minChecker = tool.NewTimeChecker(5 * time.Minute)
+	pr.timeCursor = newTimeCursorMark(time.Now())
+
 	return pr
 }
 
@@ -78,6 +118,11 @@ func (pr *PlayerRole) OnLogin() error {
 	pr.IsOnline = true
 	pr.DisconnectAt = time.Time{}
 
+	now := time.Now()
+	pr.touchLoginTime(now)
+	pr.timeCursor = newTimeCursorMark(now)
+	pr.handleOfflineRollover(now)
+
 	// 发布玩家登录事件
 	pr.Publish(gevent.OnPlayerLogin)
 
@@ -85,7 +130,7 @@ func (pr *PlayerRole) OnLogin() error {
 	resp.ReconnectKey = pr.ReconnectKey
 	resp.RoleData = pr.SimpleData
 
-	return pr.SendJsonMessage(uint16(protocol.S2CProtocol_S2CLoginSuccess), resp)
+	return pr.SendProtoMessage(uint16(protocol.S2CProtocol_S2CLoginSuccess), &resp)
 }
 
 // OnLogout 登出回调
@@ -93,6 +138,7 @@ func (pr *PlayerRole) OnLogout() error {
 	log.Infof("[PlayerRole] OnLogout: RoleId=%d", pr.SimpleData.RoleId)
 
 	pr.IsOnline = false
+	pr.touchLogoutTime(time.Now())
 
 	// 保存BinaryData到数据库
 	if pr.BinaryData != nil {
@@ -124,7 +170,7 @@ func (pr *PlayerRole) OnReconnect(newSessionId string) error {
 	resp.RoleData = pr.SimpleData
 
 	// 调用系统管理器的重连方法
-	return pr.SendJsonMessage(uint16(protocol.S2CProtocol_S2CReconnectSuccess), resp)
+	return pr.SendProtoMessage(uint16(protocol.S2CProtocol_S2CReconnectSuccess), &resp)
 }
 
 // OnDisconnect 断线回调
@@ -179,6 +225,17 @@ func (pr *PlayerRole) GetGMLevel() uint32 {
 	return pr.SimpleData.GetGmLevel()
 }
 
+func (pr *PlayerRole) GetJob() uint32 {
+	if pr.SimpleData == nil {
+		return 0
+	}
+	return pr.SimpleData.Job
+}
+
+func (pr *PlayerRole) GetRoleInfo() *protocol.PlayerSimpleData {
+	return pr.SimpleData
+}
+
 func (pr *PlayerRole) GetSystem(sysId uint32) iface.ISystem {
 	return pr.sysMgr.GetSystem(sysId)
 }
@@ -187,8 +244,8 @@ func (pr *PlayerRole) SendMessage(protoId uint16, data []byte) error {
 	return gatewaylink.SendToSession(pr.SessionId, protoId, data)
 }
 
-func (pr *PlayerRole) SendJsonMessage(protoId uint16, v interface{}) error {
-	bytes, err := internal.Marshal(v)
+func (pr *PlayerRole) SendProtoMessage(protoId uint16, v proto.Message) error {
+	bytes, err := proto.Marshal(v)
 	if err != nil {
 		return customerr.Wrap(err)
 	}
@@ -239,16 +296,103 @@ func (pr *PlayerRole) GetSysMgr() iface.ISystemMgr {
 	return pr.sysMgr
 }
 
+// CallDungeonServer 异步调用DungeonServer的RPC方法（用于解耦，避免循环依赖）
+func (pr *PlayerRole) CallDungeonServer(ctx context.Context, msgId uint16, data []byte) error {
+	srvType := pr.GetDungeonSrvType()
+	return dungeonserverlink.AsyncCall(ctx, srvType, pr.GetSessionId(), msgId, data)
+}
+
 // RunOne 每帧调用，处理属性增量更新等
 func (pr *PlayerRole) RunOne() {
 	if !pr.IsOnline {
 		return
 	}
 
+	pr.handleTimeEvents()
+
 	ctx := pr.WithContext(nil)
 	attrSys := entitysystem.GetAttrSys(ctx)
 	if attrSys != nil {
 		attrSys.RunOne(ctx)
+	}
+
+	if pr._5minChecker.CheckAndSet(true) {
+		err := pr.SaveToDB()
+		if err != nil {
+			log.Errorf("save player binary data failed: %v", err)
+		}
+	}
+
+}
+
+func (pr *PlayerRole) OnNewHour(ctx context.Context) {
+	if ctx == nil {
+		ctx = pr.WithContext(nil)
+	}
+	pr.sysMgr.OnNewHour(ctx)
+}
+
+func (pr *PlayerRole) OnNewDay(ctx context.Context) {
+	if ctx == nil {
+		ctx = pr.WithContext(nil)
+	}
+	pr.sysMgr.OnNewDay(ctx)
+}
+
+func (pr *PlayerRole) OnNewWeek(ctx context.Context) {
+	if ctx == nil {
+		ctx = pr.WithContext(nil)
+	}
+	pr.sysMgr.OnNewWeek(ctx)
+}
+
+func (pr *PlayerRole) OnNewMonth(ctx context.Context) {
+	if ctx == nil {
+		ctx = pr.WithContext(nil)
+	}
+	pr.sysMgr.OnNewMonth(ctx)
+}
+
+func (pr *PlayerRole) OnNewYear(ctx context.Context) {
+	if ctx == nil {
+		ctx = pr.WithContext(nil)
+	}
+	pr.sysMgr.OnNewYear(ctx)
+}
+
+func (pr *PlayerRole) handleTimeEvents() {
+	if !pr.IsOnline {
+		return
+	}
+	if pr.timeCursor.isZero() {
+		pr.timeCursor = newTimeCursorMark(time.Now())
+		return
+	}
+
+	now := time.Now().In(time.Local)
+	ctx := pr.WithContext(nil)
+
+	if pr.timeCursor.year != now.Year() {
+		pr.timeCursor.year = now.Year()
+		pr.OnNewYear(ctx)
+	}
+	if pr.timeCursor.month != int(now.Month()) {
+		pr.timeCursor.month = int(now.Month())
+		pr.OnNewMonth(ctx)
+	}
+	isoYear, week := now.ISOWeek()
+	if pr.timeCursor.weekYear != isoYear || pr.timeCursor.week != week {
+		pr.timeCursor.weekYear = isoYear
+		pr.timeCursor.week = week
+		pr.OnNewWeek(ctx)
+	}
+	if pr.timeCursor.day != now.YearDay() {
+		pr.timeCursor.day = now.YearDay()
+		pr.OnNewDay(ctx)
+	}
+	if pr.timeCursor.hour != now.Hour() {
+		pr.timeCursor.hour = now.Hour()
+		pr.OnNewHour(ctx)
 	}
 }
 
@@ -263,4 +407,62 @@ func (pr *PlayerRole) SaveToDB() error {
 	}
 	log.Infof("PlayerRole SaveToDB success: RoleId=%d", pr.SimpleData.RoleId)
 	return nil
+}
+
+func newTimeCursorMark(t time.Time) timeCursorMark {
+	isoYear, week := t.ISOWeek()
+	return timeCursorMark{
+		hour:     t.Hour(),
+		day:      t.YearDay(),
+		month:    int(t.Month()),
+		year:     t.Year(),
+		week:     week,
+		weekYear: isoYear,
+	}
+}
+
+func (tc timeCursorMark) isZero() bool {
+	return tc.year == 0
+}
+
+func (pr *PlayerRole) touchLoginTime(now time.Time) {
+	if pr.MainData != nil {
+		pr.MainData.LastLoginTime = now.Unix()
+	}
+	if err := database.UpdatePlayerLoginTime(uint(pr.SimpleData.RoleId), now); err != nil {
+		log.Warnf("update login time failed: %v", err)
+	}
+}
+
+func (pr *PlayerRole) touchLogoutTime(now time.Time) {
+	if pr.MainData != nil {
+		pr.MainData.LastLogoutTime = now.Unix()
+	}
+	if err := database.UpdatePlayerLogoutTime(uint(pr.SimpleData.RoleId), now); err != nil {
+		log.Warnf("update logout time failed: %v", err)
+	}
+}
+
+func (pr *PlayerRole) handleOfflineRollover(now time.Time) {
+	if pr.MainData == nil || pr.MainData.LastLogoutTime == 0 {
+		return
+	}
+	last := time.Unix(pr.MainData.LastLogoutTime, 0).In(time.Local)
+	now = now.In(time.Local)
+	ctx := pr.WithContext(nil)
+
+	if last.Year() != now.Year() {
+		pr.OnNewYear(ctx)
+	}
+	if last.Year() != now.Year() || last.Month() != now.Month() {
+		pr.OnNewMonth(ctx)
+	}
+	lastIsoYear, lastWeek := last.ISOWeek()
+	nowIsoYear, nowWeek := now.ISOWeek()
+	if lastIsoYear != nowIsoYear || lastWeek != nowWeek {
+		pr.OnNewWeek(ctx)
+	}
+	if last.YearDay() != now.YearDay() || last.Year() != now.Year() {
+		pr.OnNewDay(ctx)
+	}
 }

@@ -7,18 +7,15 @@ import (
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/iface"
 	"strconv"
-	"sync"
 )
 
 // GMCommandFunc GM命令函数类型
-// 参数: playerRole - 玩家角色, args - 命令参数数组
-// 返回: bool - 是否执行成功
 type GMCommandFunc func(playerRole iface.IPlayerRole, args ...string) bool
 
 // GMCommandInfo GM命令信息
 type GMCommandInfo struct {
 	Name  string        // GM命令名称
-	Level uint32        // 所需GM等级: 0=普通玩家 1=GM 2=高级GM 3=超级GM
+	Level uint32        // 所需GM等级
 	Func  GMCommandFunc // GM命令实现函数
 	Desc  string        // 命令描述
 	Usage string        // 使用说明
@@ -26,32 +23,19 @@ type GMCommandInfo struct {
 
 // GMManager GM命令管理器
 type GMManager struct {
-	mu       sync.RWMutex
-	commands map[string]*GMCommandInfo // GM命令映射表
+	commands map[string]*GMCommandInfo
 }
 
-var (
-	globalGMManager *GMManager
-	gmManagerOnce   sync.Once
-)
-
-// GetGMManager 获取全局GM管理器
-func GetGMManager() *GMManager {
-	gmManagerOnce.Do(func() {
-		globalGMManager = &GMManager{
-			commands: make(map[string]*GMCommandInfo),
-		}
-		// 注册默认GM命令
-		globalGMManager.registerDefaultCommands()
-	})
-	return globalGMManager
+func NewGMManager() *GMManager {
+	mgr := &GMManager{
+		commands: make(map[string]*GMCommandInfo),
+	}
+	mgr.registerDefaultCommands()
+	return mgr
 }
 
 // RegisterCommand 注册GM命令
 func (gm *GMManager) RegisterCommand(name string, level uint32, desc, usage string, fn GMCommandFunc) {
-	gm.mu.Lock()
-	defer gm.mu.Unlock()
-
 	gm.commands[name] = &GMCommandInfo{
 		Name:  name,
 		Level: level,
@@ -59,40 +43,31 @@ func (gm *GMManager) RegisterCommand(name string, level uint32, desc, usage stri
 		Desc:  desc,
 		Usage: usage,
 	}
-
-	log.Infof("GM command registered: %s (level=%d)", name, level)
 }
 
 // GetCommand 获取GM命令信息
 func (gm *GMManager) GetCommand(name string) (*GMCommandInfo, bool) {
-	gm.mu.RLock()
-	defer gm.mu.RUnlock()
-
 	cmd, ok := gm.commands[name]
 	return cmd, ok
 }
 
 // ExecuteCommand 执行GM命令
 func (gm *GMManager) ExecuteCommand(ctx context.Context, playerRole iface.IPlayerRole, gmName string, args []string) (bool, string) {
-	// 获取GM命令信息
 	cmdInfo, ok := gm.GetCommand(gmName)
 	if !ok {
 		return false, fmt.Sprintf("GM命令不存在: %s", gmName)
 	}
 
-	// 检查GM等级
 	playerGMLevel := playerRole.GetGMLevel()
 	if playerGMLevel < cmdInfo.Level {
 		return false, fmt.Sprintf("GM等级不足，需要等级 %d，当前等级 %d", cmdInfo.Level, playerGMLevel)
 	}
 
-	// 执行GM命令
 	success := cmdInfo.Func(playerRole, args...)
 	if success {
 		return true, fmt.Sprintf("GM命令执行成功: %s", gmName)
-	} else {
-		return false, fmt.Sprintf("GM命令执行失败: %s，请检查参数: %s", gmName, cmdInfo.Usage)
 	}
+	return false, fmt.Sprintf("GM命令执行失败: %s，请检查参数: %s", gmName, cmdInfo.Usage)
 }
 
 // registerDefaultCommands 注册默认GM命令
@@ -236,8 +211,7 @@ func (gm *GMManager) registerDefaultCommands() {
 				priority = uint32(p)
 			}
 		}
-		gmSys := GetGMSys()
-		if err := gmSys.SendSystemNotification(playerRole.GetPlayerRoleId(), title, content, notifType, priority); err != nil {
+		if err := SendSystemNotification(playerRole.GetPlayerRoleId(), title, content, notifType, priority); err != nil {
 			log.Errorf("SendSystemNotification failed: %v", err)
 			return false
 		}
@@ -263,8 +237,7 @@ func (gm *GMManager) registerDefaultCommands() {
 				priority = uint32(p)
 			}
 		}
-		gmSys := GetGMSys()
-		if err := gmSys.SendSystemNotificationToAll(title, content, notifType, priority); err != nil {
+		if err := SendSystemNotificationToAll(title, content, notifType, priority); err != nil {
 			log.Errorf("SendSystemNotificationToAll failed: %v", err)
 			return false
 		}
@@ -284,8 +257,7 @@ func (gm *GMManager) registerDefaultCommands() {
 			items := parseItemString(itemsStr)
 			rewards = items
 		}
-		gmSys := GetGMSys()
-		if err := gmSys.SendSystemMailToAll(title, content, rewards); err != nil {
+		if err := SendSystemMailToAll(title, content, rewards); err != nil {
 			log.Errorf("SendSystemMailToAll failed: %v", err)
 			return false
 		}

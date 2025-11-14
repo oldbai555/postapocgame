@@ -2,26 +2,28 @@ package gameserverlink
 
 import (
 	"context"
-	"postapocgame/server/internal"
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
-	"sync"
 )
 
 var (
 	// 用于确保协议注册只执行一次
-	protocolRegistered    bool
-	protocolRegisterMutex sync.Mutex
-	dungeonSrvType        uint8
+	protocolRegistered bool
+	dungeonSrvType     uint8
+	protocolProvider   func() []uint16
 )
 
 // SetDungeonSrvType 设置DungeonServer类型
 func SetDungeonSrvType(srvType uint8) {
-	protocolRegisterMutex.Lock()
-	defer protocolRegisterMutex.Unlock()
 	dungeonSrvType = srvType
 	log.Infof("DungeonServer srvType set to: %d", srvType)
+}
+
+// RegisterProtocolProvider 注册协议提供者
+func RegisterProtocolProvider(fn func() []uint16) {
+	protocolProvider = fn
 }
 
 // RegisterProtocolsToGameServer 向GameServer注册协议
@@ -54,7 +56,7 @@ func RegisterProtocolsToGameServer(ctx context.Context, srvType uint8, commonPro
 		Protocols: protocolInfos,
 	}
 
-	reqData, err := internal.Marshal(req)
+	reqData, err := proto.Marshal(req)
 	if err != nil {
 		log.Errorf("marshal register protocols request failed: %v", err)
 		return customerr.Wrap(err)
@@ -79,7 +81,7 @@ func UnregisterProtocolsFromGameServer(ctx context.Context, srvType uint8) error
 		SrvType: uint32(srvType),
 	}
 
-	reqData, err := internal.Marshal(req)
+	reqData, err := proto.Marshal(req)
 	if err != nil {
 		log.Errorf("marshal unregister protocols request failed: %v", err)
 		return customerr.Wrap(err)
@@ -97,11 +99,7 @@ func UnregisterProtocolsFromGameServer(ctx context.Context, srvType uint8) error
 }
 
 // TryRegisterProtocols 尝试注册协议到GameServer (只会执行一次)
-// getProtocolsFunc 是一个回调函数,用于获取已注册的协议列表
-func TryRegisterProtocols(ctx context.Context, getProtocolsFunc func() []uint16) error {
-	protocolRegisterMutex.Lock()
-	defer protocolRegisterMutex.Unlock()
-
+func TryRegisterProtocols(ctx context.Context) error {
 	// 如果已经注册过,直接返回
 	if protocolRegistered {
 		return nil
@@ -116,8 +114,13 @@ func TryRegisterProtocols(ctx context.Context, getProtocolsFunc func() []uint16)
 
 	log.Infof("registering protocols to GameServer, srvType=%d", dungeonSrvType)
 
+	if protocolProvider == nil {
+		log.Warnf("protocol provider not registered, skip protocol registration")
+		return nil
+	}
+
 	// 获取协议列表
-	allProtocols := getProtocolsFunc()
+	allProtocols := protocolProvider()
 	// TODO: 这里需要根据实际情况配置通用协议和独有协议
 	// 当前示例:所有协议都注册为通用协议
 	commonProtocols := allProtocols
@@ -137,9 +140,6 @@ func TryRegisterProtocols(ctx context.Context, getProtocolsFunc func() []uint16)
 
 // UnregisterProtocols 注销协议
 func UnregisterProtocols(ctx context.Context) error {
-	protocolRegisterMutex.Lock()
-	defer protocolRegisterMutex.Unlock()
-
 	if !protocolRegistered {
 		return nil
 	}

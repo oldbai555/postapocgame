@@ -17,6 +17,15 @@ type SysMgr struct {
 
 var (
 	globalFactories = make(map[uint32]iface.SystemFactory)
+	// 系统依赖关系：key为系统ID，value为依赖的系统ID列表
+	// 例如：AttrSys依赖LevelSys和EquipSys
+	systemDependencies = map[uint32][]uint32{
+		uint32(protocol.SystemId_SysAttr): {
+			uint32(protocol.SystemId_SysLevel),
+			uint32(protocol.SystemId_SysEquip),
+		},
+		// 可以在这里添加更多依赖关系
+	}
 )
 
 // RegisterSystemFactory 注册系统工厂（全局注册）
@@ -38,7 +47,11 @@ func NewSysMgr() iface.ISystemMgr {
 }
 
 func (m *SysMgr) OnInit(ctx context.Context) error {
-	for sysId := uint32(1); sysId < uint32(protocol.SystemId_SysIdMax); sysId++ {
+	// 使用拓扑排序确定系统初始化顺序
+	initOrder := m.getInitOrder()
+
+	// 按照依赖顺序初始化系统
+	for _, sysId := range initOrder {
 		factory := m.factories[sysId]
 		if factory == nil {
 			log.Errorf("sys:%d not found system factory", sysId)
@@ -48,8 +61,85 @@ func (m *SysMgr) OnInit(ctx context.Context) error {
 		system.OnInit(ctx)
 		system.SetOpened(true)
 		m.sysList[sysId] = system
+		log.Debugf("System initialized: SysId=%d", sysId)
 	}
 	return nil
+}
+
+// getInitOrder 使用拓扑排序获取系统初始化顺序
+func (m *SysMgr) getInitOrder() []uint32 {
+	// 构建依赖图
+	inDegree := make(map[uint32]int)   // 入度表
+	graph := make(map[uint32][]uint32) // 依赖图：key依赖value列表中的系统
+
+	// 初始化所有系统的入度为0
+	for sysId := uint32(1); sysId < uint32(protocol.SystemId_SysIdMax); sysId++ {
+		if m.factories[sysId] != nil {
+			inDegree[sysId] = 0
+		}
+	}
+
+	// 构建依赖图
+	for sysId, deps := range systemDependencies {
+		if m.factories[sysId] == nil {
+			continue
+		}
+		for _, depId := range deps {
+			if m.factories[depId] != nil {
+				graph[depId] = append(graph[depId], sysId)
+				inDegree[sysId]++
+			}
+		}
+	}
+
+	// 拓扑排序
+	var queue []uint32
+	var result []uint32
+
+	// 将所有入度为0的系统加入队列
+	for sysId, degree := range inDegree {
+		if degree == 0 {
+			queue = append(queue, sysId)
+		}
+	}
+
+	// BFS拓扑排序
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+		result = append(result, current)
+
+		// 处理依赖当前系统的系统
+		for _, nextSysId := range graph[current] {
+			inDegree[nextSysId]--
+			if inDegree[nextSysId] == 0 {
+				queue = append(queue, nextSysId)
+			}
+		}
+	}
+
+	// 如果还有系统未处理，说明存在循环依赖（不应该发生）
+	if len(result) < len(inDegree) {
+		log.Errorf("System dependency cycle detected! Initialized: %d, Total: %d", len(result), len(inDegree))
+		// 将未处理的系统按原顺序加入（作为fallback）
+		for sysId := uint32(1); sysId < uint32(protocol.SystemId_SysIdMax); sysId++ {
+			if m.factories[sysId] != nil {
+				found := false
+				for _, r := range result {
+					if r == sysId {
+						found = true
+						break
+					}
+				}
+				if !found {
+					result = append(result, sysId)
+				}
+			}
+		}
+	}
+
+	log.Infof("System init order: %v", result)
+	return result
 }
 
 func (m *SysMgr) OnRoleLogin(ctx context.Context) {
@@ -62,6 +152,36 @@ func (m *SysMgr) OnRoleLogin(ctx context.Context) {
 func (m *SysMgr) OnRoleReconnect(ctx context.Context) {
 	m.EachOpenSystem(func(system iface.ISystem) {
 		system.OnRoleReconnect(ctx)
+	})
+}
+
+func (m *SysMgr) OnNewHour(ctx context.Context) {
+	m.EachOpenSystem(func(system iface.ISystem) {
+		system.OnNewHour(ctx)
+	})
+}
+
+func (m *SysMgr) OnNewDay(ctx context.Context) {
+	m.EachOpenSystem(func(system iface.ISystem) {
+		system.OnNewDay(ctx)
+	})
+}
+
+func (m *SysMgr) OnNewWeek(ctx context.Context) {
+	m.EachOpenSystem(func(system iface.ISystem) {
+		system.OnNewWeek(ctx)
+	})
+}
+
+func (m *SysMgr) OnNewMonth(ctx context.Context) {
+	m.EachOpenSystem(func(system iface.ISystem) {
+		system.OnNewMonth(ctx)
+	})
+}
+
+func (m *SysMgr) OnNewYear(ctx context.Context) {
+	m.EachOpenSystem(func(system iface.ISystem) {
+		system.OnNewYear(ctx)
 	})
 }
 

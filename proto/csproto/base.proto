@@ -16,8 +16,8 @@ message ErrorData {
 }
 
 message QuestData {
-    uint32 id = 1; //任务id
-    repeated uint32 progress = 2; //当前进度
+    uint32 id = 1; // 任务ID（通过配置表 QuestConfig.QuestId 推导任务类型与配置）
+    repeated uint32 progress = 2; // 当前进度，长度与 QuestConfig.Targets 保持一致
 }
 
 message ItemSt {

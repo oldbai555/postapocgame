@@ -6,39 +6,62 @@ import (
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/iface"
 	"postapocgame/server/service/gameserver/internel/manager"
-	"sync"
 )
 
-// GMSys GM系统（用于手动模拟系统通知和邮件奖励）
-type GMSys struct{}
-
-// NewGMSys 创建GM系统（单例，不需要注册为系统）
-func NewGMSys() *GMSys {
-	return &GMSys{}
+// GMSys 玩家级GM系统
+type GMSys struct {
+	*BaseSystem
+	mgr *GMManager
 }
 
-var (
-	globalGMSys *GMSys
-	gmSysOnce   sync.Once
-)
+func NewGMSys() *GMSys {
+	return &GMSys{
+		BaseSystem: NewBaseSystem(uint32(protocol.SystemId_SysGM)),
+		mgr:        NewGMManager(),
+	}
+}
 
-// GetGMSys 获取全局GM系统
-func GetGMSys() *GMSys {
-	gmSysOnce.Do(func() {
-		globalGMSys = NewGMSys()
-	})
-	return globalGMSys
+func GetGMSys(ctx context.Context) *GMSys {
+	playerRole, err := GetIPlayerRoleByContext(ctx)
+	if err != nil {
+		log.Errorf("get player role error:%v", err)
+		return nil
+	}
+	system := playerRole.GetSystem(uint32(protocol.SystemId_SysGM))
+	if system == nil {
+		return nil
+	}
+	gmSys, ok := system.(*GMSys)
+	if !ok || !gmSys.IsOpened() {
+		return nil
+	}
+	return gmSys
+}
+
+func (gm *GMSys) OnInit(context.Context) {
+	gm.mgr = NewGMManager()
+}
+
+func (gm *GMSys) ExecuteCommand(ctx context.Context, gmName string, args []string) (bool, string) {
+	if gm.mgr == nil {
+		return false, "GM系统未初始化"
+	}
+	playerRole, err := GetIPlayerRoleByContext(ctx)
+	if err != nil {
+		return false, err.Error()
+	}
+	return gm.mgr.ExecuteCommand(ctx, playerRole, gmName, args)
 }
 
 // SendSystemNotification 发送系统通知给指定玩家
-func (gm *GMSys) SendSystemNotification(roleId uint64, title, content string, notificationType, priority uint32) error {
+func SendSystemNotification(roleId uint64, title, content string, notificationType, priority uint32) error {
 	playerRole := manager.GetPlayerRole(roleId)
 	if playerRole == nil {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "player role not found: %d", roleId)
 	}
 
-	// 发送系统通知
 	notification := &protocol.S2CSystemNotificationReq{
 		Title:    title,
 		Content:  content,
@@ -46,7 +69,7 @@ func (gm *GMSys) SendSystemNotification(roleId uint64, title, content string, no
 		Priority: priority,
 	}
 
-	if err := playerRole.SendJsonMessage(uint16(protocol.S2CProtocol_S2CSystemNotification), notification); err != nil {
+	if err := playerRole.SendProtoMessage(uint16(protocol.S2CProtocol_S2CSystemNotification), notification); err != nil {
 		log.Errorf("SendSystemNotification failed: %v", err)
 		return customerr.Wrap(err)
 	}
@@ -56,7 +79,7 @@ func (gm *GMSys) SendSystemNotification(roleId uint64, title, content string, no
 }
 
 // SendSystemNotificationToAll 发送系统通知给所有在线玩家
-func (gm *GMSys) SendSystemNotificationToAll(title, content string, notificationType, priority uint32) error {
+func SendSystemNotificationToAll(title, content string, notificationType, priority uint32) error {
 	roleMgr := manager.GetPlayerRoleManager()
 	allRoles := roleMgr.GetAll()
 
@@ -73,7 +96,7 @@ func (gm *GMSys) SendSystemNotificationToAll(title, content string, notification
 			Priority: priority,
 		}
 
-		if err := playerRole.SendJsonMessage(uint16(protocol.S2CProtocol_S2CSystemNotification), notification); err != nil {
+		if err := playerRole.SendProtoMessage(uint16(protocol.S2CProtocol_S2CSystemNotification), notification); err != nil {
 			log.Errorf("SendSystemNotificationToAll failed for role %d: %v", playerRole.GetPlayerRoleId(), err)
 			continue
 		}
@@ -85,7 +108,7 @@ func (gm *GMSys) SendSystemNotificationToAll(title, content string, notification
 }
 
 // SendSystemMail 发送系统邮件给指定玩家
-func (gm *GMSys) SendSystemMail(roleId uint64, title, content string, rewards []*jsonconf.ItemSt) error {
+func SendSystemMail(roleId uint64, title, content string, rewards []*jsonconf.ItemSt) error {
 	playerRole := manager.GetPlayerRole(roleId)
 	if playerRole == nil {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "player role not found: %d", roleId)
@@ -97,7 +120,6 @@ func (gm *GMSys) SendSystemMail(roleId uint64, title, content string, rewards []
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "mail system not ready")
 	}
 
-	// 发送自定义邮件
 	if err := mailSys.SendCustomMail(ctx, title, content, rewards); err != nil {
 		log.Errorf("SendSystemMail failed: %v", err)
 		return customerr.Wrap(err)
@@ -108,7 +130,7 @@ func (gm *GMSys) SendSystemMail(roleId uint64, title, content string, rewards []
 }
 
 // SendSystemMailToAll 发送系统邮件给所有在线玩家
-func (gm *GMSys) SendSystemMailToAll(title, content string, rewards []*jsonconf.ItemSt) error {
+func SendSystemMailToAll(title, content string, rewards []*jsonconf.ItemSt) error {
 	roleMgr := manager.GetPlayerRoleManager()
 	allRoles := roleMgr.GetAll()
 
@@ -125,7 +147,6 @@ func (gm *GMSys) SendSystemMailToAll(title, content string, rewards []*jsonconf.
 			continue
 		}
 
-		// 发送自定义邮件
 		if err := mailSys.SendCustomMail(ctx, title, content, rewards); err != nil {
 			log.Errorf("SendSystemMailToAll failed for role %d: %v", playerRole.GetPlayerRoleId(), err)
 			continue
@@ -138,7 +159,7 @@ func (gm *GMSys) SendSystemMailToAll(title, content string, rewards []*jsonconf.
 }
 
 // SendSystemMailByTemplate 使用模板发送系统邮件给指定玩家
-func (gm *GMSys) SendSystemMailByTemplate(roleId uint64, templateId uint32, args map[string]interface{}) error {
+func SendSystemMailByTemplate(roleId uint64, templateId uint32, args map[string]interface{}) error {
 	playerRole := manager.GetPlayerRole(roleId)
 	if playerRole == nil {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "player role not found: %d", roleId)
@@ -150,7 +171,6 @@ func (gm *GMSys) SendSystemMailByTemplate(roleId uint64, templateId uint32, args
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "mail system not ready")
 	}
 
-	// 发送模板邮件
 	if err := mailSys.SendMail(ctx, templateId, args); err != nil {
 		log.Errorf("SendSystemMailByTemplate failed: %v", err)
 		return customerr.Wrap(err)
@@ -161,7 +181,7 @@ func (gm *GMSys) SendSystemMailByTemplate(roleId uint64, templateId uint32, args
 }
 
 // SendSystemMailByTemplateToAll 使用模板发送系统邮件给所有在线玩家
-func (gm *GMSys) SendSystemMailByTemplateToAll(templateId uint32, args map[string]interface{}) error {
+func SendSystemMailByTemplateToAll(templateId uint32, args map[string]interface{}) error {
 	roleMgr := manager.GetPlayerRoleManager()
 	allRoles := roleMgr.GetAll()
 
@@ -178,7 +198,6 @@ func (gm *GMSys) SendSystemMailByTemplateToAll(templateId uint32, args map[strin
 			continue
 		}
 
-		// 发送模板邮件
 		if err := mailSys.SendMail(ctx, templateId, args); err != nil {
 			log.Errorf("SendSystemMailByTemplateToAll failed for role %d: %v", playerRole.GetPlayerRoleId(), err)
 			continue
@@ -190,8 +209,8 @@ func (gm *GMSys) SendSystemMailByTemplateToAll(templateId uint32, args map[strin
 	return nil
 }
 
-// GrantRewardsByMail 通过邮件发放奖励（用于GM补发奖励等场景）
-func (gm *GMSys) GrantRewardsByMail(roleId uint64, title, content string, rewards []*jsonconf.ItemAmount) error {
+// GrantRewardsByMail 通过邮件发放奖励
+func GrantRewardsByMail(roleId uint64, title, content string, rewards []*jsonconf.ItemAmount) error {
 	playerRole := manager.GetPlayerRole(roleId)
 	if playerRole == nil {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "player role not found: %d", roleId)
@@ -203,7 +222,6 @@ func (gm *GMSys) GrantRewardsByMail(roleId uint64, title, content string, reward
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "mail system not ready")
 	}
 
-	// 转换奖励格式
 	mailRewards := make([]*jsonconf.ItemSt, 0, len(rewards))
 	for _, reward := range rewards {
 		if reward == nil || reward.Count <= 0 {
@@ -216,7 +234,6 @@ func (gm *GMSys) GrantRewardsByMail(roleId uint64, title, content string, reward
 		})
 	}
 
-	// 发送邮件
 	if err := mailSys.SendCustomMail(ctx, title, content, mailRewards); err != nil {
 		log.Errorf("GrantRewardsByMail failed: %v", err)
 		return customerr.Wrap(err)
@@ -224,4 +241,10 @@ func (gm *GMSys) GrantRewardsByMail(roleId uint64, title, content string, reward
 
 	log.Infof("Rewards granted by mail: RoleID=%d, Title=%s", roleId, title)
 	return nil
+}
+
+func init() {
+	RegisterSystemFactory(uint32(protocol.SystemId_SysGM), func() iface.ISystem {
+		return NewGMSys()
+	})
 }

@@ -73,3 +73,5 @@ func (b *BaseActorHandler) Clone() *BaseActorHandler {
 	}
 	return handler
 }
+
+func (b *BaseActorHandler) SetActorContext(_ IActorContext) {}

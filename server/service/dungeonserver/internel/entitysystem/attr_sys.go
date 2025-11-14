@@ -10,15 +10,12 @@ import (
 	"postapocgame/server/internal/attrcalc"
 	"postapocgame/server/internal/attrdef"
 	"postapocgame/server/service/dungeonserver/internel/iface"
-	"sync"
 )
 
 var _ iface.IAttrSys = (*AttrSys)(nil)
 
 // AttrSys 属性系统
 type AttrSys struct {
-	mu sync.RWMutex
-
 	// 战斗属性计算器
 	combatCalc *attrcalc.CombatAttrCalc
 
@@ -36,9 +33,6 @@ func NewAttrSys() *AttrSys {
 
 // GetAttrValue 获取属性值
 func (as *AttrSys) GetAttrValue(attrType attrdef.AttrType) attrdef.AttrValue {
-	as.mu.RLock()
-	defer as.mu.RUnlock()
-
 	if attrdef.IsCombatAttr(attrType) {
 		return as.combatCalc.GetValue(attrType)
 	}
@@ -51,9 +45,6 @@ func (as *AttrSys) GetAttrValue(attrType attrdef.AttrType) attrdef.AttrValue {
 }
 
 func (as *AttrSys) SetAttrValue(attrType attrdef.AttrType, value attrdef.AttrValue) {
-	as.mu.Lock()
-	defer as.mu.Unlock()
-
 	if attrdef.IsCombatAttr(attrType) {
 		as.combatCalc.SetValue(attrType, value)
 		return
@@ -66,9 +57,6 @@ func (as *AttrSys) SetAttrValue(attrType attrdef.AttrType, value attrdef.AttrVal
 }
 
 func (as *AttrSys) AddAttrValue(attrType attrdef.AttrType, delta attrdef.AttrValue) {
-	as.mu.Lock()
-	defer as.mu.Unlock()
-
 	if attrdef.IsCombatAttr(attrType) {
 		as.combatCalc.AddValue(attrType, delta)
 		return
@@ -82,50 +70,32 @@ func (as *AttrSys) AddAttrValue(attrType attrdef.AttrType, delta attrdef.AttrVal
 
 // GetAllCombatAttrs 获取所有战斗属性
 func (as *AttrSys) GetAllCombatAttrs() map[attrdef.AttrType]attrdef.AttrValue {
-	as.mu.RLock()
-	defer as.mu.RUnlock()
-
 	return as.combatCalc.GetAll()
 }
 
 // GetAllExtraAttrs 获取所有非战斗属性
 func (as *AttrSys) GetAllExtraAttrs() map[attrdef.AttrType]attrdef.AttrValue {
-	as.mu.RLock()
-	defer as.mu.RUnlock()
-
 	return as.extraCalc.GetAll()
 }
 
 // ResetCombatAttrs 重置战斗属性
 func (as *AttrSys) ResetCombatAttrs() {
-	as.mu.Lock()
-	defer as.mu.Unlock()
-
 	as.combatCalc.Reset()
 }
 
 // ResetExtraAttrs 重置非战斗属性
 func (as *AttrSys) ResetExtraAttrs() {
-	as.mu.Lock()
-	defer as.mu.Unlock()
-
 	as.extraCalc.Reset()
 }
 
 // ResetAll 重置所有属性
 func (as *AttrSys) ResetAll() {
-	as.mu.Lock()
-	defer as.mu.Unlock()
-
 	as.combatCalc.Reset()
 	as.extraCalc.Reset()
 }
 
 // BatchSetAttrs 批量设置属性
 func (as *AttrSys) BatchSetAttrs(attrs map[attrdef.AttrType]attrdef.AttrValue) {
-	as.mu.Lock()
-	defer as.mu.Unlock()
-
 	for attrType, value := range attrs {
 		if attrdef.IsCombatAttr(attrType) {
 			as.combatCalc.SetValue(attrType, value)
@@ -139,9 +109,6 @@ func (as *AttrSys) BatchSetAttrs(attrs map[attrdef.AttrType]attrdef.AttrValue) {
 
 // BatchAddAttrs 批量增加属性
 func (as *AttrSys) BatchAddAttrs(attrs map[attrdef.AttrType]attrdef.AttrValue) {
-	as.mu.Lock()
-	defer as.mu.Unlock()
-
 	for attrType, delta := range attrs {
 		if attrdef.IsCombatAttr(attrType) {
 			as.combatCalc.AddValue(attrType, delta)

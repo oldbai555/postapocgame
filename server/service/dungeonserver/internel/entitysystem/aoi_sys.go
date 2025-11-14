@@ -3,13 +3,11 @@ package entitysystem
 import (
 	"postapocgame/server/internal/argsdef"
 	"postapocgame/server/service/dungeonserver/internel/iface"
-	"sync"
 )
 
 type AOISys struct {
 	entity          iface.IEntity
 	visibleEntities map[uint64]iface.IEntity // 可见的实体列表
-	mu              sync.RWMutex
 	pendingEnter    []iface.IEntity
 	pendingLeave    []uint64
 }
@@ -23,9 +21,6 @@ func NewAOISys(entity iface.IEntity) *AOISys {
 
 // GetVisibleEntities 获取可见实体列表
 func (aoi *AOISys) GetVisibleEntities() []iface.IEntity {
-	aoi.mu.RLock()
-	defer aoi.mu.RUnlock()
-
 	entities := make([]iface.IEntity, 0, len(aoi.visibleEntities))
 	for _, entity := range aoi.visibleEntities {
 		entities = append(entities, entity)
@@ -35,36 +30,24 @@ func (aoi *AOISys) GetVisibleEntities() []iface.IEntity {
 
 // AddVisibleEntity 添加可见实体
 func (aoi *AOISys) AddVisibleEntity(entity iface.IEntity) {
-	aoi.mu.Lock()
-	defer aoi.mu.Unlock()
-
 	aoi.visibleEntities[entity.GetId()] = entity
 	aoi.pendingEnter = append(aoi.pendingEnter, entity)
 }
 
 // RemoveVisibleEntity 移除可见实体
 func (aoi *AOISys) RemoveVisibleEntity(entityId uint64) {
-	aoi.mu.Lock()
-	defer aoi.mu.Unlock()
-
 	delete(aoi.visibleEntities, entityId)
 	aoi.pendingLeave = append(aoi.pendingLeave, entityId)
 }
 
 // IsVisible 检查实体是否在视野内
 func (aoi *AOISys) IsVisible(entityId uint64) bool {
-	aoi.mu.RLock()
-	defer aoi.mu.RUnlock()
-
 	_, ok := aoi.visibleEntities[entityId]
 	return ok
 }
 
 // ClearVisibleEntities 清空可见实体
 func (aoi *AOISys) ClearVisibleEntities() {
-	aoi.mu.Lock()
-	defer aoi.mu.Unlock()
-
 	aoi.visibleEntities = make(map[uint64]iface.IEntity)
 	aoi.pendingEnter = nil
 	aoi.pendingLeave = nil
@@ -110,9 +93,6 @@ func (aoi *AOISys) OnMove(oldPos, newPos *argsdef.Position) {
 
 // ConsumeVisibilityChanges 获取一次性视野变化
 func (aoi *AOISys) ConsumeVisibilityChanges() (enter []iface.IEntity, leave []uint64) {
-	aoi.mu.Lock()
-	defer aoi.mu.Unlock()
-
 	if len(aoi.pendingEnter) > 0 {
 		enter = append(enter, aoi.pendingEnter...)
 		aoi.pendingEnter = nil

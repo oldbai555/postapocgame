@@ -1,6 +1,7 @@
 package gatewaylink
 
 import (
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/network"
 	"sync"
 )
@@ -22,8 +23,8 @@ func SendToSession(sessionId string, msgId uint16, data []byte) error {
 	return GetMessageSender().SendToClient(sessionId, msgId, data)
 }
 
-func SendToSessionJSON(sessionId string, msgId uint16, v interface{}) error {
-	return GetMessageSender().SendToClientJSON(sessionId, msgId, v)
+func SendToSessionProto(sessionId string, msgId uint16, message proto.Message) error {
+	return GetMessageSender().SendToClientProto(sessionId, msgId, message)
 }
 
 func ForwardClientMsg(sessionId string, payload []byte) error {

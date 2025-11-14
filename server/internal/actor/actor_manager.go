@@ -40,12 +40,15 @@ func (m *actorManager) Start(ctx context.Context) error {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "not found msg handler factory func")
 	}
 	m.ctx, m.cancel = context.WithCancel(ctx)
-	actorHandler := m.actorHandlerFactoryFunc()
 	// 创建单例Actor
 	if m.mode == ModeSingle {
-		actor := newActorContext("global", m.mailboxSize, WithIActorHandler(actorHandler))
+		actorHandler := m.actorHandlerFactoryFunc()
+		key := "global"
+		actor := newActorContext(key, m.mailboxSize, WithIActorHandler(actorHandler))
 		actor.start()
-		m.actors.Store("global", actor)
+		actorHandler.SetActorContext(actor)
+		actor.SetData("key", key)
+		m.actors.Store(key, actor)
 	}
 
 	return nil
@@ -80,6 +83,8 @@ func (m *actorManager) GetOrCreateActor(key string) (IActorContext, error) {
 	actor = newActorContext(key, m.mailboxSize, WithIActorHandler(actorHandler))
 	actor.start()
 	m.actors.Store(key, actor)
+	actor.SetData("key", key)
+	actorHandler.SetActorContext(actor)
 	return actor, nil
 }
 

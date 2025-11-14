@@ -77,15 +77,14 @@ func (ls *LevelSys) OnInit(ctx context.Context) {
 	}
 
 	// 同步经验到货币系统（经验作为货币的一种）
-	if binaryData.MoneyData != nil && binaryData.MoneyData.MoneyMap != nil {
-		expMoneyID := uint32(protocol.MoneyType_MoneyTypeExp)
-		if _, exists := binaryData.MoneyData.MoneyMap[expMoneyID]; !exists {
-			// 如果货币系统中没有经验值，从等级系统同步
-			binaryData.MoneyData.MoneyMap[expMoneyID] = ls.levelData.Exp
-		} else {
-			// 如果货币系统中有经验值，同步到等级系统（以货币系统为准）
-			ls.levelData.Exp = binaryData.MoneyData.MoneyMap[expMoneyID]
+	// 统一以等级系统的经验值为准，同步到货币系统
+	if binaryData.MoneyData != nil {
+		if binaryData.MoneyData.MoneyMap == nil {
+			binaryData.MoneyData.MoneyMap = make(map[uint32]int64)
 		}
+		expMoneyID := uint32(protocol.MoneyType_MoneyTypeExp)
+		// 统一以等级系统的经验值为准
+		binaryData.MoneyData.MoneyMap[expMoneyID] = ls.levelData.Exp
 	}
 }
 
