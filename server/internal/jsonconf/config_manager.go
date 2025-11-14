@@ -16,15 +16,32 @@ type ConfigManager struct {
 	mu         sync.RWMutex
 
 	// 各类配置
-	itemConfigs         map[uint32]*ItemConfig
-	levelConfigs        map[uint32]*LevelConfig
-	vipConfigs          map[uint32]*VipConfig
-	moneyConfigs        map[uint32]*MoneyConfig
-	questConfigs        map[uint32]*QuestConfig
-	mailTemplateConfigs map[uint32]*MailTemplateConfig
-	monsterConfigs      map[uint32]*MonsterConfig
-	skillConfigs        map[uint32]*SkillConfig
-	buffConfigs         map[uint32]*BuffConfig
+	itemConfigs          map[uint32]*ItemConfig
+	levelConfigs         map[uint32]*LevelConfig
+	vipConfigs           map[uint32]*VipConfig
+	moneyConfigs         map[uint32]*MoneyConfig
+	questConfigs         map[uint32]*QuestConfig
+	mailTemplateConfigs  map[uint32]*MailTemplateConfig
+	monsterConfigs       map[uint32]*MonsterConfig
+	skillConfigs         map[uint32]*SkillConfig
+	buffConfigs          map[uint32]*BuffConfig
+	dungeonConfigs       map[uint32]*DungeonConfig
+	consumeConfigs       map[uint32]*ConsumeConfig
+	rewardConfigs        map[uint32]*RewardConfig
+	equipUpgradeConfigs  map[uint32]*EquipUpgradeConfig
+	itemUseEffectConfigs map[uint32]*ItemUseEffectConfig
+	itemRecycleConfigs   map[uint32]*ItemRecycleConfig
+	shopConfigs          map[uint32]*ShopConfig // key: itemId
+	jobConfigs           map[uint32]*JobConfig
+	sceneConfigs         map[uint32]*SceneConfig
+	monsterSceneConfigs  []*MonsterSceneConfig // 列表形式，因为一个场景可能有多个怪物配置
+	npcSceneConfigs      []*NPCSceneConfig     // 列表形式，因为一个场景可能有多个NPC
+	teleportConfigs      map[uint32]*TeleportConfig
+	dailyQuestConfigs    map[uint32]*DailyQuestConfig
+	achievementConfigs   map[uint32]*AchievementConfig
+	equipRefineConfigs   map[uint32]*EquipRefineConfig
+	equipEnchantConfigs  map[uint32]*EquipEnchantConfig
+	equipSetConfigs      map[uint32]*EquipSetConfig
 }
 
 var (
@@ -36,15 +53,32 @@ var (
 func GetConfigManager() *ConfigManager {
 	configOnce.Do(func() {
 		globalConfigManager = &ConfigManager{
-			itemConfigs:         make(map[uint32]*ItemConfig),
-			levelConfigs:        make(map[uint32]*LevelConfig),
-			vipConfigs:          make(map[uint32]*VipConfig),
-			moneyConfigs:        make(map[uint32]*MoneyConfig),
-			questConfigs:        make(map[uint32]*QuestConfig),
-			mailTemplateConfigs: make(map[uint32]*MailTemplateConfig),
-			monsterConfigs:      make(map[uint32]*MonsterConfig),
-			skillConfigs:        make(map[uint32]*SkillConfig),
-			buffConfigs:         make(map[uint32]*BuffConfig),
+			itemConfigs:          make(map[uint32]*ItemConfig),
+			levelConfigs:         make(map[uint32]*LevelConfig),
+			vipConfigs:           make(map[uint32]*VipConfig),
+			moneyConfigs:         make(map[uint32]*MoneyConfig),
+			questConfigs:         make(map[uint32]*QuestConfig),
+			mailTemplateConfigs:  make(map[uint32]*MailTemplateConfig),
+			monsterConfigs:       make(map[uint32]*MonsterConfig),
+			skillConfigs:         make(map[uint32]*SkillConfig),
+			buffConfigs:          make(map[uint32]*BuffConfig),
+			dungeonConfigs:       make(map[uint32]*DungeonConfig),
+			consumeConfigs:       make(map[uint32]*ConsumeConfig),
+			rewardConfigs:        make(map[uint32]*RewardConfig),
+			equipUpgradeConfigs:  make(map[uint32]*EquipUpgradeConfig),
+			itemUseEffectConfigs: make(map[uint32]*ItemUseEffectConfig),
+			itemRecycleConfigs:   make(map[uint32]*ItemRecycleConfig),
+			shopConfigs:          make(map[uint32]*ShopConfig),
+			jobConfigs:           make(map[uint32]*JobConfig),
+			sceneConfigs:         make(map[uint32]*SceneConfig),
+			monsterSceneConfigs:  make([]*MonsterSceneConfig, 0),
+			npcSceneConfigs:      make([]*NPCSceneConfig, 0),
+			teleportConfigs:      make(map[uint32]*TeleportConfig),
+			dailyQuestConfigs:    make(map[uint32]*DailyQuestConfig),
+			achievementConfigs:   make(map[uint32]*AchievementConfig),
+			equipRefineConfigs:   make(map[uint32]*EquipRefineConfig),
+			equipEnchantConfigs:  make(map[uint32]*EquipEnchantConfig),
+			equipSetConfigs:      make(map[uint32]*EquipSetConfig),
 		}
 	})
 	return globalConfigManager
@@ -113,13 +147,101 @@ func (cm *ConfigManager) LoadAllConfigs() error {
 		return customerr.Wrap(err)
 	}
 
+	// 加载副本配置
+	if err := cm.loadDungeonConfigs(); err != nil {
+		return customerr.Wrap(err)
+	}
+
+	// 加载通用消耗配置
+	if err := cm.loadConsumeConfigs(); err != nil {
+		return customerr.Wrap(err)
+	}
+
+	// 加载通用奖励配置
+	if err := cm.loadRewardConfigs(); err != nil {
+		return customerr.Wrap(err)
+	}
+
+	// 加载装备强化配置
+	if err := cm.loadEquipUpgradeConfigs(); err != nil {
+		return customerr.Wrap(err)
+	}
+
+	// 加载物品使用效果配置
+	if err := cm.loadItemUseEffectConfigs(); err != nil {
+		return customerr.Wrap(err)
+	}
+
+	// 加载物品回收配置
+	if err := cm.loadItemRecycleConfigs(); err != nil {
+		return customerr.Wrap(err)
+	}
+
+	// 加载商城配置
+	if err := cm.loadShopConfigs(); err != nil {
+		return customerr.Wrap(err)
+	}
+
+	// 加载职业配置
+	if err := cm.loadJobConfigs(); err != nil {
+		return customerr.Wrap(err)
+	}
+
+	// 加载场景配置
+	if err := cm.loadSceneConfigs(); err != nil {
+		return customerr.Wrap(err)
+	}
+
+	// 加载怪物场景配置
+	if err := cm.loadMonsterSceneConfigs(); err != nil {
+		return customerr.Wrap(err)
+	}
+
+	// 加载NPC场景配置
+	if err := cm.loadNPCSceneConfigs(); err != nil {
+		return customerr.Wrap(err)
+	}
+
+	// 加载传送点配置
+	if err := cm.loadTeleportConfigs(); err != nil {
+		return customerr.Wrap(err)
+	}
+
+	// 加载每日任务配置
+	if err := cm.loadDailyQuestConfigs(); err != nil {
+		return customerr.Wrap(err)
+	}
+
+	// 加载成就配置
+	if err := cm.loadAchievementConfigs(); err != nil {
+		return customerr.Wrap(err)
+	}
+
+	// 加载装备精炼配置（可选）
+	if err := cm.loadEquipRefineConfigs(); err != nil {
+		log.Warnf("load equip refine configs failed: %v", err)
+		// 不返回错误，允许配置不存在
+	}
+
+	// 加载装备附魔配置（可选）
+	if err := cm.loadEquipEnchantConfigs(); err != nil {
+		log.Warnf("load equip enchant configs failed: %v", err)
+		// 不返回错误，允许配置不存在
+	}
+
+	// 加载装备套装配置（可选）
+	if err := cm.loadEquipSetConfigs(); err != nil {
+		log.Warnf("load equip set configs failed: %v", err)
+		// 不返回错误，允许配置不存在
+	}
+
 	log.Infof("All configs loaded successfully")
 	return nil
 }
 
 // loadItemConfigs 加载道具配置
 func (cm *ConfigManager) loadItemConfigs() error {
-	filePath := filepath.Join(cm.configPath, "item_config.json")
+	filePath := filepath.Join(cm.configPath, "itemconfig.json")
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("read item config failed: %w", err)
@@ -141,7 +263,7 @@ func (cm *ConfigManager) loadItemConfigs() error {
 
 // loadLevelConfigs 加载等级配置
 func (cm *ConfigManager) loadLevelConfigs() error {
-	filePath := filepath.Join(cm.configPath, "level_config.json")
+	filePath := filepath.Join(cm.configPath, "levelconfig.json")
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("read level config failed: %w", err)
@@ -163,7 +285,7 @@ func (cm *ConfigManager) loadLevelConfigs() error {
 
 // loadVipConfigs 加载VIP配置
 func (cm *ConfigManager) loadVipConfigs() error {
-	filePath := filepath.Join(cm.configPath, "vip_config.json")
+	filePath := filepath.Join(cm.configPath, "vipconfig.json")
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("read vip config failed: %w", err)
@@ -185,7 +307,7 @@ func (cm *ConfigManager) loadVipConfigs() error {
 
 // loadMoneyConfigs 加载货币配置
 func (cm *ConfigManager) loadMoneyConfigs() error {
-	filePath := filepath.Join(cm.configPath, "money_config.json")
+	filePath := filepath.Join(cm.configPath, "moneyconfig.json")
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("read money config failed: %w", err)
@@ -207,7 +329,7 @@ func (cm *ConfigManager) loadMoneyConfigs() error {
 
 // loadQuestConfigs 加载任务配置
 func (cm *ConfigManager) loadQuestConfigs() error {
-	filePath := filepath.Join(cm.configPath, "quest_config.json")
+	filePath := filepath.Join(cm.configPath, "questconfig.json")
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("read quest config failed: %w", err)
@@ -229,7 +351,7 @@ func (cm *ConfigManager) loadQuestConfigs() error {
 
 // loadMailTemplateConfigs 加载邮件模板配置
 func (cm *ConfigManager) loadMailTemplateConfigs() error {
-	filePath := filepath.Join(cm.configPath, "mail_template_config.json")
+	filePath := filepath.Join(cm.configPath, "mailtemplateconfig.json")
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("read mail template config failed: %w", err)
@@ -251,7 +373,7 @@ func (cm *ConfigManager) loadMailTemplateConfigs() error {
 
 // loadMonsterConfigs 加载怪物配置
 func (cm *ConfigManager) loadMonsterConfigs() error {
-	filePath := filepath.Join(cm.configPath, "monster_config.json")
+	filePath := filepath.Join(cm.configPath, "monsterconfig.json")
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("read monster config failed: %w", err)
@@ -273,7 +395,7 @@ func (cm *ConfigManager) loadMonsterConfigs() error {
 
 // loadSkillConfigs 加载技能配置
 func (cm *ConfigManager) loadSkillConfigs() error {
-	filePath := filepath.Join(cm.configPath, "skill_config.json")
+	filePath := filepath.Join(cm.configPath, "skillconfig.json")
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("read skill config failed: %w", err)
@@ -295,7 +417,7 @@ func (cm *ConfigManager) loadSkillConfigs() error {
 
 // loadBuffConfigs 加载Buff配置
 func (cm *ConfigManager) loadBuffConfigs() error {
-	filePath := filepath.Join(cm.configPath, "buff_config.json")
+	filePath := filepath.Join(cm.configPath, "buffconfig.json")
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("read buff config failed: %w", err)
@@ -315,11 +437,100 @@ func (cm *ConfigManager) loadBuffConfigs() error {
 	return nil
 }
 
+func (cm *ConfigManager) loadConsumeConfigs() error {
+	filePath := filepath.Join(cm.configPath, "consume_config.json")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Warnf("consume config file not found: %s", filePath)
+			return nil
+		}
+		return fmt.Errorf("read consume config failed: %w", err)
+	}
+
+	var configs []*ConsumeConfig
+	if err := internal.Unmarshal(data, &configs); err != nil {
+		return fmt.Errorf("unmarshal consume config failed: %w", err)
+	}
+
+	cm.consumeConfigs = make(map[uint32]*ConsumeConfig)
+	for _, cfg := range configs {
+		cm.consumeConfigs[cfg.ConsumeId] = cfg
+	}
+
+	log.Infof("Loaded %d consume configs", len(cm.consumeConfigs))
+	return nil
+}
+
+func (cm *ConfigManager) loadRewardConfigs() error {
+	filePath := filepath.Join(cm.configPath, "reward_config.json")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Warnf("reward config file not found: %s", filePath)
+			return nil
+		}
+		return fmt.Errorf("read reward config failed: %w", err)
+	}
+
+	var configs []*RewardConfig
+	if err := internal.Unmarshal(data, &configs); err != nil {
+		return fmt.Errorf("unmarshal reward config failed: %w", err)
+	}
+
+	cm.rewardConfigs = make(map[uint32]*RewardConfig)
+	for _, cfg := range configs {
+		cm.rewardConfigs[cfg.RewardId] = cfg
+	}
+
+	log.Infof("Loaded %d reward configs", len(cm.rewardConfigs))
+	return nil
+}
+
+// loadEquipUpgradeConfigs 加载装备强化配置
+func (cm *ConfigManager) loadEquipUpgradeConfigs() error {
+	filePath := filepath.Join(cm.configPath, "equip_upgrade_config.json")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		// 如果文件不存在，使用空配置（允许可选）
+		if os.IsNotExist(err) {
+			log.Warnf("equip_upgrade_config.json not found, using empty config")
+			return nil
+		}
+		return fmt.Errorf("read equip upgrade config failed: %w", err)
+	}
+
+	var configs []*EquipUpgradeConfig
+	if err := internal.Unmarshal(data, &configs); err != nil {
+		return fmt.Errorf("unmarshal equip upgrade config failed: %w", err)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	for _, cfg := range configs {
+		if cfg != nil {
+			cm.equipUpgradeConfigs[cfg.ItemId] = cfg
+		}
+	}
+
+	log.Infof("Loaded %d equip upgrade configs", len(cm.equipUpgradeConfigs))
+	return nil
+}
+
 // GetItemConfig 获取道具配置
 func (cm *ConfigManager) GetItemConfig(itemId uint32) (*ItemConfig, bool) {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	cfg, ok := cm.itemConfigs[itemId]
+	return cfg, ok
+}
+
+// GetEquipUpgradeConfig 获取装备强化配置
+func (cm *ConfigManager) GetEquipUpgradeConfig(itemId uint32) (*EquipUpgradeConfig, bool) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	cfg, ok := cm.equipUpgradeConfigs[itemId]
 	return cfg, ok
 }
 
@@ -329,6 +540,32 @@ func (cm *ConfigManager) GetLevelConfig(level uint32) (*LevelConfig, bool) {
 	defer cm.mu.RUnlock()
 	cfg, ok := cm.levelConfigs[level]
 	return cfg, ok
+}
+
+// GetLevelAttrs 获取指定等级的属性（高等级覆盖低等级）
+// 返回该等级及以下所有等级的属性合并结果，高等级属性会覆盖低等级同名属性
+func (cm *ConfigManager) GetLevelAttrs(level uint32) map[uint32]uint64 {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
+	result := make(map[uint32]uint64)
+
+	// 从1级到指定等级，逐级合并属性（高等级覆盖低等级）
+	for l := uint32(1); l <= level; l++ {
+		cfg, ok := cm.levelConfigs[l]
+		if !ok {
+			continue
+		}
+
+		// 合并该等级的属性（高等级会覆盖低等级）
+		for _, attr := range cfg.Attrs {
+			if attr != nil {
+				result[attr.Type] = attr.Value
+			}
+		}
+	}
+
+	return result
 }
 
 // GetVipConfig 获取VIP配置
@@ -390,5 +627,645 @@ func (cm *ConfigManager) GetBuffConfig(buffId uint32) (*BuffConfig, bool) {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	cfg, ok := cm.buffConfigs[buffId]
+	return cfg, ok
+}
+
+// GetConsumeConfig 获取通用消耗配置
+func (cm *ConfigManager) GetConsumeConfig(consumeId uint32) (*ConsumeConfig, bool) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	cfg, ok := cm.consumeConfigs[consumeId]
+	return cfg, ok
+}
+
+// GetRewardConfig 获取通用奖励配置
+func (cm *ConfigManager) GetRewardConfig(rewardId uint32) (*RewardConfig, bool) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	cfg, ok := cm.rewardConfigs[rewardId]
+	return cfg, ok
+}
+
+// loadDungeonConfigs 加载副本配置
+func (cm *ConfigManager) loadDungeonConfigs() error {
+	filePath := filepath.Join(cm.configPath, "dungeon_config.json")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		// 副本配置可选，如果文件不存在也不报错
+		log.Warnf("dungeon config file not found: %s", filePath)
+		cm.dungeonConfigs = make(map[uint32]*DungeonConfig)
+		return nil
+	}
+
+	var configs []*DungeonConfig
+	if err := internal.Unmarshal(data, &configs); err != nil {
+		return fmt.Errorf("unmarshal dungeon config failed: %w", err)
+	}
+
+	cm.dungeonConfigs = make(map[uint32]*DungeonConfig)
+	for _, cfg := range configs {
+		cm.dungeonConfigs[cfg.DungeonID] = cfg
+	}
+
+	log.Infof("Loaded %d dungeon configs", len(cm.dungeonConfigs))
+	return nil
+}
+
+// GetDungeonConfig 获取副本配置
+func (cm *ConfigManager) GetDungeonConfig(dungeonId uint32) (*DungeonConfig, bool) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	cfg, ok := cm.dungeonConfigs[dungeonId]
+	return cfg, ok
+}
+
+// loadItemUseEffectConfigs 加载物品使用效果配置
+func (cm *ConfigManager) loadItemUseEffectConfigs() error {
+	filePath := filepath.Join(cm.configPath, "item_use_effect_config.json")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		// 如果文件不存在，使用空配置（允许可选）
+		if os.IsNotExist(err) {
+			log.Warnf("item_use_effect_config.json not found, using empty config")
+			cm.itemUseEffectConfigs = make(map[uint32]*ItemUseEffectConfig)
+			return nil
+		}
+		return fmt.Errorf("read item use effect config failed: %w", err)
+	}
+
+	var configs []*ItemUseEffectConfig
+	if err := internal.Unmarshal(data, &configs); err != nil {
+		return fmt.Errorf("unmarshal item use effect config failed: %w", err)
+	}
+
+	cm.itemUseEffectConfigs = make(map[uint32]*ItemUseEffectConfig)
+	for _, cfg := range configs {
+		if cfg != nil {
+			cm.itemUseEffectConfigs[cfg.ItemId] = cfg
+		}
+	}
+
+	log.Infof("Loaded %d item use effect configs", len(cm.itemUseEffectConfigs))
+	return nil
+}
+
+// loadItemRecycleConfigs 加载物品回收配置
+func (cm *ConfigManager) loadItemRecycleConfigs() error {
+	filePath := filepath.Join(cm.configPath, "item_recycle_config.json")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		// 如果文件不存在，使用空配置（允许可选）
+		if os.IsNotExist(err) {
+			log.Warnf("item_recycle_config.json not found, using empty config")
+			cm.itemRecycleConfigs = make(map[uint32]*ItemRecycleConfig)
+			return nil
+		}
+		return fmt.Errorf("read item recycle config failed: %w", err)
+	}
+
+	var configs []*ItemRecycleConfig
+	if err := internal.Unmarshal(data, &configs); err != nil {
+		return fmt.Errorf("unmarshal item recycle config failed: %w", err)
+	}
+
+	cm.itemRecycleConfigs = make(map[uint32]*ItemRecycleConfig)
+	for _, cfg := range configs {
+		if cfg != nil {
+			cm.itemRecycleConfigs[cfg.ItemId] = cfg
+		}
+	}
+
+	log.Infof("Loaded %d item recycle configs", len(cm.itemRecycleConfigs))
+	return nil
+}
+
+// loadShopConfigs 加载商城配置
+func (cm *ConfigManager) loadShopConfigs() error {
+	filePath := filepath.Join(cm.configPath, "shop_config.json")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		// 如果文件不存在，使用空配置（允许可选）
+		if os.IsNotExist(err) {
+			log.Warnf("shop_config.json not found, using empty config")
+			cm.shopConfigs = make(map[uint32]*ShopConfig)
+			return nil
+		}
+		return fmt.Errorf("read shop config failed: %w", err)
+	}
+
+	var configs []*ShopConfig
+	if err := internal.Unmarshal(data, &configs); err != nil {
+		return fmt.Errorf("unmarshal shop config failed: %w", err)
+	}
+
+	cm.shopConfigs = make(map[uint32]*ShopConfig)
+	for _, cfg := range configs {
+		if cfg != nil {
+			// 使用itemId作为key
+			cm.shopConfigs[cfg.ItemId] = cfg
+		}
+	}
+
+	log.Infof("Loaded %d shop configs", len(cm.shopConfigs))
+	return nil
+}
+
+// GetItemUseEffectConfig 获取物品使用效果配置
+func (cm *ConfigManager) GetItemUseEffectConfig(itemId uint32) (*ItemUseEffectConfig, bool) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	cfg, ok := cm.itemUseEffectConfigs[itemId]
+	return cfg, ok
+}
+
+// GetItemRecycleConfig 获取物品回收配置
+func (cm *ConfigManager) GetItemRecycleConfig(itemId uint32) (*ItemRecycleConfig, bool) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	cfg, ok := cm.itemRecycleConfigs[itemId]
+	return cfg, ok
+}
+
+// GetShopConfig 获取商城配置（通过itemId）
+func (cm *ConfigManager) GetShopConfig(itemId uint32) (*ShopConfig, bool) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	cfg, ok := cm.shopConfigs[itemId]
+	return cfg, ok
+}
+
+// loadJobConfigs 加载职业配置
+func (cm *ConfigManager) loadJobConfigs() error {
+	filePath := filepath.Join(cm.configPath, "job_config.json")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		// 如果文件不存在，使用空配置（允许可选）
+		if os.IsNotExist(err) {
+			log.Warnf("job_config.json not found, using empty config")
+			cm.jobConfigs = make(map[uint32]*JobConfig)
+			return nil
+		}
+		return fmt.Errorf("read job config failed: %w", err)
+	}
+
+	var configs []*JobConfig
+	if err := internal.Unmarshal(data, &configs); err != nil {
+		return fmt.Errorf("unmarshal job config failed: %w", err)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	cm.jobConfigs = make(map[uint32]*JobConfig)
+	for _, cfg := range configs {
+		if cfg != nil {
+			cm.jobConfigs[cfg.JobId] = cfg
+		}
+	}
+
+	log.Infof("Loaded %d job configs", len(cm.jobConfigs))
+	return nil
+}
+
+// loadSceneConfigs 加载场景配置
+func (cm *ConfigManager) loadSceneConfigs() error {
+	filePath := filepath.Join(cm.configPath, "scene_config.json")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		// 如果文件不存在，使用空配置（允许可选）
+		if os.IsNotExist(err) {
+			log.Warnf("scene_config.json not found, using empty config")
+			cm.sceneConfigs = make(map[uint32]*SceneConfig)
+			return nil
+		}
+		return fmt.Errorf("read scene config failed: %w", err)
+	}
+
+	var configs []*SceneConfig
+	if err := internal.Unmarshal(data, &configs); err != nil {
+		return fmt.Errorf("unmarshal scene config failed: %w", err)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	cm.sceneConfigs = make(map[uint32]*SceneConfig)
+	for _, cfg := range configs {
+		if cfg != nil {
+			cm.sceneConfigs[cfg.SceneId] = cfg
+		}
+	}
+
+	log.Infof("Loaded %d scene configs", len(cm.sceneConfigs))
+	return nil
+}
+
+// loadMonsterSceneConfigs 加载怪物场景配置
+func (cm *ConfigManager) loadMonsterSceneConfigs() error {
+	filePath := filepath.Join(cm.configPath, "monster_scene_config.json")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		// 如果文件不存在，使用空配置（允许可选）
+		if os.IsNotExist(err) {
+			log.Warnf("monster_scene_config.json not found, using empty config")
+			cm.monsterSceneConfigs = make([]*MonsterSceneConfig, 0)
+			return nil
+		}
+		return fmt.Errorf("read monster scene config failed: %w", err)
+	}
+
+	var configs []*MonsterSceneConfig
+	if err := internal.Unmarshal(data, &configs); err != nil {
+		return fmt.Errorf("unmarshal monster scene config failed: %w", err)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	cm.monsterSceneConfigs = make([]*MonsterSceneConfig, 0, len(configs))
+	for _, cfg := range configs {
+		if cfg != nil {
+			cm.monsterSceneConfigs = append(cm.monsterSceneConfigs, cfg)
+		}
+	}
+
+	log.Infof("Loaded %d monster scene configs", len(cm.monsterSceneConfigs))
+	return nil
+}
+
+// loadNPCSceneConfigs 加载NPC场景配置
+func (cm *ConfigManager) loadNPCSceneConfigs() error {
+	filePath := filepath.Join(cm.configPath, "npc_scene_config.json")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		// 如果文件不存在，使用空配置（允许可选）
+		if os.IsNotExist(err) {
+			log.Warnf("npc_scene_config.json not found, using empty config")
+			cm.npcSceneConfigs = make([]*NPCSceneConfig, 0)
+			return nil
+		}
+		return fmt.Errorf("read npc scene config failed: %w", err)
+	}
+
+	var configs []*NPCSceneConfig
+	if err := internal.Unmarshal(data, &configs); err != nil {
+		return fmt.Errorf("unmarshal npc scene config failed: %w", err)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	cm.npcSceneConfigs = make([]*NPCSceneConfig, 0, len(configs))
+	for _, cfg := range configs {
+		if cfg != nil {
+			cm.npcSceneConfigs = append(cm.npcSceneConfigs, cfg)
+		}
+	}
+
+	log.Infof("Loaded %d npc scene configs", len(cm.npcSceneConfigs))
+	return nil
+}
+
+// loadTeleportConfigs 加载传送点配置
+func (cm *ConfigManager) loadTeleportConfigs() error {
+	filePath := filepath.Join(cm.configPath, "teleport_config.json")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		// 如果文件不存在，使用空配置（允许可选）
+		if os.IsNotExist(err) {
+			log.Warnf("teleport_config.json not found, using empty config")
+			cm.teleportConfigs = make(map[uint32]*TeleportConfig)
+			return nil
+		}
+		return fmt.Errorf("read teleport config failed: %w", err)
+	}
+
+	var configs []*TeleportConfig
+	if err := internal.Unmarshal(data, &configs); err != nil {
+		return fmt.Errorf("unmarshal teleport config failed: %w", err)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	cm.teleportConfigs = make(map[uint32]*TeleportConfig)
+	for _, cfg := range configs {
+		if cfg != nil {
+			cm.teleportConfigs[cfg.TeleportId] = cfg
+		}
+	}
+
+	log.Infof("Loaded %d teleport configs", len(cm.teleportConfigs))
+	return nil
+}
+
+// GetJobConfig 获取职业配置
+func (cm *ConfigManager) GetJobConfig(jobId uint32) (*JobConfig, bool) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	cfg, ok := cm.jobConfigs[jobId]
+	return cfg, ok
+}
+
+// GetSceneConfig 获取场景配置
+func (cm *ConfigManager) GetSceneConfig(sceneId uint32) (*SceneConfig, bool) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	cfg, ok := cm.sceneConfigs[sceneId]
+	return cfg, ok
+}
+
+// GetMonsterSceneConfigs 获取指定场景的怪物配置列表
+func (cm *ConfigManager) GetMonsterSceneConfigs(sceneId uint32) []*MonsterSceneConfig {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
+	result := make([]*MonsterSceneConfig, 0)
+	for _, cfg := range cm.monsterSceneConfigs {
+		if cfg != nil && cfg.SceneId == sceneId {
+			result = append(result, cfg)
+		}
+	}
+	return result
+}
+
+// GetNPCSceneConfig 根据NPC ID获取NPC配置
+func (cm *ConfigManager) GetNPCSceneConfig(npcId uint32) *NPCSceneConfig {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	for _, cfg := range cm.npcSceneConfigs {
+		if cfg.NpcId == npcId {
+			return cfg
+		}
+	}
+	return nil
+}
+
+// GetNPCSceneConfigs 获取指定场景的NPC配置列表
+func (cm *ConfigManager) GetNPCSceneConfigs(sceneId uint32) []*NPCSceneConfig {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
+	result := make([]*NPCSceneConfig, 0)
+	for _, cfg := range cm.npcSceneConfigs {
+		if cfg != nil && cfg.SceneId == sceneId {
+			result = append(result, cfg)
+		}
+	}
+	return result
+}
+
+// GetTeleportConfig 获取传送点配置
+func (cm *ConfigManager) GetTeleportConfig(teleportId uint32) (*TeleportConfig, bool) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	cfg, ok := cm.teleportConfigs[teleportId]
+	return cfg, ok
+}
+
+// GetTeleportConfigsByScene 获取指定场景的传送点配置列表
+func (cm *ConfigManager) GetTeleportConfigsByScene(sceneId uint32) []*TeleportConfig {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
+	result := make([]*TeleportConfig, 0)
+	for _, cfg := range cm.teleportConfigs {
+		if cfg != nil && cfg.FromSceneId == sceneId {
+			result = append(result, cfg)
+		}
+	}
+	return result
+}
+
+// loadDailyQuestConfigs 加载每日任务配置
+func (cm *ConfigManager) loadDailyQuestConfigs() error {
+	filePath := filepath.Join(cm.configPath, "daily_quest_config.json")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		// 如果文件不存在，使用空配置（允许可选）
+		if os.IsNotExist(err) {
+			log.Warnf("daily_quest_config.json not found, using empty config")
+			cm.dailyQuestConfigs = make(map[uint32]*DailyQuestConfig)
+			return nil
+		}
+		return fmt.Errorf("read daily quest config failed: %w", err)
+	}
+
+	var configs []*DailyQuestConfig
+	if err := internal.Unmarshal(data, &configs); err != nil {
+		return fmt.Errorf("unmarshal daily quest config failed: %w", err)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	cm.dailyQuestConfigs = make(map[uint32]*DailyQuestConfig)
+	for _, cfg := range configs {
+		if cfg != nil {
+			cm.dailyQuestConfigs[cfg.QuestId] = cfg
+		}
+	}
+
+	log.Infof("Loaded %d daily quest configs", len(cm.dailyQuestConfigs))
+	return nil
+}
+
+// GetDailyQuestConfig 获取每日任务配置
+func (cm *ConfigManager) GetDailyQuestConfig(questId uint32) (*DailyQuestConfig, bool) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	cfg, ok := cm.dailyQuestConfigs[questId]
+	return cfg, ok
+}
+
+// GetAllDailyQuestConfigs 获取所有每日任务配置
+func (cm *ConfigManager) GetAllDailyQuestConfigs() []*DailyQuestConfig {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
+	result := make([]*DailyQuestConfig, 0, len(cm.dailyQuestConfigs))
+	for _, cfg := range cm.dailyQuestConfigs {
+		if cfg != nil {
+			result = append(result, cfg)
+		}
+	}
+	return result
+}
+
+// loadAchievementConfigs 加载成就配置
+func (cm *ConfigManager) loadAchievementConfigs() error {
+	filePath := filepath.Join(cm.configPath, "achievement_config.json")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		// 如果文件不存在，使用空配置（允许可选）
+		if os.IsNotExist(err) {
+			log.Warnf("achievement_config.json not found, using empty config")
+			cm.achievementConfigs = make(map[uint32]*AchievementConfig)
+			return nil
+		}
+		return fmt.Errorf("read achievement config failed: %w", err)
+	}
+
+	var configs []*AchievementConfig
+	if err := internal.Unmarshal(data, &configs); err != nil {
+		return fmt.Errorf("unmarshal achievement config failed: %w", err)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	cm.achievementConfigs = make(map[uint32]*AchievementConfig)
+	for _, cfg := range configs {
+		if cfg != nil {
+			cm.achievementConfigs[cfg.AchievementId] = cfg
+		}
+	}
+
+	log.Infof("Loaded %d achievement configs", len(cm.achievementConfigs))
+	return nil
+}
+
+// GetAchievementConfig 获取成就配置
+func (cm *ConfigManager) GetAchievementConfig(achievementId uint32) (*AchievementConfig, bool) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	cfg, ok := cm.achievementConfigs[achievementId]
+	return cfg, ok
+}
+
+// GetAllAchievementConfigs 获取所有成就配置
+func (cm *ConfigManager) GetAllAchievementConfigs() []*AchievementConfig {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
+	result := make([]*AchievementConfig, 0, len(cm.achievementConfigs))
+	for _, cfg := range cm.achievementConfigs {
+		if cfg != nil {
+			result = append(result, cfg)
+		}
+	}
+	return result
+}
+
+// loadEquipRefineConfigs 加载装备精炼配置
+func (cm *ConfigManager) loadEquipRefineConfigs() error {
+	filePath := filepath.Join(cm.configPath, "equip_refine_config.json")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		// 如果文件不存在，使用空配置（允许可选）
+		if os.IsNotExist(err) {
+			log.Warnf("equip_refine_config.json not found, using empty config")
+			cm.equipRefineConfigs = make(map[uint32]*EquipRefineConfig)
+			return nil
+		}
+		return fmt.Errorf("read equip refine config failed: %w", err)
+	}
+
+	var configs []*EquipRefineConfig
+	if err := internal.Unmarshal(data, &configs); err != nil {
+		return fmt.Errorf("unmarshal equip refine config failed: %w", err)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	cm.equipRefineConfigs = make(map[uint32]*EquipRefineConfig)
+	for _, cfg := range configs {
+		if cfg != nil {
+			cm.equipRefineConfigs[cfg.ItemId] = cfg
+		}
+	}
+
+	log.Infof("Loaded %d equip refine configs", len(cm.equipRefineConfigs))
+	return nil
+}
+
+// GetEquipRefineConfig 获取装备精炼配置
+func (cm *ConfigManager) GetEquipRefineConfig(itemId uint32) (*EquipRefineConfig, bool) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	cfg, ok := cm.equipRefineConfigs[itemId]
+	return cfg, ok
+}
+
+// loadEquipEnchantConfigs 加载装备附魔配置
+func (cm *ConfigManager) loadEquipEnchantConfigs() error {
+	filePath := filepath.Join(cm.configPath, "equip_enchant_config.json")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		// 如果文件不存在，使用空配置（允许可选）
+		if os.IsNotExist(err) {
+			log.Warnf("equip_enchant_config.json not found, using empty config")
+			cm.equipEnchantConfigs = make(map[uint32]*EquipEnchantConfig)
+			return nil
+		}
+		return fmt.Errorf("read equip enchant config failed: %w", err)
+	}
+
+	var configs []*EquipEnchantConfig
+	if err := internal.Unmarshal(data, &configs); err != nil {
+		return fmt.Errorf("unmarshal equip enchant config failed: %w", err)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	cm.equipEnchantConfigs = make(map[uint32]*EquipEnchantConfig)
+	for _, cfg := range configs {
+		if cfg != nil {
+			cm.equipEnchantConfigs[cfg.ItemId] = cfg
+		}
+	}
+
+	log.Infof("Loaded %d equip enchant configs", len(cm.equipEnchantConfigs))
+	return nil
+}
+
+// GetEquipEnchantConfig 获取装备附魔配置
+func (cm *ConfigManager) GetEquipEnchantConfig(itemId uint32) (*EquipEnchantConfig, bool) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	cfg, ok := cm.equipEnchantConfigs[itemId]
+	return cfg, ok
+}
+
+// loadEquipSetConfigs 加载装备套装配置
+func (cm *ConfigManager) loadEquipSetConfigs() error {
+	filePath := filepath.Join(cm.configPath, "equip_set_config.json")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		// 如果文件不存在，使用空配置（允许可选）
+		if os.IsNotExist(err) {
+			log.Warnf("equip_set_config.json not found, using empty config")
+			cm.equipSetConfigs = make(map[uint32]*EquipSetConfig)
+			return nil
+		}
+		return fmt.Errorf("read equip set config failed: %w", err)
+	}
+
+	var configs []*EquipSetConfig
+	if err := internal.Unmarshal(data, &configs); err != nil {
+		return fmt.Errorf("unmarshal equip set config failed: %w", err)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	cm.equipSetConfigs = make(map[uint32]*EquipSetConfig)
+	for _, cfg := range configs {
+		if cfg != nil {
+			cm.equipSetConfigs[cfg.SetId] = cfg
+		}
+	}
+
+	log.Infof("Loaded %d equip set configs", len(cm.equipSetConfigs))
+	return nil
+}
+
+// GetEquipSetConfig 获取装备套装配置
+func (cm *ConfigManager) GetEquipSetConfig(setId uint32) (*EquipSetConfig, bool) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	cfg, ok := cm.equipSetConfigs[setId]
 	return cfg, ok
 }

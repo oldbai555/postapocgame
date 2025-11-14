@@ -8,6 +8,7 @@ package iface
 
 import (
 	"postapocgame/server/internal/argsdef"
+	"time"
 )
 
 // IEntity 实体接口
@@ -22,6 +23,7 @@ type IEntity interface {
 	GetFuBenId() uint32
 	SetFuBenId(fuBenId uint32)
 	GetLevel() uint32
+	GetStateFlags() uint64
 
 	SendMessage(protoId uint16, data []byte) error
 	SendJsonMessage(protoId uint16, v interface{}) error
@@ -40,16 +42,20 @@ type IEntity interface {
 	GetBuffSys() IBuffSys
 	GetAOISys() IAOISys
 	GetAttrSys() IAttrSys
+	GetMoveSys() IMoveSys
 
 	// 战斗相关
 	OnAttacked(attacker IEntity, damage int64)
 	OnDie(killer IEntity)
 	IsInvincible() bool
 	CanBeAttacked() bool
+	ApplyExtraState(stateId uint32, duration time.Duration)
+	RemoveExtraState(stateId uint32)
 
 	// AOI相关
 
 	OnEnterScene()
 	OnLeaveScene()
 	OnMove(newX, newY uint32)
+	RunOne(now time.Time)
 }

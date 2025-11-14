@@ -16,20 +16,42 @@ import "system.proto";
 enum S2CProtocol{
     S2CError = 0;// 错误消息
 
-    S2CRoleList = 1;// 角色列表
-    S2CCreateRoleResult = 2;// 创建角色结果
-    S2CEnterScene = 3;// 进入场景
-    S2CUpdateBagData = 4;// 更新背包数据
-    S2CQuestData = 5;// 任务数据
-    S2CLevelData = 6;// 等级数据
-    S2CBagData = 7;// 背包数据
-    S2CVipData = 8;// VIP数据
-    S2CMoneyData = 9;// 货币数据
-    S2CAttrData = 10;// 属性数据
-    S2CMailList = 11;// 邮件列表
-    S2CMailDetail = 12;// 邮件详情
-    S2CReconnectSuccess = 13;// 重连密钥
-    S2CLoginSuccess = 14;// 登录成功
+    S2CRegisterResult = 1;// 注册结果
+    S2CLoginResult = 2;// 登录结果
+    S2CRoleList = 3;// 角色列表
+    S2CCreateRoleResult = 4;// 创建角色结果
+    S2CEnterScene = 5;// 进入场景
+    S2CUpdateBagData = 6;// 更新背包数据
+    S2CQuestData = 7;// 任务数据
+    S2CLevelData = 8;// 等级数据
+    S2CBagData = 9;// 背包数据
+    S2CVipData = 10;// VIP数据
+    S2CMoneyData = 11;// 货币数据
+    S2CAttrData = 12;// 属性数据
+    S2CMailList = 13;// 邮件列表
+    S2CMailDetail = 14;// 邮件详情
+    S2CReconnectSuccess = 15;// 重连密钥
+    S2CLoginSuccess = 16;// 登录成功
+    S2CEntityMove = 17;// 实体移动广播
+    S2CEntityStopMove = 18;// 实体停止移动
+    S2CSkillCastResult = 19;// 技能释放结果
+    S2CEntityAppear = 20;// 实体进入视野
+    S2CEntityDisappear = 21;// 实体离开视野
+    S2CShopBuyResult = 22;// 商城购买结果
+    S2CEquipResult = 23;// 穿戴装备结果
+    S2CSystemNotification = 24;// 系统通知
+    S2CGMCommandResult = 25;// GM命令结果
+    S2CUseItemResult = 26;// 使用物品结果
+    S2CRecycleItemResult = 27;// 回收物品结果
+    S2CTalkToNPCResult = 28;// NPC对话结果
+    S2CLearnSkillResult = 29;// 学习技能结果
+    S2CUpgradeSkillResult = 30;// 升级技能结果
+    S2CChangeSceneResult = 31;// 切换场景结果
+    S2CPickupItemResult = 32;// 拾取掉落物结果
+    S2CEnterDungeonResult = 33;// 进入副本结果
+    S2CClaimOfflineRewardResult = 34;// 领取离线收益结果
+    S2CReviveResult = 35;// 角色复活结果
+    S2CGetNearestMonsterResult = 36;// 获取最近怪物结果
 }
 
 message S2CRoleListReq {
@@ -83,7 +105,178 @@ message S2CReconnectSuccessReq {
     PlayerSimpleData role_data = 2;
 }
 
+message S2CRegisterResultReq {
+    bool success = 1;
+    string message = 2;
+    string token = 3; // 注册成功后返回token
+}
+
+message S2CLoginResultReq {
+    bool success = 1;
+    string message = 2;
+    string token = 3; // 登录成功后返回token
+}
+
 message S2CLoginSuccessReq {
     string reconnect_key = 1;
     PlayerSimpleData role_data = 2;
+}
+
+message SkillHitResultSt {
+    uint64 target_hdl = 1;
+    bool is_hit = 2;
+    bool is_dodge = 3;
+    bool is_crit = 4;
+    int64 damage = 5;
+    int64 heal = 6;
+    repeated uint32 added_buffs = 7;
+    uint32 result_type = 8;
+    map<uint32, int64> attrs = 9;
+    uint64 state_flags = 10;
+}
+
+message S2CSkillCastResultReq {
+    uint64 caster_hdl = 1;
+    uint32 skill_id = 2;
+    uint32 err_code = 3;
+    repeated SkillHitResultSt hits = 4;
+}
+
+message S2CEntityMoveReq {
+    uint64 entity_hdl = 1;
+    uint32 pos_x = 2;
+    uint32 pos_y = 3;
+    uint32 speed = 4;
+    uint32 seq = 5;
+}
+
+message S2CEntityStopMoveReq {
+    uint64 entity_hdl = 1;
+    uint32 pos_x = 2;
+    uint32 pos_y = 3;
+    uint32 seq = 4;
+}
+
+message S2CEntityAppearReq {
+    EntitySt entity = 1;
+}
+
+message S2CEntityDisappearReq {
+    uint64 entity_hdl = 1;
+}
+
+message S2CShopBuyResultReq {
+    uint32 item_id = 1;
+    uint32 count = 2;
+    uint32 err_code = 3;
+}
+
+message S2CEquipResultReq {
+    uint32 slot = 1;
+    uint32 item_id = 2;
+    uint32 err_code = 3;
+}
+
+// 系统通知
+message S2CSystemNotificationReq {
+    string title = 1;// 通知标题
+    string content = 2;// 通知内容
+    uint32 type = 3;// 通知类型: 1=系统维护 2=活动通知 3=奖励通知 4=其他
+    uint32 priority = 4;// 优先级: 1=低 2=中 3=高
+}
+
+// GM命令结果
+message S2CGMCommandResultReq {
+    bool success = 1;// 是否执行成功
+    string message = 2;// 执行结果消息
+}
+
+// 使用物品结果
+message S2CUseItemResultReq {
+    bool success = 1;// 是否使用成功
+    string message = 2;// 结果消息
+    uint32 item_id = 3;// 物品ID
+    uint32 remaining_count = 4;// 剩余数量
+}
+
+// 回收物品结果
+message S2CRecycleItemResultReq {
+    bool success = 1;// 是否回收成功
+    string message = 2;// 结果消息
+    uint32 item_id = 3;// 物品ID
+    uint32 recycled_count = 4;// 回收数量
+    repeated ItemAmount awards = 5;// 回收奖励列表
+}
+
+// NPC对话结果
+message S2CTalkToNPCResultReq {
+    bool success = 1;// 是否对话成功
+    string message = 2;// 结果消息
+    uint32 npc_id = 3;// NPC ID
+}
+
+// 学习技能结果
+message S2CLearnSkillResultReq {
+    bool success = 1;// 是否学习成功
+    string message = 2;// 结果消息
+    uint32 skill_id = 3;// 技能ID
+}
+
+// 升级技能结果
+message S2CUpgradeSkillResultReq {
+    bool success = 1;// 是否升级成功
+    string message = 2;// 结果消息
+    uint32 skill_id = 3;// 技能ID
+    uint32 skill_level = 4;// 技能等级
+}
+
+// 切换场景结果
+message S2CChangeSceneResultReq {
+    bool success = 1;// 是否切换成功
+    string message = 2;// 结果消息
+    uint32 scene_id = 3;// 场景ID
+}
+
+// 拾取掉落物结果
+message S2CPickupItemResultReq {
+    bool success = 1;// 是否拾取成功
+    string message = 2;// 结果消息
+    uint64 item_hdl = 3;// 掉落物句柄
+}
+
+// 进入副本结果
+message S2CEnterDungeonResultReq {
+    bool success = 1;// 是否进入成功
+    string message = 2;// 结果消息
+    uint32 dungeon_id = 3;// 副本ID
+}
+
+// 领取离线收益结果
+message S2CClaimOfflineRewardResultReq {
+    bool success = 1;// 是否领取成功
+    string message = 2;// 结果消息
+    int64 offline_seconds = 3;// 离线时间（秒）
+    repeated ItemAmount rewards = 4;// 奖励列表
+    int64 claimed_time = 5;// 领取时间（Unix时间戳）
+}
+
+// 角色复活结果
+message S2CReviveResultReq {
+    bool success = 1;// 是否复活成功
+    string message = 2;// 结果消息
+    uint32 scene_id = 3;// 复活场景ID
+    uint32 pos_x = 4;// 复活位置X
+    uint32 pos_y = 5;// 复活位置Y
+}
+
+// 获取最近怪物结果
+message S2CGetNearestMonsterResultReq {
+    bool success = 1;// 是否找到怪物
+    string message = 2;// 结果消息
+    uint64 monster_hdl = 3;// 怪物句柄
+    uint32 monster_id = 4;// 怪物ID
+    string monster_name = 5;// 怪物名称
+    uint32 pos_x = 6;// 怪物位置X
+    uint32 pos_y = 7;// 怪物位置Y
+    float distance = 8;// 距离
 }

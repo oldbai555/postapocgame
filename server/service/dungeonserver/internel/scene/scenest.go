@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"postapocgame/server/internal/argsdef"
+	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/dungeonserver/internel/entity"
 	"postapocgame/server/service/dungeonserver/internel/entitymgr"
@@ -115,11 +116,16 @@ func (s *SceneSt) AddEntity(e iface.IEntity) error {
 	e.SetSceneId(s.sceneId)
 	e.SetFuBenId(s.fuBenId)
 
+	if moveSys := e.GetMoveSys(); moveSys != nil {
+		moveSys.BindScene(s)
+	}
+
 	// 注册到全局EntityMgr
 	entityMgr := entitymgr.GetEntityMgr()
 	if err := entityMgr.Register(e); err != nil {
 		log.Warnf("Register entity to EntityMgr failed: %v", err)
 	}
+	entityMgr.BindScene(hdl, s)
 
 	// 添加到AOI管理器
 	s.aoiMgr.AddEntity(e)
@@ -145,6 +151,10 @@ func (s *SceneSt) RemoveEntity(hdl uint64) error {
 	// 从AOI管理器移除
 	s.aoiMgr.RemoveEntity(e)
 
+	if moveSys := e.GetMoveSys(); moveSys != nil {
+		moveSys.UnbindScene(s)
+	}
+
 	// 触发离开场景回调
 	e.OnLeaveScene()
 
@@ -152,6 +162,7 @@ func (s *SceneSt) RemoveEntity(hdl uint64) error {
 
 	// 从全局EntityMgr注销
 	entityMgr := entitymgr.GetEntityMgr()
+	entityMgr.UnbindScene(hdl)
 	entityMgr.Unregister(hdl)
 
 	log.Infof("Entity %d (hdl) left scene %d", hdl, s.sceneId)
@@ -204,22 +215,25 @@ func (s *SceneSt) EntityMove(hdl uint64, newX, newY uint32) error {
 }
 
 // SpawnMonster 生成怪物
-func (s *SceneSt) SpawnMonster(monsterId uint32, name string, level uint32, x, y uint32) (*entity.MonsterEntity, error) {
-	// 创建怪物实体
-	monster := entity.NewMonsterEntity(monsterId, name, level)
+func (s *SceneSt) SpawnMonster(monsterId uint32, x, y uint32) (*entity.MonsterEntity, error) {
+	cfgMgr := jsonconf.GetConfigManager()
+	monsterCfg, ok := cfgMgr.GetMonsterConfig(monsterId)
+	if !ok {
+		return nil, fmt.Errorf("monster config not found: %d", monsterId)
+	}
+
+	monster := entity.NewMonsterEntity(monsterCfg)
 	monster.SetPosition(x, y)
 
-	// 添加到场景
 	if err := s.AddEntity(monster); err != nil {
 		return nil, err
 	}
 
-	// 添加到怪物列表
 	s.monsterMu.Lock()
 	s.monsters[monster.GetHdl()] = monster
 	s.monsterMu.Unlock()
 
-	log.Infof("Monster spawned: hdl=%d, monsterId=%d, name=%s, pos=(%d,%d)", monster.GetHdl(), monsterId, name, x, y)
+	log.Infof("Monster spawned: hdl=%d, monsterId=%d, name=%s, pos=(%d,%d)", monster.GetHdl(), monsterId, monsterCfg.Name, x, y)
 
 	return monster, nil
 }
@@ -240,18 +254,37 @@ func (s *SceneSt) GetMonsterCount() int {
 	return len(s.monsters)
 }
 
-// InitMonsters 初始化场景怪物
+// InitMonsters 初始化场景怪物（根据MonsterSceneConfig配置）
 func (s *SceneSt) InitMonsters() {
-	// 根据场景Id初始化不同的怪物
-	switch s.sceneId {
-	case 1:
-		// 场景1是空白地图，无怪物
-		log.Infof("Scene 1: Empty scene, no monsters")
-	case 2:
-		// 场景2：生成各种怪物
-		s.spawnScene2Monsters()
-	default:
-		log.Infof("Scene %d: No monster configuration", s.sceneId)
+	configMgr := jsonconf.GetConfigManager()
+	monsterSceneConfigs := configMgr.GetMonsterSceneConfigs()
+
+	// 查找该场景的怪物配置
+	for _, cfg := range monsterSceneConfigs {
+		if cfg.SceneId == s.sceneId {
+			// 根据配置生成怪物
+			for i := 0; i < int(cfg.Count); i++ {
+				var x, y uint32
+				if cfg.BornArea != nil && cfg.BornArea.X2 > cfg.BornArea.X1 && cfg.BornArea.Y2 > cfg.BornArea.Y1 {
+					// 从出生点范围随机选择
+					x = cfg.BornArea.X1 + uint32(rand.Intn(int(cfg.BornArea.X2-cfg.BornArea.X1)))
+					y = cfg.BornArea.Y1 + uint32(rand.Intn(int(cfg.BornArea.Y2-cfg.BornArea.Y1)))
+				} else {
+					// 使用随机可行走位置
+					x, y = s.GetRandomWalkablePos()
+				}
+				_, err := s.SpawnMonster(cfg.MonsterId, x, y)
+				if err != nil {
+					log.Warnf("Failed to spawn monster %d in scene %d: %v", cfg.MonsterId, s.sceneId, err)
+				}
+			}
+			log.Infof("Scene %d: Spawned %d monsters (monsterId=%d)", s.sceneId, cfg.Count, cfg.MonsterId)
+		}
+	}
+
+	// 如果没有找到配置，记录日志
+	if s.GetMonsterCount() == 0 {
+		log.Infof("Scene %d: No monster configuration found", s.sceneId)
 	}
 }
 
@@ -260,30 +293,30 @@ func (s *SceneSt) spawnScene2Monsters() {
 	// 史莱姆 x10
 	for i := 0; i < 10; i++ {
 		x, y := s.GetRandomWalkablePos()
-		s.SpawnMonster(10001, "史莱姆", 1, x, y)
+		s.SpawnMonster(10001, x, y)
 	}
 
 	// 哥布林 x8
 	for i := 0; i < 8; i++ {
 		x, y := s.GetRandomWalkablePos()
-		s.SpawnMonster(10002, "哥布林", 5, x, y)
+		s.SpawnMonster(10002, x, y)
 	}
 
 	// 森林狼 x5
 	for i := 0; i < 5; i++ {
 		x, y := s.GetRandomWalkablePos()
-		s.SpawnMonster(10003, "森林狼", 8, x, y)
+		s.SpawnMonster(10003, x, y)
 	}
 
 	// 哥布林首领 x2
 	for i := 0; i < 2; i++ {
 		x, y := s.GetRandomWalkablePos()
-		s.SpawnMonster(20001, "哥布林首领", 10, x, y)
+		s.SpawnMonster(20001, x, y)
 	}
 
 	// 森林守护者 x1 (BOSS)
 	x, y := s.GetRandomWalkablePos()
-	s.SpawnMonster(30001, "森林守护者", 15, x, y)
+	s.SpawnMonster(30001, x, y)
 
 	log.Infof("Scene 2 monsters spawned: total=%d", s.GetMonsterCount())
 }

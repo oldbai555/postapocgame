@@ -15,8 +15,6 @@ enum FuBenType {
 
     FuBenTypePermanent    = 1;// 常驻副本
     FuBenTypeTimed        = 2;// 限时副本
-    FuBenTypeTimedSingle  = 3;// 限时单人副本
-    FuBenTypeTimedMulti   = 4;// 限时多人副本
 }
 
 enum FuBenState {
@@ -24,4 +22,5 @@ enum FuBenState {
     FuBenStateNormal   = 1;// 正常
     FuBenStateClosing  = 2;// 关闭中
     FuBenStateClosed   = 3;// 已关闭
+    FuBenStateCompleted = 4;// 已完成（结算中）
 }

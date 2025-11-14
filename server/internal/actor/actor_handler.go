@@ -8,7 +8,6 @@ package actor
 
 import (
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/pkg/routine"
 	"sync"
 )
 
@@ -46,9 +45,7 @@ func (b *BaseActorHandler) HandleMessage(msg IActorMessage) {
 		log.Errorf("msgId %d not found handler", msg.GetMsgId())
 		return
 	}
-	routine.Run(func() {
-		f(msg)
-	})
+	f(msg)
 }
 
 func (b *BaseActorHandler) Loop() {}

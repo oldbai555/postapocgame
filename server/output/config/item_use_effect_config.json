@@ -1,0 +1,73 @@
+[
+  {
+    "itemId": 1001,
+    "effectType": 1,
+    "values": [100]
+  },
+  {
+    "itemId": 1002,
+    "effectType": 1,
+    "values": [500]
+  },
+  {
+    "itemId": 1003,
+    "effectType": 1,
+    "values": [1000]
+  },
+  {
+    "itemId": 1004,
+    "effectType": 1,
+    "values": [2000]
+  },
+  {
+    "itemId": 1005,
+    "effectType": 2,
+    "values": [50]
+  },
+  {
+    "itemId": 1006,
+    "effectType": 2,
+    "values": [200]
+  },
+  {
+    "itemId": 1007,
+    "effectType": 2,
+    "values": [500]
+  },
+  {
+    "itemId": 1008,
+    "effectType": 2,
+    "values": [1000]
+  },
+  {
+    "itemId": 1009,
+    "effectType": 1,
+    "values": [500, 200]
+  },
+  {
+    "itemId": 1010,
+    "effectType": 1,
+    "values": [1000, 500]
+  },
+  {
+    "itemId": 1011,
+    "effectType": 3,
+    "values": [500]
+  },
+  {
+    "itemId": 1012,
+    "effectType": 3,
+    "values": [2000]
+  },
+  {
+    "itemId": 1013,
+    "effectType": 3,
+    "values": [5000]
+  },
+  {
+    "itemId": 1014,
+    "effectType": 3,
+    "values": [10000]
+  }
+]
+

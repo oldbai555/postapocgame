@@ -11,11 +11,15 @@ package pb3;
 option go_package = "server/internal/protocol";
 import "base.proto";
 import "player.proto";
+import "attr_def.proto";
 
 enum G2DRpcProtocol{
     G2DRPCProtocolNil = 0;
 
     G2DEnterDungeon = 1;// 进入副本
+    G2DSyncAttrs = 2;// 同步属性
+    G2DUpdateHpMp = 3;// 更新HP/MP
+    G2DUpdateSkill = 4;// 更新技能（学习/升级）
 }
 
 message G2DEnterDungeonReq {
@@ -23,6 +27,16 @@ message G2DEnterDungeonReq {
     uint32 platform_id = 2;// 平台ID
     uint32 srv_id = 3;// 区服ID
     PlayerSimpleData simple_data = 4;
+    SyncAttrData sync_attr_data = 5;// 属性数据
+    map<uint32, uint32> skill_map = 6;// 技能列表（skillId -> level）
+    uint32 dungeon_id = 7;// 副本ID（0表示默认副本，>0表示限时副本）
+    uint32 difficulty = 8;// 难度（1=普通 2=精英 3=地狱）
+}
+
+message G2DSyncAttrsReq {
+    string session_id = 1;
+    uint64 role_id = 2;
+    SyncAttrData sync_data = 3;// 属性同步数据
 }
 
 message G2DSyncGameDataReq {
@@ -36,6 +50,10 @@ enum D2GRpcProtocol{
 
     D2GRegisterProtocols = 1;// 注册协议
     D2GUnregisterProtocols = 2;// 注销协议
+    D2GSettleDungeon = 3;// 副本结算
+    D2GEnterDungeonSuccess = 4;// 进入副本成功通知
+    D2GAddItem = 5;// 添加物品（拾取掉落物）
+    D2GSyncPosition = 6;// 同步坐标到GameServer
 }
 
 // 协议注册信息
@@ -53,4 +71,81 @@ message D2GRegisterProtocolsReq {
 // 注销协议请求
 message D2GUnregisterProtocolsReq {
     uint32 srvType = 1;// DungeonServer类型
+}
+
+// 副本结算请求
+message D2GSettleDungeonReq {
+    string session_id = 1;// 会话ID
+    uint64 role_id = 2;// 角色ID
+    uint32 dungeon_id = 3;// 副本ID
+    uint32 difficulty = 4;// 难度
+    bool success = 5;// 是否成功
+    uint32 kill_count = 6;// 击杀数量
+    uint32 time_used = 7;// 用时（秒）
+    repeated RewardItem rewards = 8;// 奖励列表
+}
+
+// 奖励物品
+message RewardItem {
+    uint32 type = 1;// 1=经验 2=金币 3=物品
+    uint32 item_id = 2;
+    uint32 count = 3;
+}
+
+// 副本结算响应
+message D2GSettleDungeonResp {
+    bool success = 1;// 是否成功
+    string error_msg = 2;// 错误信息
+}
+
+// 进入副本成功通知
+message D2GEnterDungeonSuccessReq {
+    string session_id = 1;// 会话ID
+    uint64 role_id = 2;// 角色ID
+}
+
+// 更新HP/MP请求
+message G2DUpdateHpMpReq {
+    string session_id = 1;// 会话ID
+    uint64 role_id = 2;// 角色ID
+    int64 hp_delta = 3;// HP变化量（正数表示增加，负数表示减少）
+    int64 mp_delta = 4;// MP变化量（正数表示增加，负数表示减少）
+}
+
+// 添加物品请求（拾取掉落物）
+message D2GAddItemReq {
+    string session_id = 1;// 会话ID
+    uint64 role_id = 2;// 角色ID
+    uint32 item_id = 3;// 物品ID
+    uint32 count = 4;// 数量
+    uint64 item_hdl = 5;// 掉落物句柄（用于响应时移除）
+}
+
+// 添加物品响应
+message D2GAddItemResp {
+    bool success = 1;// 是否成功
+    string error_msg = 2;// 错误信息
+}
+
+// 更新技能请求（学习/升级）
+message G2DUpdateSkillReq {
+    string session_id = 1;// 会话ID
+    uint64 role_id = 2;// 角色ID
+    uint32 skill_id = 3;// 技能ID
+    uint32 skill_level = 4;// 技能等级
+}
+
+// 同步坐标请求（DungeonServer -> GameServer）
+message D2GSyncPositionReq {
+    string session_id = 1;// 会话ID
+    uint64 role_id = 2;// 角色ID
+    uint32 scene_id = 3;// 场景ID
+    uint32 pos_x = 4;// 位置X
+    uint32 pos_y = 5;// 位置Y
+}
+
+// 同步坐标响应
+message D2GSyncPositionResp {
+    bool success = 1;// 是否成功
+    string error_msg = 2;// 错误信息
 }

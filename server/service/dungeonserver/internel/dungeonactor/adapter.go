@@ -10,6 +10,10 @@ import (
 	"context"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/service/dungeonserver/internel/dshare"
+	"postapocgame/server/service/dungeonserver/internel/entitymgr"
+	"postapocgame/server/service/dungeonserver/internel/fbmgr"
+	"sync/atomic"
+	"time"
 )
 
 type DungeonActor struct {
@@ -26,8 +30,32 @@ func (a *DungeonActor) Stop(ctx context.Context) error {
 	return a.actorMgr.Stop(ctx)
 }
 
+type dungeonActorHandler struct {
+	*actor.BaseActorHandler
+	inLoop atomic.Bool
+}
+
+func newDungeonActorHandler() *dungeonActorHandler {
+	return &dungeonActorHandler{
+		BaseActorHandler: actor.NewBaseActorHandler(),
+	}
+}
+
+func (h *dungeonActorHandler) Loop() {
+	if h == nil {
+		return
+	}
+	if !h.inLoop.CompareAndSwap(false, true) {
+		return
+	}
+	defer h.inLoop.Store(false)
+	now := time.Now()
+	entitymgr.RunOne(now)
+	fbmgr.GetFuBenMgr().RunOne(now)
+}
+
 func NewDungeonActor(mode actor.ActorMode) *DungeonActor {
-	handler := actor.NewBaseActorHandler()
+	handler := newDungeonActorHandler()
 	d := &DungeonActor{
 		actorMgr: actor.NewActorManager(mode, 1000, func() actor.IActorHandler {
 			return handler

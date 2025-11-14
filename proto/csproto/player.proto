@@ -18,6 +18,7 @@ message PlayerSimpleData {
     uint32 sex = 3;
     uint32 level = 4;
     string role_name = 5;
+    uint32 gm_level = 6;// GM等级: 0=普通玩家 1=GM 2=高级GM 3=超级GM
 }
 
 // 玩家信息
@@ -32,6 +33,7 @@ message PlayerRoleMainData {
     uint32 sex = 3;
     uint32 level = 4;
     string role_name = 5;
+    uint32 gm_level = 6;// GM等级: 0=普通玩家 1=GM 2=高级GM 3=超级GM
 }
 
 message PlayerRoleBinaryData {
@@ -40,4 +42,15 @@ message PlayerRoleBinaryData {
     SiBagData bag_data = 3;
     SiVipData vip_data = 4;
     SiMoneyData money_data = 5;
+    SiEquipData equip_data = 6;
+    SiDungeonData dungeon_data = 7;// 副本记录数据
+    SiQuestData quest_data = 8;// 任务数据
+    SiMailData mail_data = 9;// 邮件数据
+    SiSkillData skill_data = 10;// 技能数据
+    SiItemUseData item_use_data = 11;// 物品使用数据（冷却时间等）
+    SiOfflineRewardData offline_reward_data = 12;// 离线收益数据
+    SiAntiCheatData anti_cheat_data = 13;// 防作弊数据
+    SiDailyQuestData daily_quest_data = 14;// 每日任务数据
+    SiAchievementData achievement_data = 15;// 成就数据
+    SiNewbieData newbie_data = 16;// 新手保护数据
 }

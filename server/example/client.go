@@ -16,31 +16,19 @@ func main() {
 	defer cancel()
 
 	log.Infof("===============================")
-	log.Infof("   游戏客户端测试程序 (Actor模式)")
+	log.Infof("   集成测试客户端")
 	log.Infof("===============================")
 
-	// 创建客户端管理器
 	clientMgr := NewClientManager(ctx)
+	defer clientMgr.Stop()
 
-	// 创建玩家客户端
-	player1 := clientMgr.CreateClient("player1", GatewayAddr)
-
-	// 启动客户端
-	if err := player1.Start(ctx); err != nil {
-		log.Errorf("❌ Player1 启动失败: %v\n", err)
-		return
-	}
-	log.Infof("✅ Player1 已连接")
-
-	// 查询角色
-	log.Infof("\n[Player1] 查询角色列表...")
-	if err := player1.QueryRoles(); err != nil {
-		log.Errorf("❌ Player1 查询角色失败: %v\n", err)
+	scenario := NewIntegrationScenario(ctx, clientMgr)
+	if err := scenario.Run(); err != nil {
+		log.Errorf("❌ 集成测试失败: %v", err)
+	} else {
+		log.Infof("✅ 集成测试成功")
 	}
 
-	log.Infof("\n✅ 测试完成，按 Enter 退出...")
+	log.Infof("\n按 Enter 退出客户端...")
 	bufio.NewReader(os.Stdin).ReadBytes('\n')
-
-	// 停止客户端管理器
-	clientMgr.Stop()
 }

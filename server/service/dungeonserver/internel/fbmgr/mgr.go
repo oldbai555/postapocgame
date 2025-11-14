@@ -62,6 +62,7 @@ func (m *FuBenMgr) CreateDefaultFuBen() error {
 
 	// 添加到管理器
 	m.AddFuBen(defaultFuBen)
+	fuben.SetDefaultFuBen(defaultFuBen)
 
 	log.Infof("Default FuBen (fbId=0) created with 2 scenes")
 
@@ -114,10 +115,11 @@ func (m *FuBenMgr) CreateTimedFuBenForPlayer(sessionId string, name string, maxD
 	m.nextFbId++
 	m.mu.Unlock()
 
-	// 创建限时单人副本
-	fb := fuben.NewFuBenSt(fbId, name, uint32(protocol.FuBenType_FuBenTypeTimedSingle), 1, maxDuration)
+	// 创建限时副本
+	fb := fuben.NewFuBenSt(fbId, name, uint32(protocol.FuBenType_FuBenTypeTimed), 1, maxDuration)
 
-	// TODO: 根据配置初始化场景
+	// 注意：场景初始化在进入副本时完成（handleG2DEnterDungeon中），
+	// 因为需要根据DungeonId从配置读取场景信息
 
 	m.timedFubens[sessionId] = fb
 	m.AddFuBen(fb)
@@ -159,6 +161,22 @@ func (m *FuBenMgr) CleanupExpiredFubens() {
 
 	if len(toRemove) > 0 {
 		log.Infof("Cleaned up %d expired fubens", len(toRemove))
+	}
+}
+
+// RunOne 驱动所有副本的常驻逻辑
+func (m *FuBenMgr) RunOne(now time.Time) {
+	m.mu.RLock()
+	fubens := make([]iface.IFuBen, 0, len(m.fubens))
+	for _, fb := range m.fubens {
+		fubens = append(fubens, fb)
+	}
+	m.mu.RUnlock()
+
+	for _, fb := range fubens {
+		if fb != nil {
+			fb.RunOne(now)
+		}
 	}
 }
 

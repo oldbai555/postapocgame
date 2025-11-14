@@ -17,3 +17,33 @@ enum ItemType {
     ItemTypeMaterial = 3 ;// 材料
     ItemTypeConsume = 4 ;// 消耗品
 }
+
+// 货币类型枚举
+enum MoneyType {
+    MoneyTypeNil = 0;
+    MoneyTypeExp = 1;        // 经验
+    MoneyTypeGoldCoin = 2;  // 金币
+}
+
+// 装备槽位枚举
+enum EquipSlot {
+    EquipSlotNil = 0;
+    EquipSlotWeapon = 1;    // 武器
+    EquipSlotHelmet = 2;    // 头盔
+    EquipSlotArmor = 3;     // 护甲
+    EquipSlotShoes = 4;     // 鞋子
+    EquipSlotAccessory = 5; // 饰品
+}
+
+// 物品标志位枚举（用于 uint64 flag 的位标识）
+enum ItemFlag {
+    ItemFlagNil = 0;
+    ItemFlagCanUse = 1;     // 可使用 (位0)
+    ItemFlagCanSell = 2;    // 可出售 (位1)
+    ItemFlagCanTrade = 4;   // 可交易 (位2)
+    ItemFlagCanDrop = 8;    // 可丢弃 (位3)
+    ItemFlagCanDecompose = 16; // 可分解 (位4)
+    ItemFlagBindOnPickup = 32; // 拾取绑定 (位5)
+    ItemFlagBindOnUse = 64;    // 使用绑定 (位6)
+    ItemFlagBindOnEquip = 128; // 装备绑定 (位7)
+}

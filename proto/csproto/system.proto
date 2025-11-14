@@ -14,13 +14,23 @@ enum SystemId {
     SysQuest = 1;// 任务系统
     SysLevel = 2;// 等级系统
     SysBag = 3;// 背包系统
-    SysVip = 4;// VIP系统
-    SysMoney = 5;// 货币系统
-    SysAttr = 6;// 属性系统
-    SysOfflineMsg = 7;// 离线消息系统
-    SysMail = 8;// 邮件系统
+    SysEquip = 4;// 装备系统
+    SysVip = 5;// VIP系统
+    SysMoney = 6;// 货币系统
+    SysAttr = 7;// 属性系统
+    SysOfflineMsg = 8;// 离线消息系统
+    SysMail = 9;// 邮件系统
+    SysShop = 10;// 个人商城系统
+    SysDungeon = 11;// 副本系统
+    SysSkill = 12;// 技能系统
+    SysItemUse = 13;// 物品使用系统
+    SysOfflineReward = 14;// 离线收益系统
+    SysAntiCheat = 15;// 防作弊系统
+    SysDailyQuest = 16;// 每日任务系统
+    SysAchievement = 17;// 成就系统
+    SysNewbie = 18;// 新手保护系统
 
-    SysIdMax = 9;// 最大系统ID 手动递增
+    SysIdMax = 19;// 最大系统ID 手动递增
 }
 
 // 任务系统
@@ -48,4 +58,97 @@ message SiVipData {
 // 货币系统
 message SiMoneyData {
     map<uint32, int64> moneyMap = 1;// key: 货币类型,
+}
+
+// 装备系统
+message SiEquipData {
+    repeated EquipSt equips = 1;// 装备列表
+}
+
+message EquipSt {
+    uint32 item_id = 1;// 装备物品ID
+    uint32 slot = 2;// 装备槽位
+    uint32 level = 3;// 强化等级
+    uint32 exp = 4;// 强化经验
+    uint32 refine_level = 5;// 精炼等级（0表示未精炼）
+    repeated AttrSt enchant_attrs = 6;// 附魔属性列表
+    uint32 set_id = 7;// 套装ID（0表示不属于任何套装）
+}
+
+// 副本系统
+message SiDungeonData {
+    repeated DungeonRecord records = 1;// 副本记录列表
+}
+
+message DungeonRecord {
+    uint32 dungeon_id = 1;// 副本ID
+    uint32 difficulty = 2;// 难度: 1=普通 2=精英 3=地狱
+    int64 last_enter_time = 3;// 最后进入时间（Unix时间戳）
+    uint32 enter_count = 4;// 今日进入次数
+    int64 reset_time = 5;// 重置时间（Unix时间戳，每日重置）
+}
+
+// 邮件系统
+message SiMailData {
+    repeated MailSt mails = 1;// 邮件列表
+}
+
+// 技能系统
+message SiSkillData {
+    map<uint32, uint32> skill_map = 1;// 技能列表（skillId -> level）
+}
+
+// 物品使用系统
+message SiItemUseData {
+    map<uint32, int64> cooldown_map = 1;// 物品冷却时间记录（itemId -> 冷却结束时间Unix时间戳）
+}
+
+// 离线收益系统
+message SiOfflineRewardData {
+    int64 last_logout_time = 1;// 最后登出时间（Unix时间戳）
+    int64 total_offline_seconds = 2;// 累计离线时间（秒）
+    bool reward_claimed = 3;// 是否已领取离线收益
+    int64 last_claim_time = 4;// 最后领取时间（Unix时间戳）
+}
+
+// 防作弊系统
+message SiAntiCheatData {
+    map<string, int32> operation_count = 1;// 操作计数（操作类型 -> 计数）
+    map<string, int64> last_operation_time = 2;// 最后操作时间（操作类型 -> Unix时间戳）
+    int32 suspicious_count = 3;// 可疑行为计数
+    int64 last_reset_time = 4;// 最后重置时间（Unix时间戳，用于每日重置）
+    bool is_banned = 5;// 是否被封禁
+    int64 ban_end_time = 6;// 封禁结束时间（Unix时间戳，0表示永久封禁）
+}
+
+// 每日任务系统
+message SiDailyQuestData {
+    repeated DailyQuestData daily_quests = 1;// 每日任务列表
+    int64 last_refresh_time = 2;// 最后刷新时间（Unix时间戳）
+}
+
+message DailyQuestData {
+    uint32 quest_id = 1;// 任务ID
+    repeated uint32 progress = 2;// 当前进度
+    int64 accept_time = 3;// 接受时间（Unix时间戳）
+}
+
+// 成就系统
+message SiAchievementData {
+    repeated AchievementData achievements = 1;// 成就列表
+}
+
+message AchievementData {
+    uint32 achievement_id = 1;// 成就ID
+    repeated uint32 progress = 2;// 当前进度
+    bool completed = 3;// 是否已完成
+    int64 complete_time = 4;// 完成时间（Unix时间戳，0表示未完成）
+}
+
+// 新手保护系统
+message SiNewbieData {
+    bool is_newbie = 1;// 是否处于新手保护期
+    int64 newbie_end_time = 2;// 新手保护结束时间（Unix时间戳）
+    bool guide_completed = 3;// 新手引导是否完成
+    map<uint32, bool> guide_progress = 4;// 新手引导进度（引导ID -> 是否完成）
 }

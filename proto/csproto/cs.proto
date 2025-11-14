@@ -15,12 +15,43 @@ import "player.proto";
 enum C2SProtocol{
     C2SProtocolNil = 0;
 
-    C2SVerify = 1;// 校验登陆
-    C2SQueryRoles = 2;// 查询角色列表
-    C2SCreateRole = 3;// 创建角色
-    C2SEnterGame = 4;// 进入游戏
-    C2SReconnect = 5;// 重连请求
-    C2SUseSkill = 6;// 使用技能
+    C2SRegister = 1;// 账号注册
+    C2SLogin = 2;// 账号登录
+    C2SVerify = 3;// 验证请求
+    C2SQueryRoles = 4;// 查询角色列表
+    C2SCreateRole = 5;// 创建角色
+    C2SEnterGame = 6;// 进入游戏
+    C2SReconnect = 7;// 重连请求
+    C2SUseSkill = 8;// 使用技能
+    C2SStartMove = 9;// 开始移动
+    C2SUpdateMove = 10;// 移动中更新
+    C2SEndMove = 11;// 结束移动
+    C2SOpenBag = 12;// 查询背包
+    C2SOpenMoney = 13;// 查询货币
+    C2SShopBuy = 14;// 商城购买
+    C2SEquipItem = 15;// 穿戴装备
+    C2SGMCommand = 16;// GM命令
+    C2SUseItem = 17;// 使用物品
+    C2SRecycleItem = 18;// 回收物品
+    C2STalkToNPC = 19;// 和NPC对话
+    C2SLearnSkill = 20;// 学习技能
+    C2SUpgradeSkill = 21;// 升级技能
+    C2SChangeScene = 22;// 切换场景
+    C2SPickupItem = 23;// 拾取掉落物
+    C2SEnterDungeon = 24;// 进入副本（限时副本）
+    C2SClaimOfflineReward = 25;// 领取离线收益
+    C2SRevive = 26;// 角色复活
+    C2SGetNearestMonster = 27;// 获取最近怪物
+}
+
+message C2SRegisterReq {
+    string username = 1;
+    string password = 2;
+}
+
+message C2SLoginReq {
+    string username = 1;
+    string password = 2;
 }
 
 message C2SVerifyReq {}
@@ -39,5 +70,112 @@ message C2SEnterGameReq {
 
 message C2SReconnectReq {
     string reconnect_key = 1;
+}
+
+message C2SUseSkillReq {
+    uint32 skill_id = 1;
+    uint64 target_hdl = 2;
+    repeated uint64 target_list = 3;
+    uint32 pos_x = 4;
+    uint32 pos_y = 5;
+}
+
+message C2SStartMoveReq {
+    uint32 from_x = 1;
+    uint32 from_y = 2;
+    uint32 to_x = 3;
+    uint32 to_y = 4;
+    uint32 speed = 5;
+    uint32 seq = 6;
+}
+
+message C2SUpdateMoveReq {
+    uint32 pos_x = 1;
+    uint32 pos_y = 2;
+    uint32 speed = 3;
+    uint32 seq = 4;
+}
+
+message C2SEndMoveReq {
+    uint32 pos_x = 1;
+    uint32 pos_y = 2;
+    uint32 seq = 3;
+}
+
+message C2SOpenBagReq {}
+
+message C2SOpenMoneyReq {}
+
+message C2SShopBuyReq {
+    uint32 item_id = 1;
+    uint32 count = 2;
+}
+
+message C2SEquipItemReq {
+    uint32 item_id = 1;
+    uint32 slot = 2;
+}
+
+// GM命令请求
+message C2SGMCommandReq {
+    string gm_name = 1;// GM命令名称
+    repeated string args = 2;// GM命令参数数组
+}
+
+// 使用物品请求
+message C2SUseItemReq {
+    uint32 item_id = 1;// 物品ID
+    uint32 count = 2;// 使用数量（默认1）
+}
+
+// 回收物品请求
+message C2SRecycleItemReq {
+    uint32 item_id = 1;// 物品ID
+    uint32 count = 2;// 回收数量（默认1）
+}
+
+// 和NPC对话请求
+message C2STalkToNPCReq {
+    uint32 npc_id = 1;// NPC ID
+}
+
+// 学习技能请求
+message C2SLearnSkillReq {
+    uint32 skill_id = 1;// 技能ID
+}
+
+// 升级技能请求
+message C2SUpgradeSkillReq {
+    uint32 skill_id = 1;// 技能ID
+}
+
+// 切换场景请求
+message C2SChangeSceneReq {
+    uint32 scene_id = 1;// 目标场景ID
+}
+
+// 拾取掉落物请求
+message C2SPickupItemReq {
+    uint64 item_hdl = 1;// 掉落物句柄
+}
+
+// 进入副本请求（限时副本）
+message C2SClaimOfflineRewardReq {
+    // 空消息，服务端自动计算离线收益
+}
+
+message C2SEnterDungeonReq {
+    uint32 dungeon_id = 1;// 副本ID
+    uint32 difficulty = 2;// 难度: 1=普通 2=精英 3=地狱
+}
+
+// 角色复活请求
+message C2SReviveReq {
+    // 空消息，服务端自动处理复活逻辑
+}
+
+// 获取最近怪物请求
+message C2SGetNearestMonsterReq {
+    // 空消息，服务端自动查找最近怪物
 }
 

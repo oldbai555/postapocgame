@@ -19,6 +19,10 @@ type ISession interface {
 	SetRoleId(roleId uint64)
 	GetSessionId() string
 	GetRoleId() uint64
+	SetAccountID(accountID uint)
+	GetAccountID() uint
+	SetToken(token string)
+	GetToken() string
 }
 
 type IDungeonRPC interface {

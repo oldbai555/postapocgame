@@ -326,7 +326,7 @@ GatewayServer
 
 **职责**:
 - 处理玩家业务逻辑
-- 管理玩家数据
+- 管理玩家数据（统一存储在`PlayerRoleBinaryData`中）
 - 协调DungeonServer进行副本操作
 - **新增**: 管理DungeonServer的协议注册
 
@@ -336,7 +336,17 @@ GameServer
 ├── PlayerActor         # 玩家Actor系统
 │   ├── ModePerKey模式  # 每个玩家一个Actor
 │   ├── 消息邮箱
-│   └── 业务Handler注册
+│   ├── 业务Handler注册
+│   └── PlayerRole      # 玩家角色实体
+│       ├── BinaryData  # 统一数据存储（PlayerRoleBinaryData）
+│       │   ├── bag_data     # 背包数据（SiBagData）
+│       │   ├── equip_data   # 装备数据（SiEquipData）
+│       │   ├── money_data   # 货币数据（SiMoneyData）
+│       │   ├── dungeon_data # 副本记录（SiDungeonData）
+│       │   └── level_data   # 等级数据（SiLevelData）
+│       ├── SysMgr      # 系统管理器
+│       └── 系统列表    # BagSys, EquipSys, MoneySys, FubenSys, ShopSys等
+│           └── 所有系统直接使用BinaryData，无锁，无额外索引
 ├── GatewayLink         # Gateway连接处理
 │   ├── 接收Gateway消息
 │   ├── 会话管理
@@ -390,10 +400,14 @@ GameServer
    ```
 
 4. **玩家Actor**:
-   - 每个玩家对应一个Actor实例
+   - 每个玩家对应一个Actor实例（ModePerKey模式）
    - Actor按SessionId进行消息路由
    - 支持注册多个业务Handler
    - 记录玩家当前所在的DungeonServer类型(DungeonSrvType)
+   - 所有系统数据统一存储在`PlayerRoleBinaryData`中，通过protobuf序列化
+   - 系统初始化时从`Player.BinaryData`加载，登出时统一保存
+   - 可通过`SaveToDB()`方法立即保存数据
+   - **数据一致性**: 所有系统直接使用`PlayerRoleBinaryData`中的数据，不维护额外索引，避免数据不一致
 
 5. **RPC调用DungeonServer**:
    - 构造RPCRequest
@@ -524,6 +538,20 @@ DungeonServer
 - 资源自动清理
 - 防止内存泄露
 
+### 7. ✨新增: 统一数据存储架构
+- **数据存储**: 所有玩家系统数据统一存储在`PlayerRoleBinaryData`中
+  - `bag_data`: 背包数据（`SiBagData`）- 物品列表
+  - `equip_data`: 装备数据（`SiEquipData`）- 装备列表
+  - `money_data`: 货币数据（`SiMoneyData`）- 货币映射表
+  - `dungeon_data`: 副本记录数据（`SiDungeonData`）- 副本记录列表
+  - `level_data`: 等级数据（`SiLevelData`）- 等级和经验
+- **数据库**: 只保留`Account`和`Player`表，`Player.BinaryData`字段存储序列化的`PlayerRoleBinaryData`
+- **持久化**: 
+  - 登出时自动保存`BinaryData`到数据库
+  - 可通过`IPlayerRole.SaveToDB()`立即保存
+- **系统无锁化**: 所有系统都不需要加锁，因为每个系统只被当前角色的Actor使用，遵循单Actor模型
+- **数据一致性**: 系统必须直接使用`PlayerRoleBinaryData`中的数据，不要维护额外的索引结构（如map），避免索引与数据不一致导致业务错误
+
 ## 配置文件
 
 ### Gateway配置 (gateway.json)
@@ -571,6 +599,77 @@ DungeonServer
 - `dungeon_server_addr_map`: GameServer连接DungeonServer的地址映射，按srvType索引
 
 ## 开发指南
+
+### 添加新的玩家系统
+
+1. **定义系统数据**:
+   - 在 `proto/csproto/system.proto` 中定义系统数据（如`SiXXXData`）
+   - 在 `proto/csproto/player.proto` 的`PlayerRoleBinaryData`中添加对应字段
+   - 运行 `bash proto/genproto.sh` 重新生成代码
+
+2. **创建系统文件**:
+   - 在 `server/service/gameserver/internel/playeractor/entitysystem/` 创建 `xxx_sys.go`
+   - 系统必须继承`BaseSystem`，实现`OnInit`方法
+   - 通过`GetBinaryData()`获取数据，如果不存在则初始化
+   - **重要**: 系统不要加锁，遵循单Actor模型
+
+3. **注册系统**:
+   - 在系统文件的`init()`函数中调用`RegisterSystemFactory`
+   - 系统会自动在`SysMgr.OnInit`时创建和初始化
+
+**示例**:
+```go
+// fuben_sys.go
+type FubenSys struct {
+    *BaseSystem
+    dungeonData *protocol.SiDungeonData
+}
+
+func (fs *FubenSys) OnInit(ctx context.Context) {
+    playerRole, err := GetIPlayerRoleByContext(ctx)
+    if err != nil {
+        log.Errorf("fuben sys OnInit get role err:%v", err)
+        return
+    }
+    
+    binaryData := playerRole.GetBinaryData()
+    if binaryData == nil {
+        log.Errorf("binary data is nil")
+        return
+    }
+    
+    // 如果dungeon_data不存在，则初始化
+    if binaryData.DungeonData == nil {
+        binaryData.DungeonData = &protocol.SiDungeonData{
+            Records: make([]*protocol.DungeonRecord, 0),
+        }
+    }
+    fs.dungeonData = binaryData.DungeonData
+}
+
+// 查找副本记录（使用辅助函数，不维护索引）
+func (fs *FubenSys) GetDungeonRecord(dungeonID uint32, difficulty uint32) *protocol.DungeonRecord {
+    if fs.dungeonData == nil || fs.dungeonData.Records == nil {
+        return nil
+    }
+    for _, record := range fs.dungeonData.Records {
+        if record != nil && record.DungeonId == dungeonID && record.Difficulty == difficulty {
+            return record
+        }
+    }
+    return nil
+}
+
+func init() {
+    RegisterSystemFactory(uint32(protocol.SystemId_SysDungeon), func() iface.ISystem {
+        return NewFubenSys()
+    })
+}
+```
+
+**重要原则**:
+- ✅ **正确**: 直接使用`binaryData.DungeonData.Records`，通过辅助函数查找
+- ❌ **错误**: 维护独立的`recordsMap map[uint32]*DungeonRecord`索引，容易导致数据不一致
 
 ### 添加新的客户端消息处理
 
@@ -682,6 +781,71 @@ dungeonserverlink.RegisterRPCHandler(msgId, handler)
 dshare.RegisterHandler(msgId, handler)
 ```
 
+### 数据持久化
+
+**自动保存**:
+- 玩家登出时自动保存`PlayerRoleBinaryData`到数据库
+- 数据存储在`Player.BinaryData`字段中
+
+**手动保存**:
+```go
+// 立即保存玩家数据到数据库
+err := playerRole.SaveToDB()
+if err != nil {
+    log.Errorf("save failed: %v", err)
+}
+```
+
+**数据访问**:
+```go
+// 获取BinaryData
+binaryData := playerRole.GetBinaryData()
+
+// 系统通过GetBinaryData获取数据
+func (ms *MoneySys) OnInit(ctx context.Context) {
+    playerRole, err := GetIPlayerRoleByContext(ctx)
+    if err != nil {
+        log.Errorf("money sys OnInit get role err:%v", err)
+        return
+    }
+    
+    binaryData := playerRole.GetBinaryData()
+    if binaryData == nil {
+        log.Errorf("binary data is nil")
+        return
+    }
+    
+    // 如果money_data不存在，则初始化
+    if binaryData.MoneyData == nil {
+        binaryData.MoneyData = &protocol.SiMoneyData{
+            MoneyMap: make(map[uint32]int64),
+        }
+    }
+    ms.moneyData = binaryData.MoneyData
+}
+```
+
+**数据操作示例**:
+```go
+// ✅ 正确：直接操作BinaryData中的数据
+func (ms *MoneySys) AddMoney(ctx context.Context, moneyID uint32, amount int64) error {
+    // 直接使用 moneyData.MoneyMap，不需要额外索引
+    ms.moneyData.MoneyMap[moneyID] += amount
+    return nil
+}
+
+// ✅ 正确：使用辅助函数查找，不维护索引
+func (es *EquipSys) GetEquip(slot uint32) *protocol.EquipSt {
+    return es.findEquipBySlot(slot) // 从equipData.Equips中查找
+}
+
+// ❌ 错误：维护独立的索引map
+type EquipSys struct {
+    equipData *protocol.SiEquipData
+    equipsMap map[uint32]*protocol.EquipSt // 不要这样做！
+}
+```
+
 ### 错误处理
 
 统一使用 `customerr.NewErrorByCode` 创建错误:
@@ -689,6 +853,158 @@ dshare.RegisterHandler(msgId, handler)
 return customerr.NewErrorByCode(int32(protocol.ErrorCode_XXX), "error message")
 ```
 
+### 系统开发注意事项
+
+1. **无锁化**: 所有系统都不需要加锁，因为每个系统只被当前角色的Actor使用，遵循单Actor模型
+2. **数据存储**: 系统数据统一存储在`PlayerRoleBinaryData`中，不要使用独立的数据库表
+3. **初始化**: 系统在`OnInit`时从`GetBinaryData()`获取数据，如果不存在则初始化
+4. **串行执行**: 系统回调（如`OnRoleLogin`）在Actor中串行执行，不要创建新协程
+5. **系统注册**: 系统必须在`init()`函数中注册工厂函数
+6. **数据一致性**: **重要** - 系统必须直接使用`PlayerRoleBinaryData`中的数据，不要维护额外的索引结构（如map），避免索引与数据不一致导致业务错误。如需快速查找，使用辅助函数从原始数据中查找，而不是维护独立的索引map
+7. **数据操作**: 所有数据操作都直接修改`PlayerRoleBinaryData`中的字段，修改后会自动在登出时保存，或通过`SaveToDB()`立即保存
+8. **系统实现**: 
+   - 系统结构体只保存指向`PlayerRoleBinaryData`中数据的指针（如`equipData *protocol.SiEquipData`）
+   - 不要维护额外的索引map（如`equipsMap`、`itemsMap`）
+   - 查找操作使用辅助函数（如`findEquipBySlot()`、`findItemByKey()`）
+9. **功能完整性**: 系统注册后需要实现完整的业务逻辑，不能只有基础结构。参考已完成系统的实现方式
+10. **TODO处理**: 代码中的TODO注释需要及时处理，特别是涉及核心业务逻辑的部分
+
+
+## GameServer 系统架构详解
+
+### 玩家系统列表
+
+GameServer 包含以下玩家系统，所有系统数据统一存储在`PlayerRoleBinaryData`中：
+
+| 系统 | 系统ID | 数据字段 | 说明 | 状态 |
+|------|--------|----------|------|------|
+| BagSys | SysBag (3) | `bag_data` | 背包系统，管理物品列表 | ✅ 已完成 |
+| EquipSys | SysEquip (4) | `equip_data` | 装备系统，管理装备列表 | ⚠️ 部分完成（缺少强化消耗检查） |
+| MoneySys | SysMoney (6) | `money_data` | 货币系统，管理货币映射表 | ✅ 已完成 |
+| FubenSys | SysDungeon (11) | `dungeon_data` | 副本系统，管理副本记录（CD、进入次数等） | ✅ 已完成 |
+| LevelSys | SysLevel (2) | `level_data` | 等级系统，管理等级和经验 | ⚠️ 基础结构完成（缺少核心功能） |
+| ShopSys | SysShop (10) | - | 商城系统，处理购买逻辑（无持久化数据） | ✅ 已完成 |
+| QuestSys | SysQuest (1) | `quest_data` | 任务系统，管理任务进度 | ⚠️ 未实现（配置已存在） |
+| MailSys | SysMail (9) | `mail_data` | 邮件系统，管理邮件列表 | ⚠️ 未实现（配置已存在） |
+| VipSys | SysVip (5) | `vip_data` | VIP系统，管理VIP等级和经验 | ⚠️ 未实现（配置已存在） |
+
+### 数据存储流程
+
+```
+玩家登录
+    ↓
+创建PlayerRole
+    ↓
+从数据库加载Player.BinaryData
+    ↓
+反序列化为PlayerRoleBinaryData
+    ↓
+系统初始化（OnInit）
+    ├── BagSys: 初始化bag_data
+    ├── EquipSys: 初始化equip_data
+    ├── MoneySys: 初始化money_data
+    ├── FubenSys: 初始化dungeon_data
+    └── ...
+    ↓
+游戏运行（所有操作在内存中）
+    ↓
+玩家登出 / SaveToDB()
+    ↓
+序列化PlayerRoleBinaryData
+    ↓
+保存到Player.BinaryData
+```
+
+### 系统数据访问模式
+
+**正确模式**:
+```go
+// 1. 系统结构体只保存数据指针
+type EquipSys struct {
+    *BaseSystem
+    equipData *protocol.SiEquipData  // 指向BinaryData中的数据
+}
+
+// 2. 初始化时获取数据指针
+func (es *EquipSys) OnInit(ctx context.Context) {
+    binaryData := playerRole.GetBinaryData()
+    if binaryData.EquipData == nil {
+        binaryData.EquipData = &protocol.SiEquipData{
+            Equips: make([]*protocol.EquipSt, 0),
+        }
+    }
+    es.equipData = binaryData.EquipData  // 保存指针
+}
+
+// 3. 查找使用辅助函数
+func (es *EquipSys) findEquipBySlot(slot uint32) *protocol.EquipSt {
+    for _, equip := range es.equipData.Equips {
+        if equip != nil && equip.Slot == slot {
+            return equip
+        }
+    }
+    return nil
+}
+
+// 4. 操作直接修改数据
+func (es *EquipSys) EquipItem(...) {
+    es.equipData.Equips = append(es.equipData.Equips, newEquip)
+    // 直接修改，无需同步索引
+}
+```
+
+**错误模式**（已移除）:
+```go
+// ❌ 不要维护额外索引
+type EquipSys struct {
+    equipData *protocol.SiEquipData
+    equipsMap map[uint32]*protocol.EquipSt  // 不要这样做！
+}
+
+// ❌ 需要同步更新索引，容易出错
+func (es *EquipSys) EquipItem(...) {
+    es.equipData.Equips = append(...)
+    es.equipsMap[slot] = newEquip  // 容易忘记更新
+}
+```
+
+## 已知问题和待完善功能
+
+### 系统功能不完整
+
+1. **LevelSys（等级系统）**:
+   - 基础结构已实现，但缺少核心功能
+   - 需要实现：`AddExp()`、`CheckLevelUp()`、升级奖励发放
+   - 位置：`server/service/gameserver/internel/playeractor/entitysystem/level_sys.go`
+
+2. **EquipSys（装备系统）**:
+   - 强化逻辑已实现，但缺少消耗检查
+   - 需要实现：强化消耗检查（货币和材料）
+   - 位置：`server/service/gameserver/internel/playeractor/entitysystem/equip_sys.go`（第268-269行）
+
+3. **副本结算奖励发放**:
+   - 奖励计算已实现，但缺少与GameServer的RPC联动
+   - 需要实现：通过RPC调用GameServer更新副本记录和发放奖励
+   - 位置：`server/service/dungeonserver/internel/fuben/settlement.go`（第96-101行）
+
+### 系统未实现
+
+1. **QuestSys（任务系统）**:
+   - 配置已存在，但系统未实现
+   - 需要创建：`quest_sys.go`
+   - 配置位置：`server/internal/jsonconf/quest_config.go`
+
+2. **MailSys（邮件系统）**:
+   - 配置已存在，但系统未实现
+   - 需要创建：`mail_sys.go`
+   - 配置位置：`server/internal/jsonconf/mail_config.go`
+
+3. **VipSys（VIP系统）**:
+   - 配置已存在，但系统未实现
+   - 需要创建：`vip_sys.go`
+   - 配置位置：`server/internal/jsonconf/vip_config.go`
+
+详细说明请参考：`docs/开发进度文档.md`
 
 ## 部署说明
 
@@ -698,4 +1014,5 @@ return customerr.NewErrorByCode(int32(protocol.ErrorCode_XXX), "error message")
    - GameServer: TCP 8001
    - DungeonServer: TCP 9001
 3. **依赖关系**: Gateway依赖GameServer，GameServer依赖DungeonServer
+4. **数据库**: 使用SQLite，数据库文件位于运行目录下的`postapocgame.db`
 

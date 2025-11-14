@@ -10,10 +10,11 @@ type AOISys struct {
 	entity          iface.IEntity
 	visibleEntities map[uint64]iface.IEntity // 可见的实体列表
 	mu              sync.RWMutex
+	pendingEnter    []iface.IEntity
+	pendingLeave    []uint64
 }
 
-// NewAOI 创建AOI
-func NewAOI(entity iface.IEntity) *AOISys {
+func NewAOISys(entity iface.IEntity) *AOISys {
 	return &AOISys{
 		entity:          entity,
 		visibleEntities: make(map[uint64]iface.IEntity),
@@ -38,8 +39,7 @@ func (aoi *AOISys) AddVisibleEntity(entity iface.IEntity) {
 	defer aoi.mu.Unlock()
 
 	aoi.visibleEntities[entity.GetId()] = entity
-
-	// TODO: 通知客户端有新实体进入视野
+	aoi.pendingEnter = append(aoi.pendingEnter, entity)
 }
 
 // RemoveVisibleEntity 移除可见实体
@@ -48,8 +48,7 @@ func (aoi *AOISys) RemoveVisibleEntity(entityId uint64) {
 	defer aoi.mu.Unlock()
 
 	delete(aoi.visibleEntities, entityId)
-
-	// TODO: 通知客户端有实体离开视野
+	aoi.pendingLeave = append(aoi.pendingLeave, entityId)
 }
 
 // IsVisible 检查实体是否在视野内
@@ -67,6 +66,8 @@ func (aoi *AOISys) ClearVisibleEntities() {
 	defer aoi.mu.Unlock()
 
 	aoi.visibleEntities = make(map[uint64]iface.IEntity)
+	aoi.pendingEnter = nil
+	aoi.pendingLeave = nil
 }
 
 // OnMove 实体移动时更新AOI
@@ -105,4 +106,20 @@ func (aoi *AOISys) OnMove(oldPos, newPos *argsdef.Position) {
 			// TODO: 实现
 		}
 	}
+}
+
+// ConsumeVisibilityChanges 获取一次性视野变化
+func (aoi *AOISys) ConsumeVisibilityChanges() (enter []iface.IEntity, leave []uint64) {
+	aoi.mu.Lock()
+	defer aoi.mu.Unlock()
+
+	if len(aoi.pendingEnter) > 0 {
+		enter = append(enter, aoi.pendingEnter...)
+		aoi.pendingEnter = nil
+	}
+	if len(aoi.pendingLeave) > 0 {
+		leave = append(leave, aoi.pendingLeave...)
+		aoi.pendingLeave = nil
+	}
+	return
 }

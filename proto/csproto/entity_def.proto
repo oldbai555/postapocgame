@@ -15,4 +15,36 @@ enum EntityType {
 
     EtRole = 1;// 角色
     EtMonster = 2;// 怪物
+    EtDropItem = 3;// 掉落物
+}
+
+enum EntityStateFlag {
+    EntityStateFlagInvalid = 0;
+    EntityStateFlagDead = 1;
+    EntityStateFlagInvincible = 2;
+    EntityStateFlagCannotAttack = 3;
+    EntityStateFlagCannotMove = 4;
+}
+
+// 战斗状态类型
+enum BattleState {
+    BattleStateNil = 0;
+    
+    BattleStateIdle = 1;       // 待命
+    BattleStateCasting = 2;     // 施法
+    BattleStateHardHit = 3;     // 硬直
+    BattleStateDown = 4;        // 倒地
+    BattleStateDead = 5;        // 死亡
+    BattleStateInvincible = 6;  // 无敌
+}
+
+// AI状态类型
+enum AIState {
+    AIStateNil = 0;
+    
+    AIStateIdle = 1;       // 待机
+    AIStatePatrol = 2;     // 巡逻
+    AIStateChase = 3;      // 追击
+    AIStateAttack = 4;     // 攻击
+    AIStateReturning = 5;  // 返回
 }

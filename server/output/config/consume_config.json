@@ -1,0 +1,163 @@
+[
+  {
+    "consumeId": 1,
+    "description": "默认金币消耗1000",
+    "items": [
+      {
+        "itemType": 1,
+        "itemId": 1,
+        "count": 1000
+      }
+    ]
+  },
+  {
+    "consumeId": 2,
+    "description": "金币500 + 材料20001x2",
+    "items": [
+      {
+        "itemType": 1,
+        "itemId": 1,
+        "count": 500
+      },
+      {
+        "itemType": 4,
+        "itemId": 20001,
+        "count": 2,
+        "bind": 1
+      }
+    ]
+  },
+  {
+    "consumeId": 3,
+    "description": "金币消耗2000",
+    "items": [
+      {
+        "itemType": 1,
+        "itemId": 1,
+        "count": 2000
+      }
+    ]
+  },
+  {
+    "consumeId": 4,
+    "description": "金币消耗5000",
+    "items": [
+      {
+        "itemType": 1,
+        "itemId": 1,
+        "count": 5000
+      }
+    ]
+  },
+  {
+    "consumeId": 5,
+    "description": "金币消耗500",
+    "items": [
+      {
+        "itemType": 1,
+        "itemId": 1,
+        "count": 500
+      }
+    ]
+  },
+  {
+    "consumeId": 6,
+    "description": "金币消耗2000",
+    "items": [
+      {
+        "itemType": 1,
+        "itemId": 1,
+        "count": 2000
+      }
+    ]
+  },
+  {
+    "consumeId": 7,
+    "description": "金币消耗5000",
+    "items": [
+      {
+        "itemType": 1,
+        "itemId": 1,
+        "count": 5000
+      }
+    ]
+  },
+  {
+    "consumeId": 8,
+    "description": "金币消耗10000",
+    "items": [
+      {
+        "itemType": 1,
+        "itemId": 1,
+        "count": 10000
+      }
+    ]
+  },
+  {
+    "consumeId": 9,
+    "description": "金币消耗50000",
+    "items": [
+      {
+        "itemType": 1,
+        "itemId": 1,
+        "count": 50000
+      }
+    ]
+  },
+  {
+    "consumeId": 10,
+    "description": "金币消耗15000",
+    "items": [
+      {
+        "itemType": 1,
+        "itemId": 1,
+        "count": 15000
+      }
+    ]
+  },
+  {
+    "consumeId": 11,
+    "description": "金币消耗30000",
+    "items": [
+      {
+        "itemType": 1,
+        "itemId": 1,
+        "count": 30000
+      }
+    ]
+  },
+  {
+    "consumeId": 12,
+    "description": "金币消耗100000",
+    "items": [
+      {
+        "itemType": 1,
+        "itemId": 1,
+        "count": 100000
+      }
+    ]
+  },
+  {
+    "consumeId": 13,
+    "description": "金币消耗200000",
+    "items": [
+      {
+        "itemType": 1,
+        "itemId": 1,
+        "count": 200000
+      }
+    ]
+  },
+  {
+    "consumeId": 14,
+    "description": "金币消耗500000",
+    "items": [
+      {
+        "itemType": 1,
+        "itemId": 1,
+        "count": 500000
+      }
+    ]
+  }
+]
+

@@ -6,6 +6,8 @@
 
 package iface
 
+import "time"
+
 type IFuBen interface {
 	Close()
 	GetScene(sceneId uint32) IScene
@@ -15,4 +17,5 @@ type IFuBen interface {
 	GetFbType() uint32
 	GetState() uint32
 	GetPlayerCount() int
+	RunOne(now time.Time)
 }

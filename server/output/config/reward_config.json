@@ -1,0 +1,32 @@
+[
+  {
+    "rewardId": 1,
+    "description": "奖励 10000 金币",
+    "items": [
+      {
+        "itemType": 1,
+        "itemId": 1,
+        "count": 10000
+      }
+    ]
+  },
+  {
+    "rewardId": 2,
+    "description": "奖励材料与消耗品",
+    "items": [
+      {
+        "itemType": 4,
+        "itemId": 20001,
+        "count": 5,
+        "bind": 1
+      },
+      {
+        "itemType": 4,
+        "itemId": 20002,
+        "count": 3,
+        "bind": 1
+      }
+    ]
+  }
+]
+

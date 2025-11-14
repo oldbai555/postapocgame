@@ -1,7 +1,7 @@
 package clientprotocol
 
 import (
-	"postapocgame/server/internal/actor"
+	"postapocgame/server/internal/network"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/dungeonserver/internel/iface"
 )
@@ -11,7 +11,7 @@ var (
 	ProtoTbl = make(map[uint16]Func)
 )
 
-type Func func(entity iface.IEntity, msg actor.IActorMessage) error
+type Func func(entity iface.IEntity, msg *network.ClientMessage) error
 
 func Register(protoId uint16, f Func) {
 	if _, ok := ProtoTbl[protoId]; ok {
@@ -21,8 +21,7 @@ func Register(protoId uint16, f Func) {
 	ProtoTbl[protoId] = f
 }
 
-func GetFunc(protoIdH, protoIdL uint16) Func {
-	protoId := protoIdH<<8 | protoIdL
+func GetFunc(protoId uint16) Func {
 	f := ProtoTbl[protoId]
 	if f == nil {
 		return nil

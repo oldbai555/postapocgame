@@ -8,6 +8,7 @@ import (
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/dungeonserver/internel/clientprotocol"
 	"postapocgame/server/service/dungeonserver/internel/dshare"
 )
 
@@ -26,6 +27,8 @@ func (h *NetworkHandler) HandleMessage(ctx context.Context, conn network.IConnec
 		return h.handleHandshake(conn, msg)
 	case network.MsgTypeRPCRequest:
 		return h.handleRPCRequest(ctx, msg)
+	case network.MsgTypeRPCResponse:
+		return h.handleRPCResponse(msg)
 	case network.MsgTypeClient:
 		return h.handleClientMsg(ctx, msg)
 	case network.MsgTypeHeartbeat:
@@ -101,6 +104,50 @@ func (h *NetworkHandler) sendRPCResponse(conn network.IConnection, resp *network
 	return conn.SendMessage(msg)
 }
 
+// handleRPCResponse 处理来自GameServer的RPC响应
+func (h *NetworkHandler) handleRPCResponse(msg *network.Message) error {
+	resp, err := dshare.Codec.DecodeRPCResponse(msg.Payload)
+	if err != nil {
+		log.Errorf("decode RPC response failed: %v", err)
+		return customerr.Wrap(err)
+	}
+
+	log.Debugf("Received RPC Response: RequestId=%d, Success=%v", resp.RequestId, resp.Success)
+
+	// 对于D2GAddItem响应，发送到Actor系统处理（通过SessionId路由）
+	// 其他响应通过MessageSender处理（用于同步RPC）
+	if resp.Success && len(resp.Data) > 0 {
+		// 尝试解析为D2GAddItemResp，如果成功则发送到Actor
+		var addItemResp protocol.D2GAddItemResp
+		if err := internal.Unmarshal(resp.Data, &addItemResp); err == nil && addItemResp.ItemHdl > 0 {
+			// 这是D2GAddItem响应，从MessageSender获取SessionId
+			sender := GetMessageSender()
+			sender.asyncRpcMu.RLock()
+			sessionId, ok := sender.asyncRpcSessions[resp.RequestId]
+			sender.asyncRpcMu.RUnlock()
+
+			if ok && sessionId != "" {
+				// 删除SessionId映射
+				sender.asyncRpcMu.Lock()
+				delete(sender.asyncRpcSessions, resp.RequestId)
+				sender.asyncRpcMu.Unlock()
+
+				// 发送到Actor系统处理（通过SessionId路由）
+				ctx := context.WithValue(context.Background(), dshare.ContextKeySession, sessionId)
+				actorMsg := actor.NewBaseMessage(ctx, uint16(protocol.D2GRpcProtocol_D2GAddItem), resp.Data)
+				if err := dshare.SendMessageAsync(sessionId, actorMsg); err != nil {
+					log.Errorf("send RPC response to actor failed: %v", err)
+				}
+				return nil
+			}
+		}
+	}
+
+	// 通知MessageSender处理响应（用于同步RPC）
+	GetMessageSender().HandleRPCResponse(resp)
+	return nil
+}
+
 // CallGameServer 调用GameServer RPC
 func (h *NetworkHandler) CallGameServer(ctx context.Context, sessionId string, msgId uint16, data []byte) error {
 	conn, ok := GetMessageSender().GetGameServerBySession(sessionId)
@@ -132,5 +179,8 @@ func (h *NetworkHandler) handleHandshake(conn network.IConnection, msg *network.
 	}
 	GetMessageSender().RegisterGameServer(req.PlatformId, req.SrvId, conn)
 	log.Infof("game server connected: %d %d", req.PlatformId, req.SrvId)
+	if err := TryRegisterProtocols(context.Background(), clientprotocol.GetRegisteredProtocols); err != nil {
+		log.Warnf("register protocols skipped: %v", err)
+	}
 	return nil
 }

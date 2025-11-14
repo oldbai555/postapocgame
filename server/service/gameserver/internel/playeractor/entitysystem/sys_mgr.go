@@ -5,7 +5,6 @@ import (
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/pkg/routine"
 	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/iface"
 )
@@ -104,9 +103,8 @@ func (m *SysMgr) EachOpenSystem(f func(system iface.ISystem)) {
 		if !system.IsOpened() {
 			continue
 		}
-		routine.Run(func() {
-			f(system)
-		})
+		// 串行执行，不创建新协程，保持单Actor模型
+		f(system)
 	}
 }
 

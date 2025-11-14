@@ -1,0 +1,179 @@
+[
+  {
+    "shopId": 1,
+    "itemId": 1001,
+    "consumeId": 1,
+    "rewardId": 0,
+    "limitCount": 0,
+    "limitType": 0
+  },
+  {
+    "shopId": 1,
+    "itemId": 1002,
+    "consumeId": 2,
+    "rewardId": 0,
+    "limitCount": 0,
+    "limitType": 0
+  },
+  {
+    "shopId": 1,
+    "itemId": 1003,
+    "consumeId": 3,
+    "rewardId": 0,
+    "limitCount": 10,
+    "limitType": 1
+  },
+  {
+    "shopId": 1,
+    "itemId": 1004,
+    "consumeId": 4,
+    "rewardId": 0,
+    "limitCount": 5,
+    "limitType": 1
+  },
+  {
+    "shopId": 1,
+    "itemId": 1005,
+    "consumeId": 1,
+    "rewardId": 0,
+    "limitCount": 0,
+    "limitType": 0
+  },
+  {
+    "shopId": 1,
+    "itemId": 1006,
+    "consumeId": 2,
+    "rewardId": 0,
+    "limitCount": 0,
+    "limitType": 0
+  },
+  {
+    "shopId": 1,
+    "itemId": 20001,
+    "consumeId": 5,
+    "rewardId": 0,
+    "limitCount": 0,
+    "limitType": 0
+  },
+  {
+    "shopId": 1,
+    "itemId": 20002,
+    "consumeId": 6,
+    "rewardId": 0,
+    "limitCount": 0,
+    "limitType": 0
+  },
+  {
+    "shopId": 1,
+    "itemId": 20003,
+    "consumeId": 7,
+    "rewardId": 0,
+    "limitCount": 0,
+    "limitType": 0
+  },
+  {
+    "shopId": 1,
+    "itemId": 30001,
+    "consumeId": 8,
+    "rewardId": 0,
+    "limitCount": 20,
+    "limitType": 1
+  },
+  {
+    "shopId": 1,
+    "itemId": 30002,
+    "consumeId": 9,
+    "rewardId": 0,
+    "limitCount": 10,
+    "limitType": 1
+  },
+  {
+    "shopId": 1,
+    "itemId": 5001,
+    "consumeId": 10,
+    "rewardId": 0,
+    "limitCount": 0,
+    "limitType": 0
+  },
+  {
+    "shopId": 1,
+    "itemId": 5002,
+    "consumeId": 11,
+    "rewardId": 0,
+    "limitCount": 0,
+    "limitType": 0
+  },
+  {
+    "shopId": 2,
+    "itemId": 1001,
+    "consumeId": 1,
+    "rewardId": 0,
+    "limitCount": 50,
+    "limitType": 1
+  },
+  {
+    "shopId": 2,
+    "itemId": 1002,
+    "consumeId": 2,
+    "rewardId": 0,
+    "limitCount": 30,
+    "limitType": 1
+  },
+  {
+    "shopId": 2,
+    "itemId": 20001,
+    "consumeId": 5,
+    "rewardId": 0,
+    "limitCount": 100,
+    "limitType": 1
+  },
+  {
+    "shopId": 2,
+    "itemId": 20002,
+    "consumeId": 6,
+    "rewardId": 0,
+    "limitCount": 50,
+    "limitType": 1
+  },
+  {
+    "shopId": 3,
+    "itemId": 30001,
+    "consumeId": 8,
+    "rewardId": 0,
+    "limitCount": 5,
+    "limitType": 2
+  },
+  {
+    "shopId": 3,
+    "itemId": 30002,
+    "consumeId": 9,
+    "rewardId": 0,
+    "limitCount": 3,
+    "limitType": 2
+  },
+  {
+    "shopId": 3,
+    "itemId": 5003,
+    "consumeId": 12,
+    "rewardId": 0,
+    "limitCount": 1,
+    "limitType": 3
+  },
+  {
+    "shopId": 3,
+    "itemId": 5004,
+    "consumeId": 13,
+    "rewardId": 0,
+    "limitCount": 1,
+    "limitType": 3
+  },
+  {
+    "shopId": 3,
+    "itemId": 5005,
+    "consumeId": 14,
+    "rewardId": 0,
+    "limitCount": 1,
+    "limitType": 3
+  }
+]
+

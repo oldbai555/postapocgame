@@ -4,6 +4,7 @@ import (
 	"context"
 	"postapocgame/server/internal"
 	"postapocgame/server/internal/actor"
+	"postapocgame/server/internal/attrdef"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
@@ -22,13 +23,28 @@ func NewClientHandler() *ClientHandler {
 	h.OnInit()
 
 	// 注册消息处理器
+	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CRegisterResult), h.handleRegisterResult)
+	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CLoginResult), h.handleLoginResult)
 	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CError), h.handleError)
 	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CRoleList), h.handleRoleList)
+	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CCreateRoleResult), h.handleCreateRoleResult)
 	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CEnterScene), h.handleEnterScene)
 	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CLoginSuccess), h.handleReconnectSuccess)
 	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CReconnectSuccess), h.handleReconnectSuccess)
+	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CEntityMove), h.handleEntityMove)
+	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CEntityStopMove), h.handleEntityStopMove)
+	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CSkillCastResult), h.handleSkillCastResult)
 
 	return h
+}
+
+func (h *ClientHandler) getClient(msg actor.IActorMessage) (*GameClient, bool) {
+	actorCtx, ok := msg.GetContext().Value("actorCtx").(actor.IActorContext)
+	if !ok {
+		return nil, false
+	}
+	client, ok := actorCtx.GetData().(*GameClient)
+	return client, ok
 }
 
 // handleError 处理错误消息
@@ -39,18 +55,34 @@ func (h *ClientHandler) handleError(msg actor.IActorMessage) {
 	}
 }
 
-// handleRoleList 处理角色列表
-func (h *ClientHandler) handleRoleList(msg actor.IActorMessage) {
-	// 从Actor获取客户端引用
-	actorCtx, ok := msg.GetContext().Value("actorCtx").(actor.IActorContext)
+func (h *ClientHandler) handleRegisterResult(msg actor.IActorMessage) {
+	client, ok := h.getClient(msg)
 	if !ok {
-		log.Errorf("无法获取ActorContext")
 		return
 	}
+	var resp protocol.S2CRegisterResultReq
+	if err := internal.Unmarshal(msg.GetData(), &resp); err != nil {
+		return
+	}
+	client.OnRegisterResult(&resp)
+}
 
-	client, ok := actorCtx.GetData().(*GameClient)
+func (h *ClientHandler) handleLoginResult(msg actor.IActorMessage) {
+	client, ok := h.getClient(msg)
 	if !ok {
-		log.Errorf("无法获取GameClient")
+		return
+	}
+	var resp protocol.S2CLoginResultReq
+	if err := internal.Unmarshal(msg.GetData(), &resp); err != nil {
+		return
+	}
+	client.OnLoginResult(&resp)
+}
+
+// handleRoleList 处理角色列表
+func (h *ClientHandler) handleRoleList(msg actor.IActorMessage) {
+	client, ok := h.getClient(msg)
+	if !ok {
 		return
 	}
 
@@ -65,36 +97,25 @@ func (h *ClientHandler) handleRoleList(msg actor.IActorMessage) {
 		log.Infof("  [%d] 角色ID: %d, 名字: %s, 职业: %d, 等级: %d\n",
 			i+1, role.RoleId, role.RoleName, role.Job, role.Level)
 	}
+	client.OnRoleList(&resp)
+}
 
-	// 自动选择第一个角色进入游戏
-	if len(resp.RoleList) > 0 {
-		selectedRole := resp.RoleList[0]
-		log.Infof("[%s] 🎮 自动进入游戏: RoleID=%d\n", client.GetPlayerID(), selectedRole.RoleId)
-
-		req := protocol.C2SEnterGameReq{RoleId: selectedRole.RoleId}
-		reqData, err := internal.Marshal(&req)
-		if err != nil {
-			log.Errorf("序列化失败: %v", err)
-			return
-		}
-
-		if err := client.SendMessage(uint16(protocol.C2SProtocol_C2SEnterGame), reqData); err != nil {
-			log.Errorf("发送进入游戏消息失败: %v", err)
-		}
+func (h *ClientHandler) handleCreateRoleResult(msg actor.IActorMessage) {
+	client, ok := h.getClient(msg)
+	if !ok {
+		return
 	}
+	var resp protocol.S2CCreateRoleResultReq
+	if err := internal.Unmarshal(msg.GetData(), &resp); err != nil {
+		return
+	}
+	client.OnCreateRoleResult(&resp)
 }
 
 // handleEnterScene 处理进入场景
 func (h *ClientHandler) handleEnterScene(msg actor.IActorMessage) {
-	actorCtx, ok := msg.GetContext().Value("actorCtx").(actor.IActorContext)
+	client, ok := h.getClient(msg)
 	if !ok {
-		log.Errorf("无法获取ActorContext")
-		return
-	}
-
-	client, ok := actorCtx.GetData().(*GameClient)
-	if !ok {
-		log.Errorf("无法获取GameClient")
 		return
 	}
 
@@ -105,8 +126,14 @@ func (h *ClientHandler) handleEnterScene(msg actor.IActorMessage) {
 	}
 	entityData := resp.EntityData
 	log.Infof("\n[%s] 🌍 成功进入场景 %d\n", client.GetPlayerID(), entityData.SceneId)
-	log.Infof("  位置: (%v, %v)\n", entityData.PosX, entityData.PosY)
+	log.Infof("  位置: (%v, %v) HP=%d MP=%d\n",
+		entityData.PosX,
+		entityData.PosY,
+		attrValueOrZero(entityData.Attrs, attrdef.AttrHP),
+		attrValueOrZero(entityData.Attrs, attrdef.AttrMP),
+	)
 	log.Infof("  角色: %s (Lv.%d)\n", entityData.ShowName, entityData.Level)
+	client.OnEnterScene(&resp)
 }
 
 func (h *ClientHandler) handleLoginSuccess(msg actor.IActorMessage) {
@@ -126,6 +153,45 @@ func (h *ClientHandler) handleReconnectSuccess(msg actor.IActorMessage) {
 	log.Infof("ReconnectKey:%s, roleInfo:%+v", resp.ReconnectKey, resp.RoleData)
 }
 
+func (h *ClientHandler) handleEntityMove(msg actor.IActorMessage) {
+	client, ok := h.getClient(msg)
+	if !ok {
+		return
+	}
+	var resp protocol.S2CEntityMoveReq
+	if err := internal.Unmarshal(msg.GetData(), &resp); err != nil {
+		log.Errorf("解析 EntityMove 失败: %v", err)
+		return
+	}
+	client.OnEntityMove(&resp)
+}
+
+func (h *ClientHandler) handleEntityStopMove(msg actor.IActorMessage) {
+	client, ok := h.getClient(msg)
+	if !ok {
+		return
+	}
+	var resp protocol.S2CEntityStopMoveReq
+	if err := internal.Unmarshal(msg.GetData(), &resp); err != nil {
+		log.Errorf("解析 EntityStopMove 失败: %v", err)
+		return
+	}
+	client.OnEntityStop(&resp)
+}
+
+func (h *ClientHandler) handleSkillCastResult(msg actor.IActorMessage) {
+	client, ok := h.getClient(msg)
+	if !ok {
+		return
+	}
+	var resp protocol.S2CSkillCastResultReq
+	if err := internal.Unmarshal(msg.GetData(), &resp); err != nil {
+		log.Errorf("解析 SkillCastResult 失败: %v", err)
+		return
+	}
+	client.OnSkillCastResult(&resp)
+}
+
 // NetworkMessageHandler 网络消息处理器（转发到Actor）
 type NetworkMessageHandler struct {
 	client *GameClient
@@ -135,7 +201,7 @@ func (h *NetworkMessageHandler) HandleMessage(ctx context.Context, conn network.
 	// 解码客户端消息
 	clientMsg, err := h.client.codec.DecodeClientMessage(msg.Payload)
 	if err != nil {
-		log.Errorf("[%s] ❌ 解析消息失败: %v\n", h.client.playerID, err)
+		log.Errorf("[%s] ❌ 解析消息失败: %v\n", h.client.GetPlayerID(), err)
 		return customerr.Wrap(err)
 	}
 
@@ -147,8 +213,8 @@ func (h *NetworkMessageHandler) HandleMessage(ctx context.Context, conn network.
 	)
 
 	// 发送到Actor处理
-	if err := h.client.actorMgr.SendMessageAsync(h.client.playerID, actorMsg); err != nil {
-		log.Errorf("[%s] 发送消息到Actor失败: %v", h.client.playerID, err)
+	if err := h.client.actorMgr.SendMessageAsync(h.client.GetPlayerID(), actorMsg); err != nil {
+		log.Errorf("[%s] 发送消息到Actor失败: %v", h.client.GetPlayerID(), err)
 		return customerr.Wrap(err)
 	}
 

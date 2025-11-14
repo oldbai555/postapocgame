@@ -4,12 +4,17 @@ import (
 	"fmt"
 	"postapocgame/server/service/dungeonserver/internel/iface"
 	"sync"
+	"time"
 )
 
 // EntityMgr 全局实体管理器
 type EntityMgr struct {
-	mu       sync.RWMutex
-	entities map[uint64]iface.IEntity // hdl -> entity
+	mu           sync.RWMutex
+	entities     map[uint64]iface.IEntity // hdl -> entity
+	sessionMu    sync.RWMutex
+	sessions     map[string]uint64 // sessionId -> entity hdl
+	sceneMu      sync.RWMutex
+	entityScenes map[uint64]iface.IScene
 }
 
 var (
@@ -21,7 +26,9 @@ var (
 func GetEntityMgr() *EntityMgr {
 	entityMgrOnce.Do(func() {
 		globalEntityMgr = &EntityMgr{
-			entities: make(map[uint64]iface.IEntity),
+			entities:     make(map[uint64]iface.IEntity),
+			sessions:     make(map[string]uint64),
+			entityScenes: make(map[uint64]iface.IScene),
 		}
 	})
 	return globalEntityMgr
@@ -47,6 +54,62 @@ func (m *EntityMgr) Unregister(hdl uint64) {
 	defer m.mu.Unlock()
 
 	delete(m.entities, hdl)
+}
+
+// BindSession 绑定sessionId与实体
+func (m *EntityMgr) BindSession(sessionId string, hdl uint64) {
+	if sessionId == "" {
+		return
+	}
+	m.sessionMu.Lock()
+	defer m.sessionMu.Unlock()
+	m.sessions[sessionId] = hdl
+}
+
+// UnbindSession 解除session绑定
+func (m *EntityMgr) UnbindSession(sessionId string) {
+	if sessionId == "" {
+		return
+	}
+	m.sessionMu.Lock()
+	defer m.sessionMu.Unlock()
+	delete(m.sessions, sessionId)
+}
+
+// GetBySession 根据sessionId获取实体
+func (m *EntityMgr) GetBySession(sessionId string) (iface.IEntity, bool) {
+	if sessionId == "" {
+		return nil, false
+	}
+	m.sessionMu.RLock()
+	hdl, ok := m.sessions[sessionId]
+	m.sessionMu.RUnlock()
+	if !ok {
+		return nil, false
+	}
+	return m.GetByHdl(hdl)
+}
+
+// BindScene 绑定实体所在场景
+func (m *EntityMgr) BindScene(hdl uint64, scene iface.IScene) {
+	m.sceneMu.Lock()
+	defer m.sceneMu.Unlock()
+	m.entityScenes[hdl] = scene
+}
+
+// UnbindScene 解除实体与场景绑定
+func (m *EntityMgr) UnbindScene(hdl uint64) {
+	m.sceneMu.Lock()
+	defer m.sceneMu.Unlock()
+	delete(m.entityScenes, hdl)
+}
+
+// GetSceneByHandle 获取实体所在场景
+func (m *EntityMgr) GetSceneByHandle(hdl uint64) (iface.IScene, bool) {
+	m.sceneMu.RLock()
+	scene, ok := m.entityScenes[hdl]
+	m.sceneMu.RUnlock()
+	return scene, ok
 }
 
 // GetByHdl 通过hdl获取实体
@@ -84,6 +147,22 @@ func (m *EntityMgr) GetAll() []iface.IEntity {
 	return entities
 }
 
+// RunOne 执行所有实体的单帧逻辑
+func (m *EntityMgr) RunOne(now time.Time) {
+	entities := m.GetAll()
+	for _, entity := range entities {
+		if entity == nil {
+			continue
+		}
+		entity.RunOne(now)
+	}
+}
+
+// RunOne 遍历所有实体并执行单帧逻辑（全局入口）
+func RunOne(now time.Time) {
+	GetEntityMgr().RunOne(now)
+}
+
 // GetCount 获取实体数量
 func (m *EntityMgr) GetCount() int {
 	m.mu.RLock()
@@ -97,4 +176,7 @@ func (m *EntityMgr) Clear() {
 	defer m.mu.Unlock()
 
 	m.entities = make(map[uint64]iface.IEntity)
+	m.sceneMu.Lock()
+	m.entityScenes = make(map[uint64]iface.IScene)
+	m.sceneMu.Unlock()
 }

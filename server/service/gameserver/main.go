@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"postapocgame/server/internal/actor"
+	"postapocgame/server/internal/database"
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
@@ -21,6 +22,16 @@ import (
 
 func main() {
 	log.InitLogger(log.WithAppName("gameserver"), log.WithScreen(true), log.WithPath(tool.GetCurDir()+"log"))
+
+	// 初始化数据库
+	dbPath := tool.GetCurDir() + "postapocgame.db"
+	if err := database.Init(dbPath); err != nil {
+		log.Fatalf("数据库初始化失败: %v", err)
+	}
+	if err := database.AutoMigrate(); err != nil {
+		log.Fatalf("数据表自动迁移失败: %v", err)
+	}
+	log.Infof("数据库初始化成功: %s", dbPath)
 
 	// 初始化错误码映射
 	protocol.InitErrorCodes()

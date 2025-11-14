@@ -1,0 +1,102 @@
+[
+  {
+    "npcId": 1001,
+    "sceneId": 1,
+    "name": "新手引导员",
+    "posX": 150,
+    "posY": 150,
+    "function": 4,
+    "dialogId": 1001,
+    "shopId": 0,
+    "teleportId": 0
+  },
+  {
+    "npcId": 1002,
+    "sceneId": 1,
+    "name": "新手商店",
+    "posX": 200,
+    "posY": 150,
+    "function": 1,
+    "dialogId": 0,
+    "shopId": 1,
+    "teleportId": 0
+  },
+  {
+    "npcId": 1003,
+    "sceneId": 1,
+    "name": "任务发布员",
+    "posX": 150,
+    "posY": 200,
+    "function": 2,
+    "dialogId": 1002,
+    "shopId": 0,
+    "teleportId": 0
+  },
+  {
+    "npcId": 2001,
+    "sceneId": 3,
+    "name": "主城商店",
+    "posX": 250,
+    "posY": 250,
+    "function": 1,
+    "dialogId": 0,
+    "shopId": 2,
+    "teleportId": 0
+  },
+  {
+    "npcId": 2002,
+    "sceneId": 3,
+    "name": "装备强化师",
+    "posX": 300,
+    "posY": 250,
+    "function": 4,
+    "dialogId": 2001,
+    "shopId": 0,
+    "teleportId": 0
+  },
+  {
+    "npcId": 2003,
+    "sceneId": 3,
+    "name": "传送管理员",
+    "posX": 250,
+    "posY": 300,
+    "function": 3,
+    "dialogId": 2002,
+    "shopId": 0,
+    "teleportId": 1
+  },
+  {
+    "npcId": 2004,
+    "sceneId": 3,
+    "name": "任务管理员",
+    "posX": 200,
+    "posY": 250,
+    "function": 2,
+    "dialogId": 2003,
+    "shopId": 0,
+    "teleportId": 0
+  },
+  {
+    "npcId": 3001,
+    "sceneId": 2,
+    "name": "野外商人",
+    "posX": 100,
+    "posY": 100,
+    "function": 1,
+    "dialogId": 0,
+    "shopId": 3,
+    "teleportId": 0
+  },
+  {
+    "npcId": 3002,
+    "sceneId": 2,
+    "name": "森林守护者",
+    "posX": 800,
+    "posY": 800,
+    "function": 4,
+    "dialogId": 3001,
+    "shopId": 0,
+    "teleportId": 0
+  }
+]
+

@@ -16,4 +16,6 @@ type SkillHitResult struct {
 	Heal       int64           // 治疗值
 	AddedBuffs []uint32        // 添加的Buff
 	ResultType SkillResultType // 结果类型
+	Attrs      map[uint32]int64
+	StateFlags uint64
 }

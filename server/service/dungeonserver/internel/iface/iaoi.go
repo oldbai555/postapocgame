@@ -12,4 +12,5 @@ type IAOISys interface {
 	RemoveVisibleEntity(entityId uint64)
 	IsVisible(entityId uint64) bool
 	ClearVisibleEntities()
+	ConsumeVisibilityChanges() (enter []IEntity, leave []uint64)
 }

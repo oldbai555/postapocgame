@@ -6,6 +6,7 @@ import (
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/dungeonserver/internel/entityhelper"
 	"postapocgame/server/service/dungeonserver/internel/entitymgr"
 	"postapocgame/server/service/dungeonserver/internel/iface"
 	"time"
@@ -141,34 +142,39 @@ func (s *Skill) checkHit(caster, target iface.IEntity) (bool, bool) {
 	// 简单的命中检查
 	// TODO: 考虑命中率、闪避率等
 	damageCalc := NewDamageCalculator()
-	casterAttr := damageCalc.GetEntityAttr(caster)
-	targetAttr := damageCalc.GetEntityAttr(target)
+	casterAttr := caster.GetAttrSys()
+	targetAttr := target.GetAttrSys()
 
 	isDodge := damageCalc.CheckDodge(casterAttr, targetAttr)
 	return !isDodge, isDodge
 }
 
-func (s *Skill) Use(ctx *argsdef.SkillCastContext, caster iface.IEntity) int {
+func (s *Skill) Use(ctx *argsdef.SkillCastContext, caster iface.IEntity) *CastResult {
+	result := &CastResult{
+		Success:    false,
+		ErrCode:    int(protocol.SkillUseErr_SkillUseErrSuccess),
+		HitResults: make([]*SkillHitResult, 0),
+	}
+
 	// 找目标
 	targets, ret := s.FindSkillTargets(ctx, caster)
 	if ret != int(protocol.SkillUseErr_SkillUseErrSuccess) {
-		return ret
+		result.ErrCode = ret
+		return result
 	}
 
 	// 过滤
 	valIdTargets := s.CheckTargetsValId(targets)
 	if len(valIdTargets) == 0 {
 		log.Warnf("No valId targets after check")
-		return int(protocol.SkillUseErr_ErrSkillTargetInvalId)
+		result.ErrCode = int(protocol.SkillUseErr_ErrSkillTargetInvalId)
+		return result
 	}
 
 	skillCfg := s.GetConfig()
 	if skillCfg == nil {
-		return int(protocol.SkillUseErr_ErrSkillNotLearned)
-	}
-	result := &CastResult{
-		Success:    true,
-		HitResults: make([]*SkillHitResult, 0, len(targets)),
+		result.ErrCode = int(protocol.SkillUseErr_ErrSkillNotLearned)
+		return result
 	}
 
 	damageCalc := NewDamageCalculator()
@@ -218,15 +224,18 @@ func (s *Skill) Use(ctx *argsdef.SkillCastContext, caster iface.IEntity) int {
 			case SkillResultTypeAddBuff:
 				// 添加Buff
 				buffId := effect.Value
-				buffSys := caster.GetBuffSys()
-				err := buffSys.AddBuff(target.GetHdl(), buffId, caster.GetHdl())
-				if err != nil {
-					log.Errorf("AddBuff failed err:%v", err)
+				if buffSys := target.GetBuffSys(); buffSys != nil {
+					if err := buffSys.AddBuff(buffId, caster); err != nil {
+						log.Errorf("AddBuff failed err:%v", err)
+					}
 				}
 				hitResult.AddedBuffs = append(hitResult.AddedBuffs, buffId)
 				hitResult.ResultType = SkillResultTypeAddBuff
 			}
 		}
+
+		hitResult.Attrs = entityhelper.BuildAttrMap(target)
+		hitResult.StateFlags = target.GetStateFlags()
 
 		result.HitResults = append(result.HitResults, hitResult)
 	}
@@ -242,5 +251,6 @@ func (s *Skill) Use(ctx *argsdef.SkillCastContext, caster iface.IEntity) int {
 		caster.SetMP(mp)
 	}
 
-	return result.ErrCode
+	result.Success = true
+	return result
 }

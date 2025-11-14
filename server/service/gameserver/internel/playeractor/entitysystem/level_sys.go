@@ -3,7 +3,9 @@ package entitysystem
 import (
 	"context"
 	"postapocgame/server/internal/event"
+	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/iface"
@@ -12,6 +14,7 @@ import (
 // LevelSys 等级系统
 type LevelSys struct {
 	*BaseSystem
+	levelData *protocol.SiLevelData
 }
 
 // NewLevelSys 创建等级系统
@@ -39,6 +42,210 @@ func GetLevelSys(ctx context.Context) *LevelSys {
 		return nil
 	}
 	return sys
+}
+
+// OnInit 系统初始化
+func (ls *LevelSys) OnInit(ctx context.Context) {
+	playerRole, err := GetIPlayerRoleByContext(ctx)
+	if err != nil {
+		log.Errorf("level sys OnInit get role err:%v", err)
+		return
+	}
+
+	// 从PlayerRoleBinaryData获取数据，如果不存在则初始化
+	binaryData := playerRole.GetBinaryData()
+	if binaryData == nil {
+		log.Errorf("binary data is nil")
+		return
+	}
+
+	// 如果level_data不存在，则初始化
+	if binaryData.LevelData == nil {
+		binaryData.LevelData = &protocol.SiLevelData{
+			Level: 1,
+			Exp:   0,
+		}
+	}
+	ls.levelData = binaryData.LevelData
+
+	// 确保等级至少为1
+	if ls.levelData.Level < 1 {
+		ls.levelData.Level = 1
+	}
+	if ls.levelData.Exp < 0 {
+		ls.levelData.Exp = 0
+	}
+
+	// 同步经验到货币系统（经验作为货币的一种）
+	if binaryData.MoneyData != nil && binaryData.MoneyData.MoneyMap != nil {
+		expMoneyID := uint32(protocol.MoneyType_MoneyTypeExp)
+		if _, exists := binaryData.MoneyData.MoneyMap[expMoneyID]; !exists {
+			// 如果货币系统中没有经验值，从等级系统同步
+			binaryData.MoneyData.MoneyMap[expMoneyID] = ls.levelData.Exp
+		} else {
+			// 如果货币系统中有经验值，同步到等级系统（以货币系统为准）
+			ls.levelData.Exp = binaryData.MoneyData.MoneyMap[expMoneyID]
+		}
+	}
+}
+
+// GetLevelData 获取等级数据
+func (ls *LevelSys) GetLevelData() *protocol.SiLevelData {
+	return ls.levelData
+}
+
+// GetLevel 获取当前等级
+func (ls *LevelSys) GetLevel() uint32 {
+	if ls.levelData == nil {
+		return 1
+	}
+	return ls.levelData.Level
+}
+
+// GetExp 获取当前经验
+func (ls *LevelSys) GetExp() int64 {
+	if ls.levelData == nil {
+		return 0
+	}
+	return ls.levelData.Exp
+}
+
+// AddExp 添加经验值（经验作为货币的一种，存储在货币系统中，但由等级系统处理升级逻辑）
+func (ls *LevelSys) AddExp(ctx context.Context, exp uint64) error {
+	if exp == 0 {
+		return nil
+	}
+
+	playerRole, err := GetIPlayerRoleByContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	if ls.levelData == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "level data not initialized")
+	}
+
+	// 经验同时存储在货币系统和等级系统中
+	// 1. 更新货币系统中的经验值
+	moneySys := GetMoneySys(ctx)
+	if moneySys != nil {
+		// 经验存储在货币系统中，使用MoneyTypeExp作为key
+		expMoneyID := uint32(protocol.MoneyType_MoneyTypeExp)
+		currentExp := moneySys.GetAmount(expMoneyID)
+		moneySys.moneyData.MoneyMap[expMoneyID] = currentExp + int64(exp)
+	}
+
+	// 2. 更新等级系统中的经验值（用于升级逻辑）
+	ls.levelData.Exp += int64(exp)
+
+	// 发布经验变化事件
+	playerRole.Publish(gevent.OnPlayerExpChange, map[string]interface{}{
+		"exp": ls.levelData.Exp,
+	})
+
+	// 检查是否升级
+	if err := ls.CheckLevelUp(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// CheckLevelUp 检查并处理升级逻辑
+func (ls *LevelSys) CheckLevelUp(ctx context.Context) error {
+	playerRole, err := GetIPlayerRoleByContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	if ls.levelData == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "level data not initialized")
+	}
+
+	// 循环检查升级（可能一次获得大量经验，连续升级）
+	for {
+		// 获取当前等级的配置
+		levelConfig, ok := jsonconf.GetConfigManager().GetLevelConfig(ls.levelData.Level)
+		if !ok {
+			// 没有更高等级的配置，已达到最高等级
+			break
+		}
+
+		// 检查是否满足升级条件
+		if ls.levelData.Exp < int64(levelConfig.ExpNeeded) {
+			break
+		}
+
+		// 扣除升级所需经验
+		ls.levelData.Exp -= int64(levelConfig.ExpNeeded)
+
+		// 同步更新货币系统中的经验值
+		moneySys := GetMoneySys(ctx)
+		if moneySys != nil {
+			expMoneyID := uint32(protocol.MoneyType_MoneyTypeExp)
+			moneySys.moneyData.MoneyMap[expMoneyID] = ls.levelData.Exp
+		}
+
+		// 升级
+		ls.levelData.Level++
+
+		log.Infof("Player level up: PlayerID=%d, NewLevel=%d, RemainingExp=%d",
+			playerRole.GetPlayerRoleId(), ls.levelData.Level, ls.levelData.Exp)
+
+		// 发放升级奖励
+		if len(levelConfig.Rewards) > 0 {
+			rewards := make([]*jsonconf.ItemAmount, 0, len(levelConfig.Rewards))
+			for _, reward := range levelConfig.Rewards {
+				rewards = append(rewards, &jsonconf.ItemAmount{
+					ItemType: uint32(reward.Type),
+					ItemId:   reward.ItemId,
+					Count:    int64(reward.Count),
+					Bind:     1, // 升级奖励默认绑定
+				})
+			}
+			if err := playerRole.GrantRewards(ctx, rewards); err != nil {
+				log.Errorf("Grant level up rewards failed: %v", err)
+				// 奖励发放失败不影响升级，只记录日志
+			}
+		}
+
+		// 发布升级事件
+		playerRole.Publish(gevent.OnPlayerLevelUp, map[string]interface{}{
+			"level": ls.levelData.Level,
+		})
+	}
+
+	// 标记属性系统需要重算
+	attrSys := GetAttrSys(ctx)
+	if attrSys != nil {
+		attrSys.MarkDirty(uint32(protocol.SaAttrSys_SaLevel))
+	}
+
+	return nil
+}
+
+// CalculateAttrs 计算等级系统的属性（实现IAttrCalculator接口）
+func (ls *LevelSys) CalculateAttrs(ctx context.Context) []*protocol.AttrSt {
+	if ls.levelData == nil {
+		return nil
+	}
+
+	// 从配置表获取等级属性
+	levelAttrs := jsonconf.GetConfigManager().GetLevelAttrs(ls.levelData.Level)
+	if len(levelAttrs) == 0 {
+		return nil
+	}
+
+	// 转换为protocol.AttrSt格式
+	result := make([]*protocol.AttrSt, 0, len(levelAttrs))
+	for attrType, attrValue := range levelAttrs {
+		result = append(result, &protocol.AttrSt{
+			Type:  attrType,
+			Value: int64(attrValue),
+		})
+	}
+
+	return result
 }
 
 // 注册系统工厂

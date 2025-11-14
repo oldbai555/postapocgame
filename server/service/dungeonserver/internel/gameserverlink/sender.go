@@ -7,6 +7,7 @@ import (
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"sync"
+	"time"
 )
 
 // MessageSender DungeonServer消息发送器
@@ -15,6 +16,15 @@ type MessageSender struct {
 	sessionRoutes map[string]argsdef.GameServerKey
 	codec         *network.Codec
 	mu            sync.RWMutex
+
+	// 同步RPC调用等待响应
+	pendingRPCs   map[uint32]chan *network.RPCResponse
+	rpcMu         sync.RWMutex
+	nextRequestId uint32
+
+	// 异步RPC的SessionId映射（RequestId -> SessionId）
+	asyncRpcSessions map[uint32]string
+	asyncRpcMu       sync.RWMutex
 }
 
 var (
@@ -26,9 +36,12 @@ var (
 func GetMessageSender() *MessageSender {
 	senderOnce.Do(func() {
 		globalSender = &MessageSender{
-			gameServers:   make(map[argsdef.GameServerKey]network.IMessageSender),
-			sessionRoutes: make(map[string]argsdef.GameServerKey),
-			codec:         network.DefaultCodec(),
+			gameServers:      make(map[argsdef.GameServerKey]network.IMessageSender),
+			sessionRoutes:    make(map[string]argsdef.GameServerKey),
+			codec:            network.DefaultCodec(),
+			pendingRPCs:      make(map[uint32]chan *network.RPCResponse),
+			nextRequestId:    1,
+			asyncRpcSessions: make(map[uint32]string),
 		}
 	})
 	return globalSender
@@ -124,7 +137,7 @@ func (s *MessageSender) GetFirstGameServer() (network.IMessageSender, bool) {
 	return nil, false
 }
 
-// CallGameServer 调用GameServer RPC
+// CallGameServer 调用GameServer RPC（异步）
 func (s *MessageSender) CallGameServer(ctx context.Context, sessionId string, msgId uint16, data []byte) error {
 	var conn network.IMessageSender
 	var ok bool
@@ -141,7 +154,21 @@ func (s *MessageSender) CallGameServer(ctx context.Context, sessionId string, ms
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "no gameserver connection available")
 	}
 
+	// 生成RequestId
+	s.rpcMu.Lock()
+	requestId := s.nextRequestId
+	s.nextRequestId++
+	s.rpcMu.Unlock()
+
+	// 如果是异步RPC（如D2GAddItem），保存SessionId映射
+	if msgId == uint16(protocol.D2GRpcProtocol_D2GAddItem) && sessionId != "" {
+		s.asyncRpcMu.Lock()
+		s.asyncRpcSessions[requestId] = sessionId
+		s.asyncRpcMu.Unlock()
+	}
+
 	return conn.SendRPCRequest(&network.RPCRequest{
+		RequestId: requestId,
 		SessionId: sessionId,
 		MsgId:     msgId,
 		Data:      data,
@@ -151,4 +178,92 @@ func (s *MessageSender) CallGameServer(ctx context.Context, sessionId string, ms
 // CallGameServer 全局函数:调用GameServer RPC
 func CallGameServer(ctx context.Context, sessionId string, msgId uint16, data []byte) error {
 	return GetMessageSender().CallGameServer(ctx, sessionId, msgId, data)
+}
+
+// SyncCall 同步调用GameServer RPC并返回响应
+func SyncCall(ctx context.Context, sessionId string, msgId uint16, data []byte) ([]byte, error) {
+	return GetMessageSender().SyncCall(ctx, sessionId, msgId, data)
+}
+
+// SyncCall 同步调用GameServer RPC并返回响应
+func (s *MessageSender) SyncCall(ctx context.Context, sessionId string, msgId uint16, data []byte) ([]byte, error) {
+	var conn network.IMessageSender
+	var ok bool
+
+	if sessionId != "" {
+		// 如果指定了sessionId,使用session路由
+		conn, ok = s.GetGameServerBySession(sessionId)
+	} else {
+		// 否则使用第一个可用的GameServer
+		conn, ok = s.GetFirstGameServer()
+	}
+
+	if !ok {
+		return nil, customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "no gameserver connection available")
+	}
+
+	// 生成请求ID
+	s.rpcMu.Lock()
+	requestId := s.nextRequestId
+	s.nextRequestId++
+	// 创建响应channel
+	respChan := make(chan *network.RPCResponse, 1)
+	s.pendingRPCs[requestId] = respChan
+	s.rpcMu.Unlock()
+
+	// 发送RPC请求
+	req := &network.RPCRequest{
+		RequestId: requestId,
+		SessionId: sessionId,
+		MsgId:     msgId,
+		Data:      data,
+	}
+	if err := conn.SendRPCRequest(req); err != nil {
+		// 清理pending
+		s.rpcMu.Lock()
+		delete(s.pendingRPCs, requestId)
+		s.rpcMu.Unlock()
+		return nil, customerr.Wrap(err)
+	}
+
+	// 等待响应（超时5秒）
+	select {
+	case resp := <-respChan:
+		// 清理pending
+		s.rpcMu.Lock()
+		delete(s.pendingRPCs, requestId)
+		s.rpcMu.Unlock()
+
+		if !resp.Success {
+			return nil, customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), string(resp.Data))
+		}
+		return resp.Data, nil
+	case <-time.After(5 * time.Second):
+		// 超时，清理pending
+		s.rpcMu.Lock()
+		delete(s.pendingRPCs, requestId)
+		s.rpcMu.Unlock()
+		return nil, customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "RPC call timeout")
+	case <-ctx.Done():
+		// 上下文取消，清理pending
+		s.rpcMu.Lock()
+		delete(s.pendingRPCs, requestId)
+		s.rpcMu.Unlock()
+		return nil, ctx.Err()
+	}
+}
+
+// HandleRPCResponse 处理RPC响应（由NetworkHandler调用）
+func (s *MessageSender) HandleRPCResponse(resp *network.RPCResponse) {
+	s.rpcMu.RLock()
+	respChan, ok := s.pendingRPCs[resp.RequestId]
+	s.rpcMu.RUnlock()
+
+	if ok {
+		select {
+		case respChan <- resp:
+		default:
+			// channel已满，忽略
+		}
+	}
 }

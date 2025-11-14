@@ -1,0 +1,20 @@
+/**
+ * @Author: zjj
+ * @Date: 2025/11/12
+ * @Desc: 任务相关枚举定义
+**/
+
+syntax = "proto3";
+
+package pb3;
+
+option go_package = "server/internal/protocol";
+
+// 任务类型枚举
+enum QuestType {
+    QuestTypeNil = 0;
+    QuestTypeTalkToNPC = 1;    // 和NPC对话，ids配置npcId，count为对话次数
+    QuestTypeLearnSkill = 2;   // 学习任意技能，ids不需要配置，count为学习技能次数
+    QuestTypeKillMonster = 3;  // 击杀任意怪物，ids不需要配置，count为击杀怪物数量
+}
+

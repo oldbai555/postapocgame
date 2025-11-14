@@ -30,6 +30,10 @@ const (
 	OnItemUse
 	OnBagExpand
 
+	// 装备系统
+	OnEquipChange
+	OnEquipUpgrade
+
 	// 任务系统
 	OnQuestAccept
 	OnQuestProgress

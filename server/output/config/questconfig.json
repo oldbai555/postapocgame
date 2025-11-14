@@ -1,17 +1,16 @@
 [
   {
-    "questId": 1001,
-    "name": "新手的第一步",
+    "questId": 101,
+    "name": "和NPC对话",
     "type": 1,
-    "description": "击败5只史莱姆",
+    "description": "和NPC 101对话1次",
     "level": 1,
     "preQuests": [],
-    "objectives": [
+    "targets": [
       {
         "type": 1,
-        "targetId": 10001,
-        "targetName": "史莱姆",
-        "count": 5
+        "ids": [101],
+        "count": 1
       }
     ],
     "rewards": [
@@ -19,93 +18,75 @@
         "itemId": 1001,
         "type": 4,
         "count": 10
-      },
-      {
-        "itemId": 1,
-        "type": 1,
-        "count": 100
       }
     ],
-    "expReward": 500
+    "expReward": 100
   },
   {
-    "questId": 1002,
-    "name": "采集任务",
+    "questId": 102,
+    "name": "和NPC对话",
     "type": 1,
-    "description": "收集10个铁矿石",
-    "level": 2,
-    "preQuests": [1001],
-    "objectives": [
+    "description": "和NPC 101对话1次",
+    "level": 1,
+    "preQuests": [],
+    "targets": [
       {
-        "type": 2,
-        "targetId": 4001,
-        "targetName": "铁矿石",
-        "count": 10
+        "type": 1,
+        "ids": [101],
+        "count": 1
       }
     ],
     "rewards": [
       {
-        "itemId": 1002,
+        "itemId": 1001,
         "type": 4,
-        "count": 5
-      },
-      {
-        "itemId": 1,
-        "type": 1,
-        "count": 200
+        "count": 10
       }
     ],
-    "expReward": 800
+    "expReward": 100
   },
   {
-    "questId": 1003,
-    "name": "拜访长老",
+    "questId": 103,
+    "name": "学习技能",
     "type": 1,
-    "description": "与村长对话",
-    "level": 3,
-    "preQuests": [1002],
-    "objectives": [
+    "description": "学习任意技能1次",
+    "level": 1,
+    "preQuests": [],
+    "targets": [
+      {
+        "type": 2,
+        "ids": [],
+        "count": 1
+      }
+    ],
+    "rewards": [
+      {
+        "itemId": 1001,
+        "type": 4,
+        "count": 10
+      }
+    ],
+    "expReward": 200
+  },
+  {
+    "questId": 104,
+    "name": "击杀怪物",
+    "type": 1,
+    "description": "击杀任意怪物5只",
+    "level": 1,
+    "preQuests": [],
+    "targets": [
       {
         "type": 3,
-        "targetId": 20001,
-        "targetName": "村长",
-        "count": 1
-      }
-    ],
-    "rewards": [
-      {
-        "itemId": 3001,
-        "type": 2,
-        "count": 1
-      },
-      {
-        "itemId": 1,
-        "type": 1,
-        "count": 300
-      }
-    ],
-    "expReward": 1000
-  },
-  {
-    "questId": 2001,
-    "name": "日常：清理怪物",
-    "type": 3,
-    "description": "击败10只哥布林",
-    "level": 5,
-    "preQuests": [],
-    "objectives": [
-      {
-        "type": 1,
-        "targetId": 10002,
-        "targetName": "哥布林",
-        "count": 10
-      }
-    ],
-    "rewards": [
-      {
-        "itemId": 1002,
-        "type": 4,
+        "ids": [],
         "count": 5
+      }
+    ],
+    "rewards": [
+      {
+        "itemId": 1001,
+        "type": 4,
+        "count": 20
       },
       {
         "itemId": 1,
@@ -113,35 +94,39 @@
         "count": 500
       }
     ],
-    "expReward": 2000
+    "expReward": 500
   },
   {
-    "questId": 2002,
-    "name": "支线：寻找宝箱",
-    "type": 2,
-    "description": "在森林中找到隐藏的宝箱",
-    "level": 8,
-    "preQuests": [],
-    "objectives": [
+    "questId": 105,
+    "name": "复合任务",
+    "type": 1,
+    "description": "和NPC对话并击杀怪物",
+    "level": 2,
+    "preQuests": [101],
+    "targets": [
       {
-        "type": 2,
-        "targetId": 30001,
-        "targetName": "宝箱",
+        "type": 1,
+        "ids": [101],
         "count": 1
+      },
+      {
+        "type": 3,
+        "ids": [],
+        "count": 3
       }
     ],
     "rewards": [
       {
-        "itemId": 1003,
+        "itemId": 1002,
         "type": 4,
-        "count": 10
+        "count": 5
       },
       {
-        "itemId": 2,
+        "itemId": 1,
         "type": 1,
-        "count": 50
+        "count": 1000
       }
     ],
-    "expReward": 3000
+    "expReward": 1000
   }
 ]

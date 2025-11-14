@@ -2,9 +2,12 @@ package fuben
 
 import (
 	"fmt"
+	"math/rand"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/dungeonserver/internel/entitymgr"
+	"postapocgame/server/service/dungeonserver/internel/fbmgr"
 	"postapocgame/server/service/dungeonserver/internel/iface"
 	"postapocgame/server/service/dungeonserver/internel/scene"
 	"postapocgame/server/service/dungeonserver/internel/scenemgr"
@@ -14,10 +17,11 @@ import (
 
 // FuBenSt 副本结构
 type FuBenSt struct {
-	fbId   uint32
-	name   string
-	fbType uint32
-	state  uint32
+	fbId       uint32
+	name       string
+	fbType     uint32
+	state      uint32
+	difficulty uint32 // 难度: 1=普通 2=精英 3=地狱
 
 	// 场景管理
 	sceneMgr *scenemgr.SceneStMgr
@@ -31,25 +35,39 @@ type FuBenSt struct {
 	playerCount int
 	maxPlayers  int // 最大玩家数，0表示无限制
 
+	// 结算相关
+	startTime      time.Time       // 开始时间
+	killCount      uint32          // 击杀数量
+	playerSessions map[string]bool // 玩家Session列表
+
+	// 世界状态
+	isNight         bool
+	nextCycleUpdate time.Time
+
 	mu sync.RWMutex
 }
 
 // NewFuBenSt 创建副本
 func NewFuBenSt(fbId uint32, name string, fbType uint32, maxPlayers int, maxDuration time.Duration) *FuBenSt {
 	fb := &FuBenSt{
-		fbId:        fbId,
-		name:        name,
-		fbType:      fbType,
-		state:       uint32(protocol.FuBenState_FuBenStateNormal),
-		sceneMgr:    scenemgr.NewSceneStMgr(),
-		createTime:  time.Now(),
-		maxPlayers:  maxPlayers,
-		maxDuration: maxDuration,
-		playerCount: 0,
+		fbId:            fbId,
+		name:            name,
+		fbType:          fbType,
+		state:           uint32(protocol.FuBenState_FuBenStateNormal),
+		difficulty:      1, // 默认普通难度
+		sceneMgr:        scenemgr.NewSceneStMgr(),
+		createTime:      time.Now(),
+		maxPlayers:      maxPlayers,
+		maxDuration:     maxDuration,
+		playerCount:     0,
+		startTime:       time.Now(),
+		killCount:       0,
+		playerSessions:  make(map[string]bool),
+		nextCycleUpdate: time.Now().Add(5 * time.Minute),
 	}
 
 	// 如果是限时副本，设置过期时间
-	if fbType == uint32(protocol.FuBenType_FuBenTypeTimed) || fbType == uint32(protocol.FuBenType_FuBenTypeTimedSingle) || fbType == uint32(protocol.FuBenType_FuBenTypeTimedMulti) {
+	if fbType == uint32(protocol.FuBenType_FuBenTypeTimed) {
 		if maxDuration > 0 {
 			fb.expireTime = fb.createTime.Add(maxDuration)
 		}
@@ -108,7 +126,7 @@ func (fb *FuBenSt) CanEnter() bool {
 }
 
 // OnPlayerEnter 玩家进入
-func (fb *FuBenSt) OnPlayerEnter() error {
+func (fb *FuBenSt) OnPlayerEnter(sessionId string) error {
 	fb.mu.Lock()
 	defer fb.mu.Unlock()
 
@@ -121,26 +139,104 @@ func (fb *FuBenSt) OnPlayerEnter() error {
 	}
 
 	fb.playerCount++
+	fb.playerSessions[sessionId] = true
+
+	// 如果是第一个玩家进入，记录开始时间
+	if fb.playerCount == 1 {
+		fb.startTime = time.Now()
+	}
+
 	log.Infof("Player entered FuBen %d, current players: %d", fb.fbId, fb.playerCount)
 
 	return nil
 }
 
 // OnPlayerLeave 玩家离开
-func (fb *FuBenSt) OnPlayerLeave() {
+func (fb *FuBenSt) OnPlayerLeave(sessionId string) {
 	fb.mu.Lock()
 	defer fb.mu.Unlock()
 
 	if fb.playerCount > 0 {
 		fb.playerCount--
 	}
+	delete(fb.playerSessions, sessionId)
 
 	log.Infof("Player left FuBen %d, current players: %d", fb.fbId, fb.playerCount)
 
-	// 如果是单人副本且没人了，标记为可关闭
-	if fb.fbType == uint32(protocol.FuBenType_FuBenTypeTimedSingle) && fb.playerCount == 0 {
+	// 限时副本没人时标记为可关闭
+	if fb.fbType == uint32(protocol.FuBenType_FuBenTypeTimed) && fb.playerCount == 0 {
 		fb.state = uint32(protocol.FuBenState_FuBenStateClosing)
 	}
+}
+
+// SetDifficulty 设置难度
+func (fb *FuBenSt) SetDifficulty(difficulty uint32) {
+	fb.mu.Lock()
+	defer fb.mu.Unlock()
+	fb.difficulty = difficulty
+}
+
+// GetDifficulty 获取难度
+func (fb *FuBenSt) GetDifficulty() uint32 {
+	fb.mu.RLock()
+	defer fb.mu.RUnlock()
+	return fb.difficulty
+}
+
+// AddKillCount 增加击杀数
+func (fb *FuBenSt) AddKillCount(count uint32) {
+	fb.mu.Lock()
+	defer fb.mu.Unlock()
+	fb.killCount += count
+}
+
+// GetKillCount 获取击杀数
+func (fb *FuBenSt) GetKillCount() uint32 {
+	fb.mu.RLock()
+	defer fb.mu.RUnlock()
+	return fb.killCount
+}
+
+// Complete 完成副本（结算）
+func (fb *FuBenSt) Complete(success bool) {
+	fb.mu.Lock()
+	defer fb.mu.Unlock()
+
+	// 使用Closing状态，后续会自动关闭
+	fb.state = uint32(protocol.FuBenState_FuBenStateClosing)
+
+	// 计算用时
+	timeUsed := uint32(time.Since(fb.startTime).Seconds())
+
+	// 为每个玩家结算
+	for sessionId := range fb.playerSessions {
+		// 从sessionId获取entity和roleId
+		entityMgr := entitymgr.GetEntityMgr()
+		entity, ok := entityMgr.GetBySession(sessionId)
+		if !ok {
+			log.Warnf("Entity not found for session %s", sessionId)
+			continue
+		}
+
+		roleId := entity.GetId()
+		settlement := &DungeonSettlement{
+			SessionId:  sessionId,
+			RoleId:     roleId,
+			DungeonID:  fb.fbId,
+			Difficulty: fb.difficulty,
+			Success:    success,
+			KillCount:  fb.killCount,
+			TimeUsed:   timeUsed,
+		}
+
+		// 结算奖励
+		if err := SettleDungeon(settlement); err != nil {
+			log.Errorf("Settle dungeon failed for session %s: %v", sessionId, err)
+		}
+	}
+
+	log.Infof("FuBen %d completed: success=%v, killCount=%d, timeUsed=%d",
+		fb.fbId, success, fb.killCount, timeUsed)
 }
 
 // GetPlayerCount 获取玩家数量
@@ -169,10 +265,72 @@ func (fb *FuBenSt) Close() {
 
 	fb.state = uint32(protocol.FuBenState_FuBenStateClosed)
 
-	// TODO: 踢出所有玩家
-	// TODO: 清理场景数据
+	// 踢出所有玩家（将玩家移回默认副本）
+	entityMgr := entitymgr.GetEntityMgr()
+	for sessionId := range fb.playerSessions {
+		entity, ok := entityMgr.GetBySession(sessionId)
+		if !ok {
+			log.Warnf("Entity not found for session %s when closing FuBen", sessionId)
+			continue
+		}
 
-	log.Infof("FuBen %d closed", fb.fbId)
+		// 从当前场景移除实体
+		currentScene := entity.GetScene()
+		if currentScene != nil {
+			currentScene.RemoveEntity(entity.GetHdl())
+		}
+
+		// 将玩家移回默认副本（fbId=0）的场景1（新手村）
+		defaultFuBen, ok := fbmgr.GetFuBenMgr().GetFuBen(0)
+		if ok && defaultFuBen != nil {
+			defaultScene := defaultFuBen.GetScene(1)
+			if defaultScene != nil {
+				// 获取默认场景的出生点
+				sceneConfig := jsonconf.GetConfigManager().GetSceneConfig(1)
+				var x, y uint32
+				if sceneConfig != nil && sceneConfig.BornArea != nil {
+					// 从出生点范围随机选择
+					bornArea := sceneConfig.BornArea
+					x = bornArea.X1 + uint32(rand.Intn(int(bornArea.X2-bornArea.X1)))
+					y = bornArea.Y1 + uint32(rand.Intn(int(bornArea.Y2-bornArea.Y1)))
+				} else {
+					// 使用默认位置
+					x, y = 100, 100
+				}
+				entity.SetPosition(x, y)
+				entity.SetSceneId(1)
+				defaultScene.AddEntity(entity)
+				log.Infof("Player %s moved to default FuBen scene 1", sessionId)
+			}
+		}
+
+		// 通知玩家副本已关闭
+		// 通过GameServer通知客户端（这里可以发送一个协议通知客户端）
+		log.Infof("Player %s kicked from FuBen %d", sessionId, fb.fbId)
+	}
+
+	// 清理场景数据
+	if fb.sceneMgr != nil {
+		allScenes := fb.sceneMgr.GetAllScenes()
+		for _, scene := range allScenes {
+			// 清理场景中的所有实体（除了玩家，玩家已经移走）
+			allEntities := scene.GetAllEntities()
+			for _, entity := range allEntities {
+				// 只清理非玩家实体（怪物、掉落物等）
+				if entity.GetEntityType() != uint32(protocol.EntityType_EtRole) {
+					scene.RemoveEntity(entity.GetHdl())
+				}
+			}
+		}
+		// 清空场景管理器
+		fb.sceneMgr = scenemgr.NewSceneStMgr()
+	}
+
+	// 清空玩家列表
+	fb.playerSessions = make(map[string]bool)
+	fb.playerCount = 0
+
+	log.Infof("FuBen %d closed, all players kicked and scenes cleared", fb.fbId)
 }
 
 // GetFbId 获取副本Id
@@ -195,4 +353,35 @@ func (fb *FuBenSt) GetState() uint32 {
 	fb.mu.RLock()
 	defer fb.mu.RUnlock()
 	return fb.state
+}
+
+// RunOne 副本常驻逻辑
+func (fb *FuBenSt) RunOne(now time.Time) {
+	fb.mu.Lock()
+	defer fb.mu.Unlock()
+
+	// 限时副本过期检查
+	if fb.fbType == uint32(protocol.FuBenType_FuBenTypeTimed) {
+		if !fb.expireTime.IsZero() && now.After(fb.expireTime) {
+			// 副本已过期，踢出所有玩家
+			if fb.state == uint32(protocol.FuBenState_FuBenStateNormal) {
+				fb.state = uint32(protocol.FuBenState_FuBenStateClosing)
+				log.Infof("FuBen %d expired, kicking all players", fb.fbId)
+
+				// 通知所有玩家副本已过期（通过GameServer）
+				// TODO: 实现踢出玩家的逻辑
+				// 这里可以通过RPC通知GameServer，然后GameServer通知客户端
+			}
+		}
+	}
+
+	// 世界周期切换
+	if fb.nextCycleUpdate.IsZero() {
+		fb.nextCycleUpdate = now.Add(5 * time.Minute)
+	}
+	if now.After(fb.nextCycleUpdate) {
+		fb.isNight = !fb.isNight
+		fb.nextCycleUpdate = now.Add(5 * time.Minute)
+		log.Infof("FuBen %d world cycle switched, night=%v", fb.fbId, fb.isNight)
+	}
 }

@@ -8,6 +8,7 @@
 /files.zip
 /files*.zip
 /server/output/*.exe
+/server/*.exe
 /server/output/log/
 /Claude*framework_*.json
 /.claude/
@@ -15,3 +16,5 @@
 /server/output/*.panic
 /server/internal/protocol/*.pb.go
 /output/
+/server/output/postapocgame.db
+/server/*/postapocgame.db

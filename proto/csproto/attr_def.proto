@@ -1,0 +1,32 @@
+/**
+ * @Author: zjj
+ * @Date: 2025/11/12
+ * @Desc: 属性系统定义
+**/
+
+syntax = "proto3";
+
+package pb3;
+
+option go_package = "server/internal/protocol";
+
+import "base.proto";
+
+// 属性系统枚举
+enum SaAttrSys {
+    SaAttrSysNil = 0;
+    SaLevel = 1;  // 等级系统
+    SaEquip = 2;  // 装备系统
+    // 后续可扩展其他系统
+}
+
+// 属性同步数据（单个系统的属性数据）
+message SyncAttrData {
+    map<uint32, AttrVec> attr_data = 1; // key: SaAttrSys枚举值, value: 该系统的属性列表
+}
+
+// 属性列表（用于属性同步）
+message AttrVec {
+    repeated AttrSt attrs = 1;
+}
+

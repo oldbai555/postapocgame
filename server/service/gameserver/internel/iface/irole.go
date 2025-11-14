@@ -9,6 +9,7 @@ package iface
 import (
 	"context"
 	"postapocgame/server/internal/event"
+	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 )
 
@@ -32,12 +33,19 @@ type IPlayerRole interface {
 	GetBinaryData() *protocol.PlayerRoleBinaryData
 	GetDungeonSrvType() uint8
 	SetDungeonSrvType(srvType uint8)
+	GetGMLevel() uint32 // 获取GM等级
 
 	GetSysMgr() ISystemMgr
 	GetSystem(sysId uint32) ISystem
 	GetSysStatus(sysId uint32) bool
 	GetSysStatusData() map[uint32]uint32
 	SetSysStatus(sysId uint32, isOpen bool)
+
+	CheckConsume(items []*jsonconf.ItemAmount) error
+	ApplyConsume(ctx context.Context, items []*jsonconf.ItemAmount) error
+	GrantRewards(ctx context.Context, items []*jsonconf.ItemAmount) error
+
+	SaveToDB() error
 }
 
 type IPlayerEvent interface {

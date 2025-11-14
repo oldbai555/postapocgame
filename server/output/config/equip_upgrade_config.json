@@ -1,0 +1,178 @@
+[
+  {
+    "itemId": 5001,
+    "upgradeCost": [
+      {
+        "level": 1,
+        "gold": 1000,
+        "itemId": 20001,
+        "count": 1
+      },
+      {
+        "level": 2,
+        "gold": 2000,
+        "itemId": 20001,
+        "count": 2
+      },
+      {
+        "level": 3,
+        "gold": 3000,
+        "itemId": 20001,
+        "count": 3
+      },
+      {
+        "level": 4,
+        "gold": 5000,
+        "itemId": 20002,
+        "count": 1
+      },
+      {
+        "level": 5,
+        "gold": 8000,
+        "itemId": 20002,
+        "count": 2
+      }
+    ]
+  },
+  {
+    "itemId": 5002,
+    "upgradeCost": [
+      {
+        "level": 1,
+        "gold": 1500,
+        "itemId": 20001,
+        "count": 2
+      },
+      {
+        "level": 2,
+        "gold": 3000,
+        "itemId": 20001,
+        "count": 3
+      },
+      {
+        "level": 3,
+        "gold": 5000,
+        "itemId": 20001,
+        "count": 5
+      },
+      {
+        "level": 4,
+        "gold": 8000,
+        "itemId": 20002,
+        "count": 2
+      },
+      {
+        "level": 5,
+        "gold": 12000,
+        "itemId": 20002,
+        "count": 3
+      }
+    ]
+  },
+  {
+    "itemId": 5003,
+    "upgradeCost": [
+      {
+        "level": 1,
+        "gold": 2000,
+        "itemId": 20001,
+        "count": 3
+      },
+      {
+        "level": 2,
+        "gold": 4000,
+        "itemId": 20001,
+        "count": 5
+      },
+      {
+        "level": 3,
+        "gold": 7000,
+        "itemId": 20002,
+        "count": 1
+      },
+      {
+        "level": 4,
+        "gold": 12000,
+        "itemId": 20002,
+        "count": 2
+      },
+      {
+        "level": 5,
+        "gold": 20000,
+        "itemId": 20002,
+        "count": 4
+      }
+    ]
+  },
+  {
+    "itemId": 5004,
+    "upgradeCost": [
+      {
+        "level": 1,
+        "gold": 2500,
+        "itemId": 20002,
+        "count": 1
+      },
+      {
+        "level": 2,
+        "gold": 5000,
+        "itemId": 20002,
+        "count": 2
+      },
+      {
+        "level": 3,
+        "gold": 10000,
+        "itemId": 20002,
+        "count": 3
+      },
+      {
+        "level": 4,
+        "gold": 20000,
+        "itemId": 30001,
+        "count": 1
+      },
+      {
+        "level": 5,
+        "gold": 40000,
+        "itemId": 30001,
+        "count": 2
+      }
+    ]
+  },
+  {
+    "itemId": 5005,
+    "upgradeCost": [
+      {
+        "level": 1,
+        "gold": 3000,
+        "itemId": 20002,
+        "count": 2
+      },
+      {
+        "level": 2,
+        "gold": 6000,
+        "itemId": 20002,
+        "count": 3
+      },
+      {
+        "level": 3,
+        "gold": 12000,
+        "itemId": 30001,
+        "count": 1
+      },
+      {
+        "level": 4,
+        "gold": 25000,
+        "itemId": 30001,
+        "count": 2
+      },
+      {
+        "level": 5,
+        "gold": 50000,
+        "itemId": 30001,
+        "count": 4
+      }
+    ]
+  }
+]
+

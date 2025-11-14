@@ -118,15 +118,11 @@ func (a *actorContext) loop() {
 		if a.handler == nil {
 			return
 		}
-		routine.Run(func() {
-			a.handler.HandleMessage(msg)
-		})
+		a.handler.HandleMessage(msg)
 	}
 	for {
 		if a.handler != nil {
-			routine.Run(func() {
-				a.handler.Loop()
-			})
+			a.handler.Loop()
 		}
 		select {
 		case msg := <-a.mailbox:

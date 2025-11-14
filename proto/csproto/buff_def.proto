@@ -16,3 +16,12 @@ enum BuffType {
     BtBuff = 1;// 增益
     BtDeBuff = 2;// 减益
 }
+
+// Buff效果类型
+enum BuffEffectType {
+    BuffEffectTypeNil = 0;
+    
+    BuffEffectTypeAttr = 1;   // 属性增减
+    BuffEffectTypeState = 2;  // 状态效果（如减速、禁锢等）
+    BuffEffectTypeDot = 3;    // 持续伤害/持续治疗
+}

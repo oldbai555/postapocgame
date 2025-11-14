@@ -17,6 +17,11 @@ import (
 
 type RPCHandler func(ctx context.Context, sessionId string, data []byte) error
 
+// RPC响应数据的context key
+type rpcResponseKey struct{}
+
+var RPCResponseKeyValue = &rpcResponseKey{}
+
 // DungeonMessageHandler 消息处理器
 type DungeonMessageHandler struct {
 	codec         *network.Codec
@@ -67,14 +72,82 @@ func (h *DungeonMessageHandler) handleRPCRequest(ctx context.Context, msg *netwo
 
 	if !ok {
 		log.Errorf("no rpc handler registered for msgId: %d", req.MsgId)
-		return fmt.Errorf("no handler for msgId: %d", req.MsgId)
+		// 发送错误响应
+		resp := &network.RPCResponse{
+			RequestId: req.RequestId,
+			Success:   false,
+			Data:      []byte("no handler for msgId"),
+		}
+		respData, _ := h.codec.EncodeRPCResponse(resp)
+		return msg.Conn.SendMessage(&network.Message{
+			Type:    network.MsgTypeRPCResponse,
+			Payload: respData,
+		})
 	}
 
+	// 对于需要异步处理的RPC（如D2GAddItem），发送到PlayerRole的Actor中处理
+	// 其他RPC直接同步处理
+	if req.MsgId == uint16(protocol.D2GRpcProtocol_D2GAddItem) {
+		// 异步处理：发送到PlayerRole的Actor
+		if req.SessionId != "" {
+			// 创建包含RequestId和连接信息的context
+			rpcCtx := context.WithValue(ctx, "rpcRequestId", req.RequestId)
+			rpcCtx = context.WithValue(rpcCtx, "rpcConn", msg.Conn)
+
+			// 发送到PlayerRole的Actor异步处理
+			actorMsg := actor.NewBaseMessage(rpcCtx, uint16(protocol.D2GRpcProtocol_D2GAddItem), req.Data)
+			if err := gshare.SendMessageAsync(req.SessionId, actorMsg); err != nil {
+				log.Errorf("send to actor failed: %v", err)
+				// 发送错误响应
+				resp := &network.RPCResponse{
+					RequestId: req.RequestId,
+					Success:   false,
+					Data:      []byte(err.Error()),
+				}
+				respData, _ := h.codec.EncodeRPCResponse(resp)
+				return msg.Conn.SendMessage(&network.Message{
+					Type:    network.MsgTypeRPCResponse,
+					Payload: respData,
+				})
+			}
+			// 异步处理已发送，等待Actor处理完成后发送响应
+			return nil
+		}
+	}
+
+	// 调用处理器（同步处理）
 	if err := handler(ctx, req.SessionId, req.Data); err != nil {
 		log.Errorf("handle rpc request failed: %v", err)
-		return err
+		// 发送错误响应
+		resp := &network.RPCResponse{
+			RequestId: req.RequestId,
+			Success:   false,
+			Data:      []byte(err.Error()),
+		}
+		respData, _ := h.codec.EncodeRPCResponse(resp)
+		return msg.Conn.SendMessage(&network.Message{
+			Type:    network.MsgTypeRPCResponse,
+			Payload: respData,
+		})
 	}
 
+	// 检查context中是否有响应数据
+	if respData := ctx.Value(RPCResponseKeyValue); respData != nil {
+		// 发送响应
+		resp := &network.RPCResponse{
+			RequestId: req.RequestId,
+			Success:   true,
+			Data:      respData.([]byte),
+		}
+		respDataEncoded, _ := h.codec.EncodeRPCResponse(resp)
+		return msg.Conn.SendMessage(&network.Message{
+			Type:    network.MsgTypeRPCResponse,
+			Payload: respDataEncoded,
+		})
+	}
+
+	// 如果处理器返回了数据（通过context或其他方式），发送成功响应
+	// 这里暂时不发送响应，因为大多数RPC不需要响应
 	return nil
 }
 

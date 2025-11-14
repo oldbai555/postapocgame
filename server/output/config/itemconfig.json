@@ -68,7 +68,10 @@
     "canUse": false,
     "canSell": true,
     "sellPrice": 100,
-    "description": "攻击力+10"
+    "description": "攻击力+10",
+    "equipAttrs": [
+      {"type": 3, "value": 10}
+    ]
   },
   {
     "itemId": 3002,
@@ -79,7 +82,10 @@
     "canUse": false,
     "canSell": true,
     "sellPrice": 500,
-    "description": "攻击力+30"
+    "description": "攻击力+30",
+    "equipAttrs": [
+      {"type": 3, "value": 30}
+    ]
   },
   {
     "itemId": 4001,

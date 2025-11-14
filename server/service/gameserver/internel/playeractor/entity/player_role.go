@@ -3,6 +3,7 @@ package entity
 import (
 	"context"
 	"postapocgame/server/internal"
+	"postapocgame/server/internal/database"
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
@@ -50,13 +51,19 @@ func NewPlayerRole(sessionId string, roleInfo *protocol.PlayerSimpleData) *Playe
 	}
 	// 创建系统管理器
 	pr.sysMgr = entitysystem.NewSysMgr()
-	if pr.BinaryData == nil {
-		pr.BinaryData = &protocol.PlayerRoleBinaryData{}
+
+	// 从数据库加载BinaryData
+	binaryData, err := database.GetPlayerBinaryData(uint(roleInfo.RoleId))
+	if err != nil {
+		log.Errorf("load player binary data failed: %v", err)
+		// 如果加载失败，创建空的BinaryData
+		binaryData = &protocol.PlayerRoleBinaryData{
+			SysOpenStatus: make(map[uint32]uint32),
+		}
 	}
-	if pr.BinaryData.SysOpenStatus == nil {
-		pr.BinaryData.SysOpenStatus = make(map[uint32]uint32)
-	}
-	err := pr.sysMgr.OnInit(pr.WithContext(nil))
+	pr.BinaryData = binaryData
+
+	err = pr.sysMgr.OnInit(pr.WithContext(nil))
 	if err != nil {
 		log.Errorf("sys mgr on init failed, err:%v", err)
 		return nil
@@ -86,6 +93,13 @@ func (pr *PlayerRole) OnLogout() error {
 	log.Infof("[PlayerRole] OnLogout: RoleId=%d", pr.SimpleData.RoleId)
 
 	pr.IsOnline = false
+
+	// 保存BinaryData到数据库
+	if pr.BinaryData != nil {
+		if err := database.SavePlayerBinaryData(uint(pr.SimpleData.RoleId), pr.BinaryData); err != nil {
+			log.Errorf("save player binary data failed: %v", err)
+		}
+	}
 
 	// 发布玩家登出事件
 	pr.Publish(gevent.OnPlayerLogout)
@@ -158,6 +172,13 @@ func (pr *PlayerRole) SetDungeonSrvType(srvType uint8) {
 	log.Debugf("PlayerRole %d set DungeonSrvType to %d", pr.SimpleData.RoleId, srvType)
 }
 
+func (pr *PlayerRole) GetGMLevel() uint32 {
+	if pr.SimpleData == nil {
+		return 0
+	}
+	return pr.SimpleData.GetGmLevel()
+}
+
 func (pr *PlayerRole) GetSystem(sysId uint32) iface.ISystem {
 	return pr.sysMgr.GetSystem(sysId)
 }
@@ -216,4 +237,30 @@ func (pr *PlayerRole) SetSysStatus(sysId uint32, isOpen bool) {
 
 func (pr *PlayerRole) GetSysMgr() iface.ISystemMgr {
 	return pr.sysMgr
+}
+
+// RunOne 每帧调用，处理属性增量更新等
+func (pr *PlayerRole) RunOne() {
+	if !pr.IsOnline {
+		return
+	}
+
+	ctx := pr.WithContext(nil)
+	attrSys := entitysystem.GetAttrSys(ctx)
+	if attrSys != nil {
+		attrSys.RunOne(ctx)
+	}
+}
+
+// SaveToDB 立即将玩家的数据存储到Player角色表
+func (pr *PlayerRole) SaveToDB() error {
+	if pr.BinaryData == nil {
+		return nil
+	}
+	if err := database.SavePlayerBinaryData(uint(pr.SimpleData.RoleId), pr.BinaryData); err != nil {
+		log.Errorf("save player binary data failed: %v", err)
+		return err
+	}
+	log.Infof("PlayerRole SaveToDB success: RoleId=%d", pr.SimpleData.RoleId)
+	return nil
 }
