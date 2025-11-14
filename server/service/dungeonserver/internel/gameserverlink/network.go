@@ -12,15 +12,11 @@ import (
 )
 
 // NetworkHandler 网络消息处理器（优化版）
-type NetworkHandler struct {
-	codec *network.Codec
-}
+type NetworkHandler struct{}
 
 // NewNetworkHandler 创建网络处理器
 func NewNetworkHandler() *NetworkHandler {
-	return &NetworkHandler{
-		codec: network.DefaultCodec(),
-	}
+	return &NetworkHandler{}
 }
 
 // HandleMessage 处理网络消息
@@ -42,7 +38,7 @@ func (h *NetworkHandler) HandleMessage(ctx context.Context, conn network.IConnec
 
 // handleRPCRequest 处理来自GameServer的RPC请求
 func (h *NetworkHandler) handleRPCRequest(ctx context.Context, msg *network.Message) error {
-	req, err := h.codec.DecodeRPCRequest(msg.Payload)
+	req, err := dshare.Codec.DecodeRPCRequest(msg.Payload)
 	if err != nil {
 		return customerr.Wrap(err)
 	}
@@ -50,7 +46,7 @@ func (h *NetworkHandler) handleRPCRequest(ctx context.Context, msg *network.Mess
 	log.Debugf("Received RPC Request: RequestId=%d, MsgId=%d", req.RequestId, req.MsgId)
 
 	newCtx := context.WithValue(ctx, dshare.ContextKeySession, req.SessionId)
-	message := actor.NewBaseMessage(newCtx, req.MsgId, req.Data)
+	message := actor.NewBaseMessage(newCtx, dshare.DoRpcMsg, msg.Payload)
 
 	// 发送到Actor系统处理
 	if err := dshare.SendMessageAsync(req.SessionId, message); err != nil {
@@ -62,7 +58,7 @@ func (h *NetworkHandler) handleRPCRequest(ctx context.Context, msg *network.Mess
 
 // handleClientMsg 处理客户端消息
 func (h *NetworkHandler) handleClientMsg(ctx context.Context, msg *network.Message) error {
-	fwdMsg, err := h.codec.DecodeForwardMessage(msg.Payload)
+	fwdMsg, err := dshare.Codec.DecodeForwardMessage(msg.Payload)
 	if err != nil {
 		return customerr.Wrap(err)
 	}
@@ -93,7 +89,7 @@ func (h *NetworkHandler) handleHeartbeat(conn network.IConnection) error {
 
 // sendRPCResponse 发送RPC响应
 func (h *NetworkHandler) sendRPCResponse(conn network.IConnection, resp *network.RPCResponse) error {
-	rpcBuf := h.codec.EncodeRPCResponse(resp)
+	rpcBuf := dshare.Codec.EncodeRPCResponse(resp)
 	defer network.PutBuffer(rpcBuf)
 
 	msg := network.GetMessage()

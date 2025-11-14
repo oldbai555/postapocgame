@@ -54,7 +54,6 @@ func (ds *DungeonServer) startTCPServer(ctx context.Context) error {
 		}),
 		network.WithTCPServerOptionAddr(ds.config.TCPAddr),
 	)
-
 	if err := ds.tcpServer.Start(ctx); err != nil {
 		return fmt.Errorf("start tcp service failed: %w", err)
 	}

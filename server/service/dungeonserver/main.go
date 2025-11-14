@@ -6,11 +6,13 @@ import (
 	"os/signal"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/event"
+	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
 	"postapocgame/server/service/dungeonserver/internel/config"
 	"postapocgame/server/service/dungeonserver/internel/devent"
+	"postapocgame/server/service/dungeonserver/internel/dshare"
 	"postapocgame/server/service/dungeonserver/internel/dungeonactor"
 	"postapocgame/server/service/dungeonserver/internel/engine"
 	"postapocgame/server/service/dungeonserver/internel/fbmgr"
@@ -31,6 +33,8 @@ func main() {
 
 	// 设置DungeonServer类型(用于协议注册)
 	gameserverlink.SetDungeonSrvType(serverConfig.SrvType)
+
+	dshare.Codec = network.DefaultCodec()
 
 	// 创建
 	ds := engine.NewDungeonServer(serverConfig)

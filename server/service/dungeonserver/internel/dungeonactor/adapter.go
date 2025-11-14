@@ -15,7 +15,7 @@ import (
 type DungeonActor struct {
 	actorMgr         actor.IActorManager
 	mode             actor.ActorMode
-	baseActorHandler *actor.BaseActorHandler
+	baseActorHandler actor.IActorHandler
 }
 
 func (a *DungeonActor) Start(ctx context.Context) error {

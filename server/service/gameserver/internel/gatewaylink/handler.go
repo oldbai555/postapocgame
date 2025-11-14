@@ -7,7 +7,6 @@ import (
 	"postapocgame/server/internal/network"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/service/dungeonserver/internel/dshare"
 	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/iface"
 	"sync"
@@ -116,8 +115,8 @@ func (h *NetworkHandler) handleClientMsg(ctx context.Context, msg *network.Messa
 
 	log.Debugf("ClientMsg: SessionId=%s, MsgId=%d, DataLen=%d", fwdMsg.SessionId, clientMsg.MsgId, len(clientMsg.Data))
 
-	newCtx := context.WithValue(ctx, dshare.ContextKeySession, fwdMsg.SessionId)
-	message := actor.NewBaseMessage(newCtx, dshare.DoNetWorkMsg, fwdMsg.Payload)
+	newCtx := context.WithValue(ctx, gshare.ContextKeySession, fwdMsg.SessionId)
+	message := actor.NewBaseMessage(newCtx, gshare.DoNetWorkMsg, fwdMsg.Payload)
 
 	// 发送到Actor系统处理
 	if err := gshare.SendMessageAsync(fwdMsg.SessionId, message); err != nil {
