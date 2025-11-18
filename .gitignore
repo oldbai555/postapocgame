@@ -18,3 +18,4 @@
 /output/
 /server/output/postapocgame.db
 /server/*/postapocgame.db
+*.cs.uid

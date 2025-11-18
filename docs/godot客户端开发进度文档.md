@@ -159,15 +159,35 @@
 
 ---
 
-### Phase 3: 游戏场景系统（未开始）⚠️
+### Phase 3: 游戏场景系统（进行中）⚠️
+
+#### 3.0 场景切换Loading界面 ✅
+**当前状态**: 已完成
+
+**已完成内容**:
+- [x] 创建通用加载界面 `LoadingScreen.tscn`，包含简易加载图、提示文字、进度条与百分比
+- [x] 编写 `LoadingScreen.cs` 控制脚本，实现显示/隐藏与进度更新
+- [x] 新增 `SceneManager.cs`，封装异步场景切换与加载进度回调
+- [x] 在 `AutoLoad.tscn` 中注册 `SceneManager` 与 `LoadingScreen`，并让 `LoginUI` 切换至角色选择时使用新的加载流程
+
+**实现细节**:
+- `SceneManager.SwitchSceneAsync()` 通过 `ResourceLoader.LoadThreadedRequest()` 异步加载场景，实时向 Loading UI 推送进度
+- 场景切换期间显示半透明遮罩、图标与百分比提示，加载完成后自动隐藏
+- 若 `SceneManager` 未初始化，自动回退到原有的 `ChangeSceneToFile` 逻辑，避免阻塞开发流程
+
+**位置**: `client/Scripts/Scene/SceneManager.cs`、`client/Scenes/LoadingScreen.tscn`、`client/Scripts/UI/LoadingScreen.cs`、`client/Scenes/AutoLoad.tscn`
+
+**注意**:
+- 目前仅在登录 → 角色选择流程中启用，后续切场景时请统一通过 `SceneManager` 调用
+- Loading UI 预留文案参数，可按不同场景切换需求传入提示文本
 
 #### 3.1 场景管理 ⚠️
-**当前状态**: 未开始
+**当前状态**: 进行中（基础Loading流程已接入）
 
 **需要完成**:
-- [ ] 场景管理器（`SceneManager.cs`）
-- [ ] 场景加载/卸载
-- [ ] 场景切换动画
+- [x] 场景管理器基础能力（`SceneManager.cs`，异步加载 + Loading UI）
+- [ ] 场景加载/卸载的资源回收策略
+- [ ] 场景切换动画 / 过渡特效
 - [ ] 场景配置读取
 - [ ] 游戏主场景（`Main.tscn`）- 进入游戏后的主场景，包含游戏世界和主界面UI
 
@@ -214,12 +234,49 @@
 
 **位置**: `client/Scripts/Scene/`
 
+#### 3.x 调试注意事项 ⚠️
+**当前状态**: 持续补充中
+
+**新手易错项**:
+- 角色 Sprite 必须与 `CollisionShape2D` 对齐，否则看起来像“穿墙”。建议在 Godot 中开启 `Debug -> Visible Collision Shapes`，确保视觉 Sprite 正好覆盖碰撞形状，避免 Sprite 偏移到碰撞之外导致误判。
+
 ---
 
 ### Phase 4: 游戏逻辑系统（未开始）⚠️
 
 #### 4.1 玩家控制 ⚠️
-**当前状态**: 未开始
+**当前状态**: 进行中（已完成基础状态机 + 攻击状态）
+
+**已完成内容**:
+- [x] 玩家基础状态机（`Player.cs` + `Player_state_machine.cs` + `StateIdle.cs` / `StateWalk.cs`），负责输入、动画切换、Idle/Walk移动
+- [x] 攻击状态（`StateAttack.cs`），负责攻击动画播放和状态切换
+
+**实现细节**:
+- **StateAttack.cs**: 
+  - 实现攻击状态逻辑，播放攻击动画（`attack_up` / `attack_down` / `attack_side`）
+  - 支持攻击特效动画播放（`AttackEffectAnimationPlayer`），路径：`Sprite2D/AttackEffectSprite/AttackEffectAnimationPlayer`
+  - 攻击特效动画根据当前方向自动选择（`attack_down` / `attack_up` / `attack_side`），并结合 `EffectOffset*` 在左右翻转时镜像位置，保证表现自然
+  - 支持攻击音效播放（`Audio/AudioStreamPlayer2D`），可配置音效资源、基准音调、随机音调偏移
+  - 攻击期间直接锁定玩家速度为 0，并在动画完成后根据最新输入切回 Idle / Walk，逻辑简单明了
+  - 攻击状态进入时会重新采样方向/状态，并同步特效的 FlipH 与偏移，确保左/右攻击动画与特效方向正确
+  - 通过 `AnimationPlayer.AnimationFinished` 信号监听动画完成
+  - 攻击完成后根据输入方向自动切换到 `Idle` 或 `Walk` 状态
+  - 攻击状态下速度设为 0，保持角色静止
+  - 在 `StateIdle` 和 `StateWalk` 中通过 `HandleInput` 监听攻击按键（`attack`），可切换到攻击状态
+  - 遵循代码风格：早返回、减少嵌套、清晰的变量命名
+  - 添加了完善的 null 检查和错误日志，避免节点缺失导致的崩溃
+- **Player.cs**:
+  - 新增 `AnimDirection()` 方法，返回当前方向对应的动画方向名称（`down` / `up` / `side`）
+  - 该方法用于统一获取方向名称，供状态机和其他系统使用
+  - 角色左右朝向通过修改 `Sprite2D.Scale.X` 控制，负值代表面向左，保证 `AttackEffectSprite` 等子节点自动镜像
+- **StateAttack.cs / State.cs / Player.cs（2025-11-19）**:
+  - `_attackEffectSprite` 会在进入攻击时缓存初始位置，并依据 `Player.IsFacingLeft` 自动镜像偏移（`EffectOffset*`），即便特效动画本身包含位移轨迹也能自然反向
+  - 状态基类新增 `RefreshMovementAndAnimation()` 与 `TryEnterAttack()`，Idle/Walk 等状态通过共享工具刷新方向、状态和攻击输入逻辑，减少重复代码
+  - 攻击状态保留 `DecelerateSpeed` 可调减速逻辑，攻击开始后速度按系数逐帧衰减，既能保留“按下时有惯性”，又能保证动画结束时自然收脚
+- **Player.cs / StateAttack.cs 优化（2025-11-19）**:
+  - Player 仅保留输入解析、朝向和动画选择的必要逻辑，`UpdateAnimation` 直接复用 `AnimDirection()`，不再堆额外日志
+  - StateAttack 在 `_Ready()` 中一次性缓存所有节点与 AnimationFinished 信号，进入状态时只做“停速→播放动画/特效/音效”的直观流程
+  - 攻击结束由动画信号单点决定，完成后根据最新输入切回 Idle / Walk，便于服务端同学快速理解整条“按键→动画→落地状态”链路
 
 **需要完成**:
 - [ ] 玩家控制器（`PlayerController.cs`）
@@ -228,7 +285,7 @@
 - [ ] 技能释放控制
 - [ ] 交互控制（拾取、对话等）
 
-**位置**: `client/Scripts/GameLogic/PlayerController.cs`
+**位置**: `client/Player/Scripts/StateAttack.cs`、`client/Scripts/GameLogic/PlayerController.cs`
 
 #### 4.2 移动系统 ⚠️
 **当前状态**: 未开始
@@ -635,13 +692,19 @@
 - `client/Scripts/Utils/Logger.cs` - 日志工具（✅ 已完成）
 
 ### 游戏场景层
-- `client/Scripts/Scene/SceneManager.cs` - 场景管理器（待创建）
+- `client/Scripts/Scene/SceneManager.cs` - 场景管理器（✅ 初版完成，负责异步切换与Loading UI）
 - `client/Scripts/Scene/EntityManager.cs` - 实体管理器（待创建）
 - `client/Scripts/Scene/Entity.cs` - 基础实体（待创建）
 - `client/Scripts/Scene/PlayerEntity.cs` - 玩家实体（待创建）
 - `client/Scripts/Scene/MonsterEntity.cs` - 怪物实体（待创建）
 
 ### 游戏逻辑层
+- `client/Player/Scripts/Player.cs` - Player宿主节点（输入采集、动画拼装、状态机路径配置、AnimDirection方法）
+- `client/Player/Scripts/Player_state_machine.cs` - 玩家状态机（调度Idle/Walk/Attack等状态）
+- `client/Player/Scripts/State.cs` - 状态基类（统一Player注入、`RefreshMovementAndAnimation`、`TryEnterAttack` 等共享工具方法）
+- `client/Player/Scripts/StateIdle.cs` - Idle状态（静止、方向采集、进入Walk/Attack）
+- `client/Player/Scripts/StateWalk.cs` - Walk状态（移动速度计算、动画播放、进入Attack）
+- `client/Player/Scripts/StateAttack.cs` - Attack状态（攻击动画/特效/音效播放、攻击减速、完成后切换回Idle/Walk，`_attackEffectSprite` 通过 `Player.IsFacingLeft` 与主体朝向保持一致）
 - `client/Scripts/GameLogic/PlayerController.cs` - 玩家控制器（待创建）
 - `client/Scripts/GameLogic/MovementSystem.cs` - 移动系统（待创建）
 - `client/Scripts/GameLogic/CombatSystem.cs` - 战斗系统（待创建）
@@ -651,6 +714,8 @@
 ### UI层
 - `client/Scripts/UI/LoginUI.cs` - 登录界面（✅ 已完成）
 - `client/Scripts/UI/RoleSelectUI.cs` - 角色选择界面（✅ 已完成）
+- `client/Scripts/UI/LoadingScreen.cs` - Loading界面（✅ 已完成，用于场景切换）
+- `client/Scenes/LoadingScreen.tscn` - Loading界面场景（✅ 已完成）
 - `client/Scripts/UI/MainUI.cs` - 主界面（待创建）
 - `client/Scripts/UI/BagUI.cs` - 背包界面（待创建）
 - `client/Scripts/UI/EquipUI.cs` - 装备界面（待创建）
@@ -683,6 +748,7 @@
 2. **事件驱动**: 使用Godot的信号系统解耦模块间通信
 3. **单例模式**: 网络管理器、场景管理器等使用单例模式
 4. **资源管理**: 合理管理游戏资源，避免内存泄漏
+5. **统一场景切换流程**: 场景切换统一走 `SceneManager`，确保Loading界面与异步加载逻辑一致
 
 ### 网络通信
 
@@ -712,6 +778,30 @@
 2. **UI复用**: 相同类型的UI组件复用
 3. **动画优化**: UI动画使用Godot的Tween系统，性能更好
 
+### 玩家状态机
+
+1. **节点要求**: `Player` 需要包含 `Player_state_machine` 子节点，或在 `Player.StateMachinePath` 中显式配置路径，否则输入/状态逻辑不会执行
+2. **状态扩展**: 任何继承自 `State` 的节点只要挂在状态机下，就会被自动注入 `Player` 并可在 `Process/Physics/HandleInput` 中返回下一个状态
+3. **动画前缀**: 状态内调用 `Player.UpdateAnimation("idle" | "walk" | "attack" | …)`，由状态自身决定动画前缀，`Player` 负责根据主方向拼接 `*_up/_down/_side`
+4. **信号连接**: 状态中如需监听 `AnimationPlayer` 信号（如 `AnimationFinished`），应在 `Enter()` 中连接，在 `Exit()` 中断开，避免内存泄漏
+5. **节点查找**: 状态节点位于 `StateMachine` 下，如需访问 `Player` 的直接子节点（如 `AnimationPlayer`），需要通过 `GetParent().GetParent()` 向上查找
+6. **攻击特效**: 攻击状态支持播放攻击特效动画，通过 `AttackEffectAnimationPlayer` 节点控制，路径为 `Sprite2D/AttackEffectSprite/AttackEffectAnimationPlayer`，特效动画命名格式为 `attack_{direction}`（direction 为 `down` / `up` / `side`）
+7. **攻击音效**: 攻击状态通过 `Audio/AudioStreamPlayer2D` 播放音效，可在 `StateAttack` 中配置音效资源与音调范围（`AttackSound`、`AttackPitchBase`、`AttackPitchRandomRange`），确保音效节点命名一致
+8. **方向获取**: 使用 `Player.AnimDirection()` 方法统一获取当前方向对应的动画方向名称，避免在多个地方重复实现方向判断逻辑
+9. **日志辅助**: `Player` 和状态机在初始化失败时会输出错误日志，运行期可通过Godot输出快速排查
+10. **特效与主体同源判定**: `_attackEffectSprite` 的左右翻转务必复用 `Player.IsFacingLeft`（内部读取 `Sprite2D.Scale.X` 是否为负），保持特效与主体动画完全同步
+11. **Scale镜像注意事项**: 通过 `Sprite2D.Scale.X` 调整朝向会连带碰撞、特效等子节点一起镜像，若碰撞形状出现反向问题需在 Godot 中确认其父级层次；必要时可将碰撞与视觉拆分
+12. **重复逻辑统一封装**: `client/Player/Scripts` 下的共性逻辑（节点查找、特效播放、动画方向判断等）优先提取到 `Player` 或共享辅助方法，避免各状态脚本重复编写
+13. **攻击动画不可循环**: `player.tscn` 中主 `AnimationPlayer` 的攻击动作为了依赖 `AnimationFinished` 信号完成状态切换，`loop_mode` 必须保持为 `0 (Loop None)`；若设置为循环（例如 `loop_mode = 2`），信号不会触发，`StateAttack` 会一直停留在攻击状态。
+
+### 客户端脚本维护原则（2025-11-19）
+
+1. **禁止误删表现逻辑**: 优化脚本时务必保留方向采样、`_cardinalDirection` 更新及 `_sprite.Scale` 镜像规则，防止再次出现“按 ↑/↓ 却只播放向右动画”的回归。
+2. **攻击减速为可调惯性**: `StateAttack` 的 `DecelerateSpeed` 驱动逐帧衰减，模拟“边走边出刀→慢慢收脚”。如需调整，优先改 Inspector 数值，不要直接把速度清零。
+3. **特效镜像统一交给 Sprite**: `AttackEffectSprite` 的左右翻转由父级 `Sprite2D.Scale` 负责，状态脚本不重复设置 `FlipH`，避免和其他节点打架。
+4. **注释面向 Go 同学**: 解释保持“类似服务端 XX 逻辑”的直白叙述，方便服务端同学阅读/维护；新增行为时写清“改了什么、为什么”。
+5. **修改前后必做冒烟**: 每次重构玩家脚本，至少自测“八方向移动 + 左右攻击特效”两条路径，确认朝向、特效镜像、减速都正常再提交。
+
 ### Protocol Buffer集成
 
 1. **协议生成**: 从`proto/csproto/`生成C#代码，使用`proto/genproto_csharp.bat`脚本
@@ -721,6 +811,18 @@
    - 服务端消息格式：`[4字节长度][1字节类型][1字节flags][消息体]`
    - 客户端消息格式：`[2字节MsgId][protobuf数据]`，包装在通用Message中（包含SessionId）
    - 心跳消息类型：0x06 (MsgTypeHeartbeat)，内容为"ping"
+
+### 代码风格（客户端 C#）
+
+1. **优先使用早返回**: 条件不满足时尽早 `return`，真正的更新逻辑写在函数下半部分，避免多层嵌套  
+   - 例如 `UpdateAnimation()` 中：`if (!needPlay) return; _animationPlayer.Play(animName);`
+2. **减少简单的 if/else**: 对于只是根据布尔值选择一个结果的情况，优先使用三元运算符  
+   - 例如 `state = isMoving ? "move" : "idle";`
+3. **拆分长条件表达式**: 复杂条件先提取为中间布尔变量，再逐步判断，避免一行里堆太多逻辑  
+   - 例如 `bool hasInput`、`bool isHorizontal`、`bool needPlay` 等
+4. **避免在没有 else 的 if 中直接写更新逻辑**: 若某个条件不满足就不需要更新时，优先使用“条件不满足直接 return”的写法  
+   - 便于阅读和后续插入新逻辑
+5. **命名清晰表达意图**: 中间变量和状态名（如 `state`、`directionChanged`、`stateChanged`）要能直接看出用途，减少额外注释负担
 
 ---
 
@@ -824,26 +926,58 @@ MessageSender.Send(req, (int)C2SProtocol.C2Slogin);
 ```csharp
 private void SwitchToRoleSelect()
 {
-    GetTree().ChangeSceneToFile("res://Scenes/RoleSelect.tscn");
+    var manager = SceneManager.Instance;
+    if (manager != null)
+    {
+        await manager.SwitchSceneAsync("res://Scenes/RoleSelect.tscn", "正在进入角色选择...");
+    }
+    else
+    {
+        GetTree().ChangeSceneToFile("res://Scenes/RoleSelect.tscn");
+    }
 }
 ```
 
 **调用时机**: 登录成功后，在 `OnLoginResult()` 中调用
 
 **场景切换机制**:
-1. Godot的 `GetTree().ChangeSceneToFile()` 会：
+1. 推荐通过 `SceneManager.SwitchSceneAsync()` 触发场景切换，内部使用 `ResourceLoader` 异步加载并显示Loading界面
+2. 在 `SceneManager` 不可用的极端情况下，可回退到 Godot 的 `GetTree().ChangeSceneToFile()`：
    - 卸载当前场景（Login.tscn）
    - 加载新场景（RoleSelect.tscn）
    - 调用旧场景的 `_ExitTree()`（此时应取消注册协议处理器）
    - 调用新场景的 `_Ready()`（此时应注册协议处理器）
 
-2. **AutoLoad场景保持**: `AutoLoad.tscn` 中的 `NetworkManager` 和 `MessageReceiver` 是自动加载的，不会因为场景切换而销毁
+3. **AutoLoad场景保持**: `AutoLoad.tscn` 中的 `NetworkManager`、`MessageReceiver`、`SceneManager`、`LoadingScreen` 是自动加载的，不会因为场景切换而销毁
 
-3. **协议处理器管理**:
+4. **协议处理器管理**:
    - 每个场景在 `_Ready()` 中注册自己需要的协议处理器
    - 在 `_ExitTree()` 中取消注册，避免内存泄漏和重复处理
 
-### 3. 客户端框架完善清单
+### 3. 玩家状态机接入流程
+
+1. **场景结构**  
+   ```
+   Player
+     ├─ PlayerStateMachine (Node，脚本 `Player_state_machine.cs`)
+     │    ├─ IdleState (Node，脚本 `StateIdle.cs`)
+     │    └─ WalkState (Node，脚本 `StateWalk.cs`)
+     ├─ AnimationPlayer
+     └─ Sprite2D
+   ```
+   - 如需自定义路径，可在 `Player` 的 `StateMachinePath` 属性中指定状态机 NodePath
+
+2. **状态扩展**  
+   - 新状态继承 `State`，并实现所需的 `Enter/Exit/Process/Physics/HandleInput`
+   - 状态切换通过返回其他 `State` 实例完成，返回 `null` 表示继续停留在当前状态
+   - 动画播放统一调用 `Player.UpdateAnimation("idle" | "walk" | "attack" | …)`，由状态控制前缀
+   - 如需监听 `AnimationPlayer` 信号，在 `Enter()` 中连接，在 `Exit()` 中断开
+   - 状态节点位于 `StateMachine` 下，访问 `Player` 的直接子节点需通过 `GetParent().GetParent()` 向上查找
+
+3. **调试方式**  
+   - `Player` 在未找到状态机时会输出 `[Player] 未找到 Player_state_machine...`，状态机在 `_Process/_PhysicsProcess/_UnhandledInput` 无状态时也会有日志提醒
+
+### 4. 客户端框架完善清单
 
 #### ✅ 已完成的基础框架
 - [x] 网络层（NetworkManager、ProtocolHandler、MessageSender、MessageReceiver）

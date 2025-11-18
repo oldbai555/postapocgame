@@ -303,9 +303,7 @@ namespace PostApocGame.UI
         /// </summary>
         private void SwitchToRoleSelect()
         {
-            // 切换到角色选择场景
-            // 注意：需要先创建RoleSelect.tscn场景文件
-            GetTree().ChangeSceneToFile("res://Scenes/RoleSelect.tscn");
+            GetTree().ChangeSceneToFile("res://RoleSelect/RoleSelect.tscn");
         }
 
         /// <summary>
