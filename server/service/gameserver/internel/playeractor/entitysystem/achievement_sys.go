@@ -4,10 +4,10 @@ import (
 	"context"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/iface"
-	"time"
 )
 
 // AchievementSys 成就系统
@@ -311,7 +311,7 @@ func (as *AchievementSys) completeAchievement(ctx context.Context, achievementId
 
 	// 标记为已完成
 	achievement.Completed = true
-	achievement.CompleteTime = time.Now().Unix()
+	achievement.CompleteTime = servertime.Now().Unix()
 
 	// 发放经验奖励
 	if achievementConfig.ExpReward > 0 {

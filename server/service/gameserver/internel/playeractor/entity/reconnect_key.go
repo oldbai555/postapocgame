@@ -10,11 +10,11 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
-	"time"
+	"postapocgame/server/internal/servertime"
 )
 
 func generateReconnectKey(sessionID string, roleID uint64) string {
-	str := fmt.Sprintf("%s_%d_%d", sessionID, roleID, time.Now().Unix())
+	str := fmt.Sprintf("%s_%d_%d", sessionID, roleID, servertime.Now().Unix())
 	hash := md5.Sum([]byte(str))
 	return hex.EncodeToString(hash[:])
 }

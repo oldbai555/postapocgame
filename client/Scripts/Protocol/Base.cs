@@ -36,19 +36,31 @@ namespace Pb3 {
             "EhAKCHNjZW5lX2lkGAYgASgNEg0KBWZiX2lkGAcgASgNEg0KBWxldmVsGAgg",
             "ASgNEhEKCXNob3dfbmFtZRgJIAEoCRInCgVhdHRycxgKIAMoCzIYLnBiMy5F",
             "bnRpdHlTdC5BdHRyc0VudHJ5EhMKC3N0YXRlX2ZsYWdzGAsgASgEGiwKCkF0",
-            "dHJzRW50cnkSCwoDa2V5GAEgASgNEg0KBXZhbHVlGAIgASgDOgI4ASIlCgZB",
-            "dHRyU3QSDAoEdHlwZRgBIAEoDRINCgV2YWx1ZRgCIAEoAyJNCgpJdGVtQW1v",
-            "dW50EhEKCWl0ZW1fdHlwZRgBIAEoDRIPCgdpdGVtX2lkGAIgASgNEg0KBWNv",
-            "dW50GAMgASgDEgwKBGJpbmQYBCABKA1CGloYc2VydmVyL2ludGVybmFsL3By",
-            "b3RvY29sYgZwcm90bzM="));
+            "dHJzRW50cnkSCwoDa2V5GAEgASgNEg0KBXZhbHVlGAIgASgDOgI4ASJqChVB",
+            "bmltYXRpb25GcmFtZVNlZ21lbnQSLwoMc2VnbWVudF90eXBlGAEgASgOMhku",
+            "cGIzLkFuaW1hdGlvblNlZ21lbnRUeXBlEhAKCHN0YXJ0X21zGAIgASgNEg4K",
+            "BmVuZF9tcxgDIAEoDSIlCgZBdHRyU3QSDAoEdHlwZRgBIAEoDRINCgV2YWx1",
+            "ZRgCIAEoAyJNCgpJdGVtQW1vdW50EhEKCWl0ZW1fdHlwZRgBIAEoDRIPCgdp",
+            "dGVtX2lkGAIgASgNEg0KBWNvdW50GAMgASgDEgwKBGJpbmQYBCABKA0q4QEK",
+            "E0FuaW1hdGlvbkFjdGlvblR5cGUSGgoWQW5pbWF0aW9uQWN0aW9uVHlwZU5p",
+            "bBAAEhsKF0FuaW1hdGlvbkFjdGlvblR5cGVJZGxlEAESGwoXQW5pbWF0aW9u",
+            "QWN0aW9uVHlwZU1vdmUQAhIcChhBbmltYXRpb25BY3Rpb25UeXBlU2tpbGwQ",
+            "AxIbChdBbmltYXRpb25BY3Rpb25UeXBlSHVydBAEEhsKF0FuaW1hdGlvbkFj",
+            "dGlvblR5cGVEZWFkEAUSHAoYQW5pbWF0aW9uQWN0aW9uVHlwZVN0YXRlEAYq",
+            "lQEKFEFuaW1hdGlvblNlZ21lbnRUeXBlEhsKF0FuaW1hdGlvblNlZ21lbnRU",
+            "eXBlTmlsEAASHwobQW5pbWF0aW9uU2VnbWVudFR5cGVQcmVwYXJlEAESHgoa",
+            "QW5pbWF0aW9uU2VnbWVudFR5cGVBY3RpdmUQAhIfChtBbmltYXRpb25TZWdt",
+            "ZW50VHlwZVJlY292ZXIQA0IaWhhzZXJ2ZXIvaW50ZXJuYWwvcHJvdG9jb2xi",
+            "BnByb3RvMw=="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { },
-          new pbr::GeneratedClrTypeInfo(null, null, new pbr::GeneratedClrTypeInfo[] {
+          new pbr::GeneratedClrTypeInfo(new[] {typeof(global::Pb3.AnimationActionType), typeof(global::Pb3.AnimationSegmentType), }, null, new pbr::GeneratedClrTypeInfo[] {
             new pbr::GeneratedClrTypeInfo(typeof(global::Pb3.ErrorData), global::Pb3.ErrorData.Parser, new[]{ "Code", "Msg" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Pb3.QuestData), global::Pb3.QuestData.Parser, new[]{ "Id", "Progress" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Pb3.ItemSt), global::Pb3.ItemSt.Parser, new[]{ "ItemId", "Count", "Bind" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Pb3.MailSt), global::Pb3.MailSt.Parser, new[]{ "MailId", "ConfId", "Status", "CreateAt", "Args", "Files", "Title", "Content", "Items" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Pb3.EntitySt), global::Pb3.EntitySt.Parser, new[]{ "Hdl", "Id", "Et", "PosX", "PosY", "SceneId", "FbId", "Level", "ShowName", "Attrs", "StateFlags" }, null, null, null, new pbr::GeneratedClrTypeInfo[] { null, }),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Pb3.AnimationFrameSegment), global::Pb3.AnimationFrameSegment.Parser, new[]{ "SegmentType", "StartMs", "EndMs" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Pb3.AttrSt), global::Pb3.AttrSt.Parser, new[]{ "Type", "Value" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Pb3.ItemAmount), global::Pb3.ItemAmount.Parser, new[]{ "ItemType", "ItemId", "Count", "Bind" }, null, null, null, null)
           }));
@@ -56,6 +68,29 @@ namespace Pb3 {
     #endregion
 
   }
+  #region Enums
+  /// <summary>
+  /// 动画同步通用定义
+  /// </summary>
+  public enum AnimationActionType {
+    [pbr::OriginalName("AnimationActionTypeNil")] Nil = 0,
+    [pbr::OriginalName("AnimationActionTypeIdle")] Idle = 1,
+    [pbr::OriginalName("AnimationActionTypeMove")] Move = 2,
+    [pbr::OriginalName("AnimationActionTypeSkill")] Skill = 3,
+    [pbr::OriginalName("AnimationActionTypeHurt")] Hurt = 4,
+    [pbr::OriginalName("AnimationActionTypeDead")] Dead = 5,
+    [pbr::OriginalName("AnimationActionTypeState")] State = 6,
+  }
+
+  public enum AnimationSegmentType {
+    [pbr::OriginalName("AnimationSegmentTypeNil")] Nil = 0,
+    [pbr::OriginalName("AnimationSegmentTypePrepare")] Prepare = 1,
+    [pbr::OriginalName("AnimationSegmentTypeActive")] Active = 2,
+    [pbr::OriginalName("AnimationSegmentTypeRecover")] Recover = 3,
+  }
+
+  #endregion
+
   #region Messages
   public sealed partial class ErrorData : pb::IMessage<ErrorData>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
@@ -1841,6 +1876,269 @@ namespace Pb3 {
 
   }
 
+  public sealed partial class AnimationFrameSegment : pb::IMessage<AnimationFrameSegment>
+  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      , pb::IBufferMessage
+  #endif
+  {
+    private static readonly pb::MessageParser<AnimationFrameSegment> _parser = new pb::MessageParser<AnimationFrameSegment>(() => new AnimationFrameSegment());
+    private pb::UnknownFieldSet _unknownFields;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pb::MessageParser<AnimationFrameSegment> Parser { get { return _parser; } }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pbr::MessageDescriptor Descriptor {
+      get { return global::Pb3.BaseReflection.Descriptor.MessageTypes[5]; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    pbr::MessageDescriptor pb::IMessage.Descriptor {
+      get { return Descriptor; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public AnimationFrameSegment() {
+      OnConstruction();
+    }
+
+    partial void OnConstruction();
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public AnimationFrameSegment(AnimationFrameSegment other) : this() {
+      segmentType_ = other.segmentType_;
+      startMs_ = other.startMs_;
+      endMs_ = other.endMs_;
+      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public AnimationFrameSegment Clone() {
+      return new AnimationFrameSegment(this);
+    }
+
+    /// <summary>Field number for the "segment_type" field.</summary>
+    public const int SegmentTypeFieldNumber = 1;
+    private global::Pb3.AnimationSegmentType segmentType_ = global::Pb3.AnimationSegmentType.Nil;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public global::Pb3.AnimationSegmentType SegmentType {
+      get { return segmentType_; }
+      set {
+        segmentType_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "start_ms" field.</summary>
+    public const int StartMsFieldNumber = 2;
+    private uint startMs_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public uint StartMs {
+      get { return startMs_; }
+      set {
+        startMs_ = value;
+      }
+    }
+
+    /// <summary>Field number for the "end_ms" field.</summary>
+    public const int EndMsFieldNumber = 3;
+    private uint endMs_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public uint EndMs {
+      get { return endMs_; }
+      set {
+        endMs_ = value;
+      }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override bool Equals(object other) {
+      return Equals(other as AnimationFrameSegment);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public bool Equals(AnimationFrameSegment other) {
+      if (ReferenceEquals(other, null)) {
+        return false;
+      }
+      if (ReferenceEquals(other, this)) {
+        return true;
+      }
+      if (SegmentType != other.SegmentType) return false;
+      if (StartMs != other.StartMs) return false;
+      if (EndMs != other.EndMs) return false;
+      return Equals(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override int GetHashCode() {
+      int hash = 1;
+      if (SegmentType != global::Pb3.AnimationSegmentType.Nil) hash ^= SegmentType.GetHashCode();
+      if (StartMs != 0) hash ^= StartMs.GetHashCode();
+      if (EndMs != 0) hash ^= EndMs.GetHashCode();
+      if (_unknownFields != null) {
+        hash ^= _unknownFields.GetHashCode();
+      }
+      return hash;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override string ToString() {
+      return pb::JsonFormatter.ToDiagnosticString(this);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void WriteTo(pb::CodedOutputStream output) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      output.WriteRawMessage(this);
+    #else
+      if (SegmentType != global::Pb3.AnimationSegmentType.Nil) {
+        output.WriteRawTag(8);
+        output.WriteEnum((int) SegmentType);
+      }
+      if (StartMs != 0) {
+        output.WriteRawTag(16);
+        output.WriteUInt32(StartMs);
+      }
+      if (EndMs != 0) {
+        output.WriteRawTag(24);
+        output.WriteUInt32(EndMs);
+      }
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(output);
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
+      if (SegmentType != global::Pb3.AnimationSegmentType.Nil) {
+        output.WriteRawTag(8);
+        output.WriteEnum((int) SegmentType);
+      }
+      if (StartMs != 0) {
+        output.WriteRawTag(16);
+        output.WriteUInt32(StartMs);
+      }
+      if (EndMs != 0) {
+        output.WriteRawTag(24);
+        output.WriteUInt32(EndMs);
+      }
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(ref output);
+      }
+    }
+    #endif
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int CalculateSize() {
+      int size = 0;
+      if (SegmentType != global::Pb3.AnimationSegmentType.Nil) {
+        size += 1 + pb::CodedOutputStream.ComputeEnumSize((int) SegmentType);
+      }
+      if (StartMs != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeUInt32Size(StartMs);
+      }
+      if (EndMs != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeUInt32Size(EndMs);
+      }
+      if (_unknownFields != null) {
+        size += _unknownFields.CalculateSize();
+      }
+      return size;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(AnimationFrameSegment other) {
+      if (other == null) {
+        return;
+      }
+      if (other.SegmentType != global::Pb3.AnimationSegmentType.Nil) {
+        SegmentType = other.SegmentType;
+      }
+      if (other.StartMs != 0) {
+        StartMs = other.StartMs;
+      }
+      if (other.EndMs != 0) {
+        EndMs = other.EndMs;
+      }
+      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(pb::CodedInputStream input) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      input.ReadRawMessage(this);
+    #else
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+        switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
+            break;
+          case 8: {
+            SegmentType = (global::Pb3.AnimationSegmentType) input.ReadEnum();
+            break;
+          }
+          case 16: {
+            StartMs = input.ReadUInt32();
+            break;
+          }
+          case 24: {
+            EndMs = input.ReadUInt32();
+            break;
+          }
+        }
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+        switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
+            break;
+          case 8: {
+            SegmentType = (global::Pb3.AnimationSegmentType) input.ReadEnum();
+            break;
+          }
+          case 16: {
+            StartMs = input.ReadUInt32();
+            break;
+          }
+          case 24: {
+            EndMs = input.ReadUInt32();
+            break;
+          }
+        }
+      }
+    }
+    #endif
+
+  }
+
   public sealed partial class AttrSt : pb::IMessage<AttrSt>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
@@ -1855,7 +2153,7 @@ namespace Pb3 {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Pb3.BaseReflection.Descriptor.MessageTypes[5]; }
+      get { return global::Pb3.BaseReflection.Descriptor.MessageTypes[6]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -2081,7 +2379,7 @@ namespace Pb3 {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Pb3.BaseReflection.Descriptor.MessageTypes[6]; }
+      get { return global::Pb3.BaseReflection.Descriptor.MessageTypes[7]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]

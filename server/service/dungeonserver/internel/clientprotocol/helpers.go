@@ -4,8 +4,8 @@ import (
 	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
-	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/dungeonserver/internel/entitymgr"
+	"postapocgame/server/service/dungeonserver/internel/entitysystem"
 	"postapocgame/server/service/dungeonserver/internel/iface"
 )
 
@@ -21,17 +21,7 @@ func getSceneByEntity(entity iface.IEntity) (iface.IScene, error) {
 }
 
 func broadcastSceneMessage(scene iface.IScene, protoId uint16, payload proto.Message) {
-	if scene == nil || payload == nil {
-		return
-	}
-	data, err := proto.Marshal(payload)
-	if err != nil {
-		log.Errorf("broadcast marshal failed: %v", err)
-		return
-	}
-	for _, et := range scene.GetAllEntities() {
-		_ = et.SendMessage(protoId, data)
-	}
+	entitysystem.BroadcastSceneProto(scene, protoId, payload)
 }
 
 func sendStopToEntity(entity iface.IEntity, seq uint32) {

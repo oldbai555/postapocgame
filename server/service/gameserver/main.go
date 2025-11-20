@@ -16,6 +16,7 @@ import (
 	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/playeractor"
+	"postapocgame/server/service/gameserver/internel/timesync"
 	"syscall"
 	"time"
 )
@@ -71,6 +72,9 @@ func main() {
 		log.Fatalf("Start GameServer failed: %v", err)
 	}
 
+	timeBroadcaster := timesync.NewBroadcaster(time.Second)
+	timeBroadcaster.Start(ctx)
+
 	gevent.Publish(context.Background(), event.NewEvent(gevent.OnSrvStart))
 
 	// 等待退出信号
@@ -79,7 +83,7 @@ func main() {
 	<-sigChan
 
 	log.Infof("Shutting down GameServer...")
-
+	timeBroadcaster.Stop()
 	dungeonserverlink.Stop()
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()

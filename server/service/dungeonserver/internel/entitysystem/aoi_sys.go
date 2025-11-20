@@ -5,6 +5,7 @@ import (
 	"postapocgame/server/service/dungeonserver/internel/iface"
 )
 
+// AOISys 负责跟踪实体可见列表与九宫格变化，供广播层增量同步。
 type AOISys struct {
 	entity          iface.IEntity
 	visibleEntities map[uint64]iface.IEntity // 可见的实体列表

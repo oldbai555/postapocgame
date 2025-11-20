@@ -1,3 +1,4 @@
+// debuff_helper.go 提供 Buff/DOT 辅助方法，便于在 BuffSys 内复用。
 package entitysystem
 
 import "postapocgame/server/service/dungeonserver/internel/iface"

@@ -2,6 +2,7 @@ package entity
 
 import (
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/dungeonserver/internel/entitymgr"
 	"postapocgame/server/service/dungeonserver/internel/iface"
@@ -27,7 +28,7 @@ func NewDropItemEntity(itemId, count uint32, x, y uint32, ownerHdl, ownerRoleId 
 		count:       count,
 		ownerHdl:    ownerHdl,
 		ownerRoleId: ownerRoleId,
-		createTime:  time.Now(),
+		createTime:  servertime.Now(),
 		lifetime:    60 * time.Second, // 默认60秒
 	}
 

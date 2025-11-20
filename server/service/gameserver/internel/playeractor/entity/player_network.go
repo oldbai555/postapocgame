@@ -16,6 +16,7 @@ import (
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/clientprotocol"
@@ -805,7 +806,7 @@ func handleEnterDungeon(ctx context.Context, msg *network.ClientMessage) error {
 	// 检查每日进入次数
 	record := fubenSys.GetDungeonRecord(req.DungeonId, req.Difficulty)
 	if record != nil {
-		now := time.Now()
+		now := servertime.Now()
 		lastResetTime := time.Unix(record.ResetTime, 0)
 
 		// 检查是否需要重置（每日重置）
@@ -974,7 +975,7 @@ func handleClaimOfflineReward(ctx context.Context, msg *network.ClientMessage) e
 	resp := &protocol.S2CClaimOfflineRewardResultReq{
 		Success:        err == nil,
 		OfflineSeconds: offlineSeconds,
-		ClaimedTime:    time.Now().Unix(),
+		ClaimedTime:    servertime.Now().Unix(),
 	}
 
 	if err != nil {

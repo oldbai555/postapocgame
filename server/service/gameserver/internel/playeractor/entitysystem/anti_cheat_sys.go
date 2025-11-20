@@ -3,6 +3,7 @@ package entitysystem
 import (
 	"context"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/iface"
 	"time"
@@ -74,7 +75,7 @@ func (acs *AntiCheatSys) OnInit(ctx context.Context) {
 			OperationCount:    make(map[string]int32),
 			LastOperationTime: make(map[string]int64),
 			SuspiciousCount:   0,
-			LastResetTime:     time.Now().Unix(),
+			LastResetTime:     servertime.Now().Unix(),
 			IsBanned:          false,
 			BanEndTime:        0,
 		}
@@ -94,7 +95,7 @@ func (acs *AntiCheatSys) checkAndResetDaily() {
 		return
 	}
 
-	now := time.Now()
+	now := servertime.Now()
 	lastReset := time.Unix(acs.antiCheatData.LastResetTime, 0)
 
 	// 如果已经过了凌晨0点，重置计数
@@ -120,7 +121,7 @@ func (acs *AntiCheatSys) checkBanStatus() {
 
 	// 检查封禁是否已过期
 	if acs.antiCheatData.BanEndTime > 0 {
-		now := time.Now().Unix()
+		now := servertime.Now().Unix()
 		if now >= acs.antiCheatData.BanEndTime {
 			// 封禁已过期，解除封禁
 			acs.antiCheatData.IsBanned = false
@@ -141,7 +142,7 @@ func (acs *AntiCheatSys) CheckOperationFrequency(operationType string) bool {
 		return false
 	}
 
-	now := time.Now().Unix()
+	now := servertime.Now().Unix()
 
 	// 获取操作计数和最后操作时间
 	count := acs.antiCheatData.OperationCount[operationType]
@@ -192,7 +193,7 @@ func (acs *AntiCheatSys) BanPlayer(duration time.Duration, reason string) {
 
 	acs.antiCheatData.IsBanned = true
 	if duration > 0 {
-		acs.antiCheatData.BanEndTime = time.Now().Add(duration).Unix()
+		acs.antiCheatData.BanEndTime = servertime.Now().Add(duration).Unix()
 	} else {
 		// 永久封禁
 		acs.antiCheatData.BanEndTime = 0

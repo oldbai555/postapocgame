@@ -1,7 +1,9 @@
+// state_machine.go 提供副本实体的战斗状态机，用于控制硬直/死亡等标记。
 package entitysystem
 
 import (
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/service/dungeonserver/internel/iface"
 	"time"
 )
@@ -29,7 +31,7 @@ type StateMachine struct {
 func NewStateMachine(entity iface.IEntity) *StateMachine {
 	return &StateMachine{
 		currentState:   StateIdle,
-		stateStartTime: time.Now(),
+		stateStartTime: servertime.Now(),
 		entity:         entity,
 		extraStates:    make(map[uint32]time.Time),
 	}
@@ -43,7 +45,7 @@ func (sm *StateMachine) GetState() uint32 {
 // SetState 设置状态
 func (sm *StateMachine) SetState(state uint32, duration time.Duration) {
 	sm.currentState = state
-	sm.stateStartTime = time.Now()
+	sm.stateStartTime = servertime.Now()
 	sm.stateDuration = duration
 
 	// 根据状态设置实体标记
@@ -74,6 +76,8 @@ func (sm *StateMachine) SetState(state uint32, duration time.Duration) {
 			e.SetInvincible(false)
 		}
 	}
+
+	sm.notifyStateChange(state, duration)
 }
 
 // CanChangeState 检查是否可以切换状态
@@ -102,7 +106,7 @@ func (sm *StateMachine) CanChangeState(newState uint32) bool {
 func (sm *StateMachine) Update() {
 	// 如果状态有持续时间且已过期，自动切换到待命
 	if sm.stateDuration > 0 {
-		elapsed := time.Since(sm.stateStartTime)
+		elapsed := servertime.Now().Sub(sm.stateStartTime)
 		if elapsed >= sm.stateDuration {
 			// 状态过期，切换到待命
 			sm.currentState = StateIdle
@@ -115,11 +119,13 @@ func (sm *StateMachine) Update() {
 			if e, ok := sm.entity.(interface{ SetCannotMove(bool) }); ok {
 				e.SetCannotMove(false)
 			}
+
+			sm.notifyStateChange(StateIdle, 0)
 		}
 	}
 
 	if len(sm.extraStates) > 0 {
-		now := time.Now()
+		now := servertime.Now()
 		for state, expire := range sm.extraStates {
 			if expire.IsZero() || now.After(expire) {
 				delete(sm.extraStates, state)
@@ -160,7 +166,7 @@ func (sm *StateMachine) AddExtraState(state uint32, duration time.Duration) {
 	}
 	expire := time.Time{}
 	if duration > 0 {
-		expire = time.Now().Add(duration)
+		expire = servertime.Now().Add(duration)
 	}
 	sm.extraStates[state] = expire
 }
@@ -171,4 +177,15 @@ func (sm *StateMachine) RemoveExtraState(state uint32) {
 		return
 	}
 	delete(sm.extraStates, state)
+}
+
+func (sm *StateMachine) notifyStateChange(state uint32, duration time.Duration) {
+	if sm == nil || sm.entity == nil {
+		return
+	}
+	if notifier, ok := sm.entity.(interface {
+		OnBattleStateChanged(uint32, time.Duration)
+	}); ok {
+		notifier.OnBattleStateChanged(state, duration)
+	}
 }

@@ -9,11 +9,11 @@ package dungeonactor
 import (
 	"context"
 	"postapocgame/server/internal/actor"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/service/dungeonserver/internel/dshare"
 	"postapocgame/server/service/dungeonserver/internel/entitymgr"
 	"postapocgame/server/service/dungeonserver/internel/fbmgr"
 	"sync/atomic"
-	"time"
 )
 
 type DungeonActor struct {
@@ -49,7 +49,7 @@ func (h *dungeonActorHandler) Loop() {
 		return
 	}
 	defer h.inLoop.Store(false)
-	now := time.Now()
+	now := servertime.Now()
 	entitymgr.RunOne(now)
 	fbmgr.GetFuBenMgr().RunOne(now)
 }

@@ -7,9 +7,12 @@
 package entitysystem
 
 import (
+	"time"
+
 	"postapocgame/server/internal/argsdef"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/dungeonserver/internel/iface"
@@ -18,6 +21,7 @@ import (
 
 var _ iface.IFightSys = (*FightSys)(nil)
 
+// FightSys 管理实体主动/被动技能，并在命中后驱动伤害、治疗与 Buff 结算。
 type FightSys struct {
 	et              iface.IEntity
 	skills          map[uint32]*skill.Skill //手动释放技能列表
@@ -87,4 +91,54 @@ func (s *FightSys) CastSkill(ctx *argsdef.SkillCastContext) (*skill.CastResult, 
 		return &skill.CastResult{ErrCode: int(protocol.SkillUseErr_ErrSkillCannotCast)}, int(protocol.SkillUseErr_ErrSkillCannotCast)
 	}
 	return result, result.ErrCode
+}
+
+func (s *FightSys) RunOne(time.Time) {}
+
+func (s *FightSys) ApplySkillHits(scene iface.IScene, skillId uint32, hits []*skill.SkillHitResult) {
+	if s == nil || scene == nil || len(hits) == 0 {
+		return
+	}
+	s.applyHitEffects(hits)
+	resp := &protocol.S2CSkillDamageResultReq{
+		CasterHdl:    s.et.GetHdl(),
+		SkillId:      skillId,
+		BatchIndex:   0,
+		ServerTimeMs: servertime.UnixMilli(),
+		Hits:         ConvertSkillHitsToProto(hits),
+	}
+	BroadcastSceneProto(scene, uint16(protocol.S2CProtocol_S2CSkillDamageResult), resp)
+}
+
+func (s *FightSys) applyHitEffects(hits []*skill.SkillHitResult) {
+	caster := s.et
+	for _, hit := range hits {
+		if hit == nil || hit.Target == nil {
+			continue
+		}
+		target := hit.Target
+		switch hit.ResultType {
+		case skill.SkillResultTypeDamage:
+			if hit.Damage > 0 {
+				target.OnAttacked(caster, hit.Damage)
+			}
+		case skill.SkillResultTypeHeal:
+			if hit.Heal > 0 {
+				current := target.GetHP() + hit.Heal
+				if current > target.GetMaxHP() {
+					current = target.GetMaxHP()
+				}
+				target.SetHP(current)
+			}
+		}
+		if len(hit.AddedBuffs) > 0 {
+			if buffSys := target.GetBuffSys(); buffSys != nil {
+				for _, buffId := range hit.AddedBuffs {
+					if err := buffSys.AddBuff(buffId, caster); err != nil {
+						log.Errorf("AddBuff failed err:%v", err)
+					}
+				}
+			}
+		}
+	}
 }

@@ -1,22 +1,32 @@
+// skill.go 实现副本中技能的释放流程、目标筛选与冷却管理。
 package skill
 
 import (
 	"math"
+	"time"
+
 	"postapocgame/server/internal/argsdef"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/service/dungeonserver/internel/entityhelper"
 	"postapocgame/server/service/dungeonserver/internel/entitymgr"
 	"postapocgame/server/service/dungeonserver/internel/iface"
-	"time"
 )
 
+// Skill 封装单个技能的配置、等级以及运行期冷却信息。
 type Skill struct {
 	Id    uint32 //技能id
 	Level uint32 //技能等级
 	cd    int64  //技能cd
 }
+
+const (
+	DamageFlagPhysical uint64 = 1 << 0
+	DamageFlagMagical  uint64 = 1 << 1
+	DamageFlagTrue     uint64 = 1 << 2
+	DamageFlagHeal     uint64 = 1 << 3
+)
 
 func NewSkill(id, level uint32) *Skill {
 	skill := new(Skill)
@@ -101,7 +111,7 @@ func (s *Skill) SetCd(cd int64) {
 }
 
 func (s *Skill) CheckCd() bool {
-	return time.Now().UnixMilli() >= s.GetCd()
+	return servertime.UnixMilli() >= s.GetCd()
 }
 
 func (s *Skill) calculateDistance(pos1, pos2 *argsdef.Position) uint32 {
@@ -151,22 +161,19 @@ func (s *Skill) checkHit(caster, target iface.IEntity) (bool, bool) {
 
 func (s *Skill) Use(ctx *argsdef.SkillCastContext, caster iface.IEntity) *CastResult {
 	result := &CastResult{
-		Success:    false,
-		ErrCode:    int(protocol.SkillUseErr_SkillUseErrSuccess),
-		HitResults: make([]*SkillHitResult, 0),
+		Success: false,
+		ErrCode: int(protocol.SkillUseErr_SkillUseErrSuccess),
 	}
 
-	// 找目标
 	targets, ret := s.FindSkillTargets(ctx, caster)
 	if ret != int(protocol.SkillUseErr_SkillUseErrSuccess) {
 		result.ErrCode = ret
 		return result
 	}
 
-	// 过滤
-	valIdTargets := s.CheckTargetsValId(targets)
-	if len(valIdTargets) == 0 {
-		log.Warnf("No valId targets after check")
+	validTargets := s.CheckTargetsValId(targets)
+	if len(validTargets) == 0 {
+		log.Warnf("No valid targets after check")
 		result.ErrCode = int(protocol.SkillUseErr_ErrSkillTargetInvalId)
 		return result
 	}
@@ -177,75 +184,63 @@ func (s *Skill) Use(ctx *argsdef.SkillCastContext, caster iface.IEntity) *CastRe
 		return result
 	}
 
+	if len(skillCfg.Effects) == 0 {
+		log.Warnf("skill %d has empty effects, cast failed, caster=%d", ctx.SkillId, caster.GetHdl())
+		result.ErrCode = int(protocol.SkillUseErr_ErrSkillCannotCast)
+		return result
+	}
+
 	damageCalc := NewDamageCalculator()
+	result.Hits = make([]*SkillHitResult, 0, len(validTargets))
 
-	for _, target := range targets {
-		hitResult := &SkillHitResult{
+	for _, target := range validTargets {
+		hit := &SkillHitResult{
 			TargetHdl: target.GetHdl(),
+			Target:    target,
 		}
-
-		// 判定技能是否命中
 		isHit, isDodge := s.checkHit(caster, target)
-		hitResult.IsHit = isHit
-		hitResult.IsDodge = isDodge
+		hit.IsHit = isHit
+		hit.IsDodge = isDodge
+		hit.ResultType = SkillResultTypeDamage
 
 		if !isHit || isDodge {
-			result.HitResults = append(result.HitResults, hitResult)
+			result.Hits = append(result.Hits, hit)
 			continue
 		}
 
-		// 根据技能效果类型执行
 		for _, effect := range skillCfg.Effects {
 			switch SkillResultType(effect.Type) {
 			case SkillResultTypeDamage:
-				// 造成伤害
 				damage, isCrit, _ := damageCalc.Calculate(caster, target, ctx.SkillId)
-				hitResult.Damage = damage
-				hitResult.IsCrit = isCrit
-				hitResult.ResultType = SkillResultTypeDamage
-
-				// 扣除血量
-				target.OnAttacked(caster, damage)
-
+				hit.Damage += damage
+				hit.IsCrit = isCrit
+				hit.ResultType = SkillResultTypeDamage
+				hit.DamageFlags = buildDamageFlags(skillCfg, SkillResultTypeDamage)
 			case SkillResultTypeHeal:
-				// 治疗
 				heal := damageCalc.CalculateHeal(caster, target, ctx.SkillId)
-				hitResult.Heal = heal
-				hitResult.ResultType = SkillResultTypeHeal
-
-				// 恢复血量
-				currentHP := target.GetHP()
-				newHP := currentHP + heal
-				if newHP > target.GetMaxHP() {
-					newHP = target.GetMaxHP()
-				}
-				target.SetHP(newHP)
-
+				hit.Heal += heal
+				hit.ResultType = SkillResultTypeHeal
+				hit.DamageFlags = buildDamageFlags(skillCfg, SkillResultTypeHeal)
 			case SkillResultTypeAddBuff:
-				// 添加Buff
-				buffId := effect.Value
-				if buffSys := target.GetBuffSys(); buffSys != nil {
-					if err := buffSys.AddBuff(buffId, caster); err != nil {
-						log.Errorf("AddBuff failed err:%v", err)
-					}
-				}
-				hitResult.AddedBuffs = append(hitResult.AddedBuffs, buffId)
-				hitResult.ResultType = SkillResultTypeAddBuff
+				hit.AddedBuffs = append(hit.AddedBuffs, effect.Value)
+				hit.ResultType = SkillResultTypeAddBuff
+			case SkillResultTypeRemoveBuff:
+				// TODO: implement remove buff logic if needed
 			}
 		}
 
-		hitResult.Attrs = entityhelper.BuildAttrMap(target)
-		hitResult.StateFlags = target.GetStateFlags()
-
-		result.HitResults = append(result.HitResults, hitResult)
+		result.Hits = append(result.Hits, hit)
 	}
 
-	// 🔧 修正：设置技能CD（传入未来的时间戳）
-	cdDuration := time.Duration(skillCfg.CoolDown) * time.Millisecond
-	s.SetCd(time.Now().Add(cdDuration).UnixMilli())
+	if len(result.Hits) == 0 {
+		result.ErrCode = int(protocol.SkillUseErr_ErrSkillCannotCast)
+		return result
+	}
 
-	// 消耗魔法
-	mp := caster.GetMP() // 🔧 修复：应该是 GetMP 而不是 GetMaxHP
+	cdDuration := time.Duration(skillCfg.CoolDown) * time.Millisecond
+	s.SetCd(servertime.Now().Add(cdDuration).UnixMilli())
+
+	mp := caster.GetMP()
 	if mp >= int64(skillCfg.ManaCost) {
 		mp -= int64(skillCfg.ManaCost)
 		caster.SetMP(mp)
@@ -253,4 +248,21 @@ func (s *Skill) Use(ctx *argsdef.SkillCastContext, caster iface.IEntity) *CastRe
 
 	result.Success = true
 	return result
+}
+
+func buildDamageFlags(cfg *jsonconf.SkillConfig, resultType SkillResultType) uint64 {
+	switch resultType {
+	case SkillResultTypeHeal:
+		return DamageFlagHeal
+	case SkillResultTypeDamage:
+		switch cfg.DamageType {
+		case 1:
+			return DamageFlagPhysical
+		case 2:
+			return DamageFlagMagical
+		default:
+			return DamageFlagTrue
+		}
+	}
+	return 0
 }

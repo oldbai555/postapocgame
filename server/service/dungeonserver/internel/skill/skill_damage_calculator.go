@@ -1,3 +1,4 @@
+// skill_damage_calculator.go 负责所有基础伤害、治疗与命中计算逻辑。
 package skill
 
 import (

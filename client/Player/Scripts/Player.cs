@@ -19,7 +19,6 @@ public partial class Player : CharacterBody2D
 
 	private AnimationPlayer? _animationPlayer;
 	private Sprite2D? _sprite;
-
 	[Export]
 	public NodePath? StateMachinePath { get; set; }
 
@@ -33,6 +32,8 @@ public partial class Player : CharacterBody2D
 	public string State => _state;
 	public bool IsFacingLeft => _sprite != null && _sprite.Scale.X < 0f;
 
+	[Signal]
+	public delegate void DirectionChangedEventHandler(Vector2 newDirection);
 
 	public override void _Ready()
 	{
@@ -107,7 +108,7 @@ public partial class Player : CharacterBody2D
 		{
 			return false;
 		}
-
+		EmitSignal(SignalName.DirectionChanged, _direction);
 		UpdateFacing();
 
 		return true;

@@ -4,6 +4,7 @@
  * @Desc:
 **/
 
+// skill_result.go 定义技能命中类型枚举，供战斗、Buff 系统共享。
 package skill
 
 // SkillResultType 技能结果类型

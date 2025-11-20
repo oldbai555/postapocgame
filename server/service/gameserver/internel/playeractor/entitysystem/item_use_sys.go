@@ -5,10 +5,10 @@ import (
 	"postapocgame/server/internal"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/iface"
-	"time"
 )
 
 const (
@@ -98,7 +98,7 @@ func (ius *ItemUseSys) UseItem(ctx context.Context, itemID uint32, count uint32)
 	}
 
 	// 检查冷却时间
-	now := time.Now().Unix()
+	now := servertime.Now().Unix()
 	if ius.itemUseData == nil || ius.itemUseData.CooldownMap == nil {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "item use data not initialized")
 	}
@@ -201,7 +201,7 @@ func (ius *ItemUseSys) CheckCooldown(itemID uint32) bool {
 	if ius.itemUseData == nil || ius.itemUseData.CooldownMap == nil {
 		return false
 	}
-	now := time.Now().Unix()
+	now := servertime.Now().Unix()
 	if cooldownEnd, exists := ius.itemUseData.CooldownMap[itemID]; exists && cooldownEnd > now {
 		return true
 	}
@@ -213,7 +213,7 @@ func (ius *ItemUseSys) GetCooldownRemaining(itemID uint32) int64 {
 	if ius.itemUseData == nil || ius.itemUseData.CooldownMap == nil {
 		return 0
 	}
-	now := time.Now().Unix()
+	now := servertime.Now().Unix()
 	if cooldownEnd, exists := ius.itemUseData.CooldownMap[itemID]; exists && cooldownEnd > now {
 		return cooldownEnd - now
 	}

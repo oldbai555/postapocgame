@@ -12,6 +12,7 @@ option go_package = "server/internal/protocol";
 import "base.proto";
 import "player.proto";
 import "system.proto";
+import "skill_def.proto";
 
 enum S2CProtocol{
     S2CError = 0;// 错误消息
@@ -52,6 +53,8 @@ enum S2CProtocol{
     S2CClaimOfflineRewardResult = 34;// 领取离线收益结果
     S2CReviveResult = 35;// 角色复活结果
     S2CGetNearestMonsterResult = 36;// 获取最近怪物结果
+    S2CTimeSync = 37;// 服务器时间同步（动画/移动时间轴对齐）
+    S2CSkillDamageResult = 38;// 技能伤害结果
 }
 
 message S2CRoleListReq {
@@ -130,16 +133,28 @@ message SkillHitResultSt {
     int64 damage = 5;
     int64 heal = 6;
     repeated uint32 added_buffs = 7;
-    uint32 result_type = 8;
+    SkillResultType result_type = 8;
     map<uint32, int64> attrs = 9;
     uint64 state_flags = 10;
+    uint64 damage_flags = 11;
 }
 
 message S2CSkillCastResultReq {
     uint64 caster_hdl = 1;
     uint32 skill_id = 2;
     uint32 err_code = 3;
-    repeated SkillHitResultSt hits = 4;
+    reserved 4;
+    int64 server_time_ms = 5;
+    uint32 latency_tolerance_ms = 6;
+}
+
+message S2CSkillDamageResultReq {
+    uint64 caster_hdl = 1;
+    uint32 skill_id = 2;
+    reserved 3;
+    uint32 batch_index = 4;
+    int64 server_time_ms = 5;
+    repeated SkillHitResultSt hits = 6;
 }
 
 message S2CEntityMoveReq {
@@ -279,4 +294,9 @@ message S2CGetNearestMonsterResultReq {
     uint32 pos_x = 6;// 怪物位置X
     uint32 pos_y = 7;// 怪物位置Y
     float distance = 8;// 距离
+}
+
+// 服务器时间同步：用于客户端对齐本地时间轴（动画、移动插值等）
+message S2CTimeSyncReq {
+    int64 server_time_ms = 1;// 服务器当前时间（Unix 毫秒）
 }

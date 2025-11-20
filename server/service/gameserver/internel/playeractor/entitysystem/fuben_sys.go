@@ -3,6 +3,7 @@ package entitysystem
 import (
 	"context"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/iface"
@@ -100,7 +101,7 @@ func (fs *FubenSys) GetOrCreateDungeonRecord(dungeonID uint32, difficulty uint32
 	}
 
 	// 创建新记录
-	now := time.Now().Unix()
+	now := servertime.Now().Unix()
 	newRecord := &protocol.DungeonRecord{
 		DungeonId:     dungeonID,
 		Difficulty:    difficulty,
@@ -120,7 +121,7 @@ func (fs *FubenSys) CheckDungeonCD(dungeonID uint32, difficulty uint32, cdMinute
 		return true, 0
 	}
 
-	now := time.Now()
+	now := servertime.Now()
 	lastEnterTime := time.Unix(record.LastEnterTime, 0)
 	elapsed := now.Sub(lastEnterTime)
 	cdDuration := time.Duration(cdMinutes) * time.Minute
@@ -145,7 +146,7 @@ func (fs *FubenSys) EnterDungeon(dungeonID uint32, difficulty uint32) error {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "failed to create dungeon record")
 	}
 
-	now := time.Now()
+	now := servertime.Now()
 	lastResetTime := time.Unix(record.ResetTime, 0)
 
 	// 检查是否需要重置（每日重置）

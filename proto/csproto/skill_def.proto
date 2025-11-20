@@ -18,6 +18,14 @@ enum SkillTargetType {
     SkillTargetTypeSelf = 3;// 自身
 }
 
+enum SkillResultType {
+    SkillResultTypeNil = 0;
+    SkillResultTypeDamage = 1;// 造成伤害
+    SkillResultTypeHeal = 2;// 治疗
+    SkillResultTypeAddBuff = 3;// 添加Buff
+    SkillResultTypeRemoveBuff = 4;// 移除Buff
+}
+
 enum SkillUseErr {
     SkillUseErrSuccess = 0;
     ErrSkillNotLearned       = 1;// 未学习

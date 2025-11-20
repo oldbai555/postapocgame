@@ -1,3 +1,4 @@
+// move_sys.go 统一处理 AI 自动移动与玩家客户端上报的移动校验。
 package entitysystem
 
 import (
@@ -9,6 +10,7 @@ import (
 	"postapocgame/server/internal/argsdef"
 	"postapocgame/server/internal/attrdef"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/dungeonserver/internel/entityhelper"
@@ -443,7 +445,7 @@ func (ms *MoveSys) handleStart(scene iface.IScene, seq uint32, fromX, fromY, toX
 
 	state.LastSeq = seq
 	state.LastClientPos = toPos
-	state.LastReportTime = time.Now()
+	state.LastReportTime = servertime.Now()
 	state.IsMoving = true
 
 	return &toPos, speed, nil
@@ -492,7 +494,7 @@ func (ms *MoveSys) handleUpdate(scene iface.IScene, seq, posX, posY, speed uint3
 
 	state.LastSeq = seq
 	state.LastClientPos = targetPos
-	state.LastReportTime = time.Now()
+	state.LastReportTime = servertime.Now()
 
 	return &targetPos, speed, nil
 }
@@ -520,7 +522,7 @@ func (ms *MoveSys) handleEnd(scene iface.IScene, seq, posX, posY uint32) (*argsd
 
 	state.LastSeq = seq
 	state.LastClientPos = targetPos
-	state.LastReportTime = time.Now()
+	state.LastReportTime = servertime.Now()
 	state.IsMoving = false
 
 	return &targetPos, nil
@@ -538,7 +540,7 @@ func (ms *MoveSys) ensureStateLocked(force bool) *MoveState {
 		}
 		ms.state = &MoveState{
 			LastClientPos:  *pos,
-			LastReportTime: time.Now(),
+			LastReportTime: servertime.Now(),
 		}
 	}
 	return ms.state

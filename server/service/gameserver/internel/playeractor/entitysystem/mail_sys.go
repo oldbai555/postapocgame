@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/iface"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // MailSys 邮件系统
@@ -136,7 +136,7 @@ func (ms *MailSys) SendMail(ctx context.Context, templateId uint32, args map[str
 		MailId:   mailId,
 		ConfId:   templateId,
 		Status:   0, // 未读
-		CreateAt: uint32(time.Now().Unix()),
+		CreateAt: uint32(servertime.Now().Unix()),
 		Args:     argsJson,
 		Title:    templateConfig.Title,
 		Content:  templateConfig.Content,
@@ -178,7 +178,7 @@ func (ms *MailSys) SendCustomMail(ctx context.Context, title, content string, re
 		MailId:   mailId,
 		ConfId:   0, // 自定义邮件使用0
 		Status:   0, // 未读
-		CreateAt: uint32(time.Now().Unix()),
+		CreateAt: uint32(servertime.Now().Unix()),
 		Args:     "{}",
 		Title:    title,
 		Content:  content,
@@ -439,7 +439,7 @@ func (ms *MailSys) cleanExpiredMails() {
 		return
 	}
 
-	now := time.Now().Unix()
+	now := servertime.Now().Unix()
 	validMails := make([]*protocol.MailSt, 0, len(ms.mailData.Mails))
 
 	for _, mail := range ms.mailData.Mails {

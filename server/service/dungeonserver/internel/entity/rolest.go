@@ -14,6 +14,7 @@ import (
 	"postapocgame/server/internal/attrdef"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/dungeonserver/internel/entitymgr"
@@ -280,7 +281,7 @@ func (r *RoleEntity) OnDie(killer iface.IEntity) {
 	r.BaseEntity.OnDie(killer)
 
 	// 记录死亡时间（用于延迟复活，在RunOne中检查）
-	r.dieTime = time.Now()
+	r.dieTime = servertime.Now()
 }
 
 // Revive 复活角色到新手村

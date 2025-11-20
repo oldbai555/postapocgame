@@ -21,6 +21,8 @@ public partial class StateAttack : State
 	[Export(PropertyHint.Range, "1,20,0.5")]
 	public float DecelerateSpeed { get; set; } = 5f;
 
+private Area2D? _hurtBox;
+
 	public override void _Ready()
 	{
 		Node? parent = GetParent();
@@ -33,6 +35,7 @@ public partial class StateAttack : State
 		{
 			return;
 		}
+		_hurtBox = playerNode.GetNodeOrNull<Area2D>("Interactions/HurtBox");
 		_animationPlayer = playerNode.GetNodeOrNull<AnimationPlayer>("AnimationPlayer");
 		_attackEffectAnimationPlayer = playerNode.GetNodeOrNull<AnimationPlayer>("Sprite2D/AttackEffectSprite/AttackEffectAnimationPlayer");
 		_attackEffectSprite = playerNode.GetNodeOrNull<Sprite2D>("Sprite2D/AttackEffectSprite");
@@ -53,6 +56,14 @@ public partial class StateAttack : State
 		}
 
 		_animationDone = false;
+		if (_hurtBox != null)
+		{
+			_hurtBox.Monitoring = true;
+		}
+		else
+		{
+			GD.PrintErr("[StateAttack] Enter: 未找到 HurtBox，无法启用监测");
+		}
 		Player.UpdateAnimation("attack");
 
 		PlayAttackEffect();
@@ -62,6 +73,10 @@ public partial class StateAttack : State
 	public override void Exit()
 	{
 		_animationDone = false;
+		if (_hurtBox != null)
+		{
+			_hurtBox.Monitoring = false;
+		}
 	}
 
 	public override State? Process(float delta)

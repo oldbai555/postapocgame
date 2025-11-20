@@ -23,6 +23,7 @@ type SkillConfig struct {
 	MaxLevel         uint32         `json:"maxLevel"`         // 最大等级（默认10）
 	LearnConsume     []*ItemAmount  `json:"learnConsume"`     // 学习消耗（技能点、材料等）
 	UpgradeConsume   []*ItemAmount  `json:"upgradeConsume"`   // 升级消耗（技能点、材料等）
+
 }
 
 // SkillEffect 技能效果
@@ -31,4 +32,5 @@ type SkillEffect struct {
 	Value    uint32  `json:"value"`    // 效果值
 	Duration uint32  `json:"duration"` // 持续时间(毫秒)
 	Rate     float32 `json:"rate"`     // 触发概率 (0-1)
+	DelayMs  uint32  `json:"delayMs"`  // 生效延迟（毫秒）
 }

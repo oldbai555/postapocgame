@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/service/dungeonserver/internel/buff"
 	"postapocgame/server/service/dungeonserver/internel/iface"
 	"time"
 )
 
+// BuffSys 负责管理实体身上的 Buff/DOT，并驱动其生命周期与效果。
 type BuffSys struct {
 	owner iface.IEntity
 	buffs map[uint32]*buff.BData
@@ -39,7 +41,7 @@ func (bs *BuffSys) AddBuff(buffId uint32, caster iface.IEntity) error {
 	}
 
 	existingBuff, exists := bs.buffs[buffId]
-	now := time.Now()
+	now := servertime.Now()
 
 	if exists {
 		if existingBuff.StackCount < existingBuff.MaxStack {

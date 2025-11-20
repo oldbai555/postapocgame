@@ -1,3 +1,4 @@
+// ai_sys.go 定义怪物 AI 系统，负责巡逻、追击、施法等状态切换。
 package entitysystem
 
 import (
@@ -9,6 +10,7 @@ import (
 	"postapocgame/server/internal/attrdef"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/service/dungeonserver/internel/entitymgr"
 	"postapocgame/server/service/dungeonserver/internel/iface"
 	"postapocgame/server/service/dungeonserver/internel/skill"
@@ -41,7 +43,7 @@ func NewAISys(entity iface.IEntity, monsterCfg *jsonconf.MonsterConfig) *AISys {
 		return nil
 	}
 	cfg := monsterCfg.AIConfig.WithDefaults()
-	stepRand := rand.New(rand.NewSource(time.Now().UnixNano()))
+	stepRand := rand.New(rand.NewSource(servertime.Now().UnixNano()))
 
 	preferredSkill := DefaultMonsterSkillID
 	if len(monsterCfg.SkillIds) > 0 {
@@ -182,7 +184,7 @@ func (ai *AISys) handleAttack() {
 		return
 	}
 	if ai.castSkill(ai.target) {
-		ai.lastAttack = time.Now()
+		ai.lastAttack = servertime.Now()
 	}
 }
 
@@ -250,53 +252,15 @@ func (ai *AISys) castSkill(target iface.IEntity) bool {
 	}
 
 	result, errCode := fightSys.CastSkill(ctx)
-	if errCode != int(protocol.SkillUseErr_SkillUseErrSuccess) || result == nil {
+	if result == nil {
+		result = &skill.CastResult{ErrCode: errCode}
+	}
+	SendSkillCastAck(ai.scene, ai.entity, skillID, errCode, DefaultLatencyToleranceMs)
+	if errCode != int(protocol.SkillUseErr_SkillUseErrSuccess) {
 		return false
 	}
-
-	ai.broadcastSkillResult(skillID, result, errCode)
+	fightSys.ApplySkillHits(ai.scene, skillID, result.Hits)
 	return true
-}
-
-func (ai *AISys) broadcastSkillResult(skillID uint32, result *skill.CastResult, errCode int) {
-	if ai.scene == nil {
-		return
-	}
-	resp := &protocol.S2CSkillCastResultReq{
-		CasterHdl: ai.entity.GetHdl(),
-		SkillId:   skillID,
-		ErrCode:   uint32(errCode),
-		Hits:      convertAIHitResults(result.HitResults),
-	}
-	for _, et := range ai.scene.GetAllEntities() {
-		_ = et.SendProtoMessage(uint16(protocol.S2CProtocol_S2CSkillCastResult), resp)
-	}
-}
-
-func convertAIHitResults(hits []*skill.SkillHitResult) []*protocol.SkillHitResultSt {
-	if len(hits) == 0 {
-		return nil
-	}
-	protoHits := make([]*protocol.SkillHitResultSt, 0, len(hits))
-	for _, hit := range hits {
-		if hit == nil {
-			continue
-		}
-		protoHit := &protocol.SkillHitResultSt{
-			TargetHdl:  hit.TargetHdl,
-			IsHit:      hit.IsHit,
-			IsDodge:    hit.IsDodge,
-			IsCrit:     hit.IsCrit,
-			Damage:     hit.Damage,
-			Heal:       hit.Heal,
-			AddedBuffs: hit.AddedBuffs,
-			ResultType: uint32(hit.ResultType),
-			Attrs:      hit.Attrs,
-			StateFlags: hit.StateFlags,
-		}
-		protoHits = append(protoHits, protoHit)
-	}
-	return protoHits
 }
 
 func (ai *AISys) moveStep() float64 {

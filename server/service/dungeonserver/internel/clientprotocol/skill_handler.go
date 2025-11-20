@@ -6,7 +6,6 @@ import (
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
-	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/dungeonserver/internel/entitysystem"
 	"postapocgame/server/service/dungeonserver/internel/iface"
 	"postapocgame/server/service/dungeonserver/internel/skill"
@@ -54,44 +53,11 @@ func handleUseSkill(entity iface.IEntity, msg *network.ClientMessage) error {
 		}
 	}
 
-	resp := &protocol.S2CSkillCastResultReq{
-		CasterHdl: entity.GetHdl(),
-		SkillId:   skillId,
-		ErrCode:   uint32(errCode),
-		Hits:      convertHitResults(result.HitResults),
-	}
+	entitysystem.SendSkillCastAck(scene, entity, skillId, errCode, entitysystem.DefaultLatencyToleranceMs)
 
 	if errCode == int(protocol.SkillUseErr_SkillUseErrSuccess) {
-		broadcastSceneMessage(scene, uint16(protocol.S2CProtocol_S2CSkillCastResult), resp)
-	} else {
-		log.Warnf("skill cast failed: hdl=%d skill=%d err=%d", entity.GetHdl(), skillId, errCode)
-		_ = entity.SendProtoMessage(uint16(protocol.S2CProtocol_S2CSkillCastResult), resp)
+		fightSys.ApplySkillHits(scene, skillId, result.Hits)
 	}
 
 	return nil
-}
-
-func convertHitResults(hits []*skill.SkillHitResult) []*protocol.SkillHitResultSt {
-	if len(hits) == 0 {
-		return nil
-	}
-	protoHits := make([]*protocol.SkillHitResultSt, 0, len(hits))
-	for _, hit := range hits {
-		if hit == nil {
-			continue
-		}
-		protoHits = append(protoHits, &protocol.SkillHitResultSt{
-			TargetHdl:  hit.TargetHdl,
-			IsHit:      hit.IsHit,
-			IsDodge:    hit.IsDodge,
-			IsCrit:     hit.IsCrit,
-			Damage:     hit.Damage,
-			Heal:       hit.Heal,
-			AddedBuffs: hit.AddedBuffs,
-			ResultType: uint32(hit.ResultType),
-			Attrs:      hit.Attrs,
-			StateFlags: hit.StateFlags,
-		})
-	}
-	return protoHits
 }

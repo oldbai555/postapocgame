@@ -6,6 +6,7 @@ import (
 	"postapocgame/server/internal/database"
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
@@ -106,7 +107,7 @@ func NewPlayerRole(sessionId string, roleInfo *protocol.PlayerSimpleData) *Playe
 	}
 
 	pr._5minChecker = tool.NewTimeChecker(5 * time.Minute)
-	pr.timeCursor = newTimeCursorMark(time.Now())
+	pr.timeCursor = newTimeCursorMark(servertime.Now())
 
 	return pr
 }
@@ -118,7 +119,7 @@ func (pr *PlayerRole) OnLogin() error {
 	pr.IsOnline = true
 	pr.DisconnectAt = time.Time{}
 
-	now := time.Now()
+	now := servertime.Now()
 	pr.touchLoginTime(now)
 	pr.timeCursor = newTimeCursorMark(now)
 	pr.handleOfflineRollover(now)
@@ -138,7 +139,7 @@ func (pr *PlayerRole) OnLogout() error {
 	log.Infof("[PlayerRole] OnLogout: RoleId=%d", pr.SimpleData.RoleId)
 
 	pr.IsOnline = false
-	pr.touchLogoutTime(time.Now())
+	pr.touchLogoutTime(servertime.Now())
 
 	// 保存BinaryData到数据库
 	if pr.BinaryData != nil {
@@ -178,7 +179,7 @@ func (pr *PlayerRole) OnDisconnect() {
 	log.Infof("[PlayerRole] OnDisconnect: RoleId=%d", pr.SimpleData.RoleId)
 
 	pr.IsOnline = false
-	pr.DisconnectAt = time.Now()
+	pr.DisconnectAt = servertime.Now()
 }
 
 // Close 关闭回调（3分钟超时或主动登出）
@@ -365,11 +366,11 @@ func (pr *PlayerRole) handleTimeEvents() {
 		return
 	}
 	if pr.timeCursor.isZero() {
-		pr.timeCursor = newTimeCursorMark(time.Now())
+		pr.timeCursor = newTimeCursorMark(servertime.Now())
 		return
 	}
 
-	now := time.Now().In(time.Local)
+	now := servertime.Now().In(time.Local)
 	ctx := pr.WithContext(nil)
 
 	if pr.timeCursor.year != now.Year() {

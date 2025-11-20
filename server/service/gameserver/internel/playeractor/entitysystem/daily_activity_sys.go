@@ -4,6 +4,7 @@ import (
 	"context"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/iface"
@@ -64,7 +65,7 @@ func (das *DailyActivitySys) OnInit(ctx context.Context) {
 	}
 
 	das.ensureRewardStates()
-	das.resetIfNeeded(time.Now())
+	das.resetIfNeeded(servertime.Now())
 	das.syncMoneyBalance(ctx)
 }
 
@@ -81,7 +82,7 @@ func (das *DailyActivitySys) AddActivePoints(ctx context.Context, amount uint32)
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "activity data not initialized")
 	}
 
-	das.resetIfNeeded(time.Now())
+	das.resetIfNeeded(servertime.Now())
 
 	das.activityData.Balance += int64(amount)
 	das.activityData.TodayPoints += amount
@@ -168,11 +169,11 @@ func (das *DailyActivitySys) ClaimReward(ctx context.Context, rewardId uint32) e
 }
 
 func (das *DailyActivitySys) OnRoleLogin(ctx context.Context) {
-	das.resetIfNeeded(time.Now())
+	das.resetIfNeeded(servertime.Now())
 }
 
 func (das *DailyActivitySys) OnNewDay(ctx context.Context) {
-	das.resetForNewDay(time.Now())
+	das.resetForNewDay(servertime.Now())
 }
 
 func (das *DailyActivitySys) ensureRewardStates() {

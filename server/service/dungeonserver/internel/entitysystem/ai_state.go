@@ -1,3 +1,4 @@
+// ai_state.go 暴露 proto 中的 AI 状态枚举别名，方便在系统内部引用。
 package entitysystem
 
 import "postapocgame/server/internal/protocol"

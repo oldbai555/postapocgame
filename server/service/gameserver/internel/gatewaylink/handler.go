@@ -5,12 +5,12 @@ import (
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/argsdef"
 	"postapocgame/server/internal/network"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/iface"
 	"sync"
-	"time"
 )
 
 // NetworkHandler 网络消息处理器
@@ -76,7 +76,7 @@ func (h *NetworkHandler) handleSessionNew(event *network.SessionEvent) error {
 
 	h.sessions[event.SessionId] = &argsdef.SessionInfo{
 		SessionId: event.SessionId,
-		CreatedAt: time.Now().Unix(),
+		CreatedAt: servertime.Now().Unix(),
 	}
 
 	log.Infof("New session created: %s", event.SessionId)

@@ -197,6 +197,9 @@ func (e *BaseEntity) RunOne(now time.Time) {
 	if e.buffSys != nil {
 		e.buffSys.RunOne(now)
 	}
+	if e.fightSys != nil {
+		e.fightSys.RunOne(now)
+	}
 	if e.stateMachine != nil {
 		e.stateMachine.Update()
 	}
@@ -236,6 +239,9 @@ func (e *BaseEntity) OnAttacked(attacker iface.IEntity, damage int64) {
 
 func (e *BaseEntity) OnDie(killer iface.IEntity) {
 	e.stateFlags |= stateFlagDead
+	if e.stateMachine != nil {
+		e.stateMachine.SetState(entitysystem.StateDead, 0)
+	}
 
 	// 广播死亡消息给视野内的玩家
 	e.broadcastDeath(killer)

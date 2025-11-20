@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/dungeonserver/internel/entity"
 	"postapocgame/server/service/dungeonserver/internel/entitymgr"
@@ -52,14 +53,14 @@ func NewFuBenSt(fbId uint32, name string, fbType uint32, maxPlayers int, maxDura
 		state:           uint32(protocol.FuBenState_FuBenStateNormal),
 		difficulty:      1, // 默认普通难度
 		sceneMgr:        scenemgr.NewSceneStMgr(),
-		createTime:      time.Now(),
+		createTime:      servertime.Now(),
 		maxPlayers:      maxPlayers,
 		maxDuration:     maxDuration,
 		playerCount:     0,
-		startTime:       time.Now(),
+		startTime:       servertime.Now(),
 		killCount:       0,
 		playerSessions:  make(map[string]bool),
-		nextCycleUpdate: time.Now().Add(5 * time.Minute),
+		nextCycleUpdate: servertime.Now().Add(5 * time.Minute),
 	}
 
 	// 如果是限时副本，设置过期时间
@@ -108,7 +109,7 @@ func (fb *FuBenSt) CanEnter() bool {
 	}
 
 	// 检查是否过期
-	if !fb.expireTime.IsZero() && time.Now().After(fb.expireTime) {
+	if !fb.expireTime.IsZero() && servertime.Now().After(fb.expireTime) {
 		return false
 	}
 
@@ -130,7 +131,7 @@ func (fb *FuBenSt) OnPlayerEnter(sessionId string) error {
 
 	// 如果是第一个玩家进入，记录开始时间
 	if fb.playerCount == 1 {
-		fb.startTime = time.Now()
+		fb.startTime = servertime.Now()
 	}
 
 	log.Infof("Player entered FuBen %d, current players: %d", fb.fbId, fb.playerCount)
@@ -179,7 +180,7 @@ func (fb *FuBenSt) Complete(success bool) {
 	fb.state = uint32(protocol.FuBenState_FuBenStateClosing)
 
 	// 计算用时
-	timeUsed := uint32(time.Since(fb.startTime).Seconds())
+	timeUsed := uint32(servertime.Now().Sub(fb.startTime).Seconds())
 
 	// 为每个玩家结算
 	for sessionId := range fb.playerSessions {
@@ -223,7 +224,7 @@ func (fb *FuBenSt) IsExpired() bool {
 		return false
 	}
 
-	return time.Now().After(fb.expireTime)
+	return servertime.Now().After(fb.expireTime)
 }
 
 // Close 关闭副本

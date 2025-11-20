@@ -3,6 +3,7 @@ package entitysystem
 import (
 	"context"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/iface"
 	"time"
@@ -57,7 +58,7 @@ func (ns *NewbieSys) OnInit(ctx context.Context) {
 	if binaryData.NewbieData == nil {
 		binaryData.NewbieData = &protocol.SiNewbieData{
 			IsNewbie:      true,
-			NewbieEndTime: time.Now().Add(7 * 24 * time.Hour).Unix(), // 默认7天新手保护期
+			NewbieEndTime: servertime.Now().Add(7 * 24 * time.Hour).Unix(), // 默认7天新手保护期
 			GuideProgress: make(map[uint32]bool),
 		}
 	}
@@ -76,7 +77,7 @@ func (ns *NewbieSys) OnInit(ctx context.Context) {
 
 // checkNewbieStatus 检查新手保护期状态
 func (ns *NewbieSys) checkNewbieStatus() {
-	now := time.Now().Unix()
+	now := servertime.Now().Unix()
 	if ns.newbieData.NewbieEndTime > 0 && now >= ns.newbieData.NewbieEndTime {
 		ns.newbieData.IsNewbie = false
 	}

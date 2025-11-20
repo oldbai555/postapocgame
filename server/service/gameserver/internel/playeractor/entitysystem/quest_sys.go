@@ -4,6 +4,7 @@ import (
 	"context"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/iface"
@@ -485,7 +486,7 @@ func (qs *QuestSys) resetQuestProgress(quest *protocol.QuestData) {
 }
 
 func (qs *QuestSys) ensureRepeatableQuests(ctx context.Context) {
-	now := time.Now()
+	now := servertime.Now()
 	if qs.shouldRefresh(questCategoryDaily, now) || len(qs.ensureBucket(questCategoryDaily).Quests) == 0 {
 		qs.refreshQuestType(ctx, questCategoryDaily)
 	}
@@ -514,7 +515,7 @@ func (qs *QuestSys) refreshQuestType(ctx context.Context, questType uint32) {
 
 	configs := jsonconf.GetConfigManager().GetQuestConfigsByType(questType)
 	bucket.Quests = bucket.Quests[:0]
-	now := time.Now().Unix()
+	now := servertime.Now().Unix()
 
 	for _, cfg := range configs {
 		if cfg == nil {

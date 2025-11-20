@@ -4,10 +4,10 @@ import (
 	"context"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/iface"
-	"time"
 )
 
 const (
@@ -84,7 +84,7 @@ func (ors *OfflineRewardSys) OnRoleLogout(ctx context.Context) {
 	}
 
 	// 记录登出时间
-	ors.offlineData.LastLogoutTime = time.Now().Unix()
+	ors.offlineData.LastLogoutTime = servertime.Now().Unix()
 	ors.offlineData.RewardClaimed = false
 
 	log.Infof("[OfflineRewardSys] OnRoleLogout: LastLogoutTime=%d", ors.offlineData.LastLogoutTime)
@@ -98,7 +98,7 @@ func (ors *OfflineRewardSys) OnRoleLogin(ctx context.Context) {
 
 	// 如果有登出时间，计算离线时间
 	if ors.offlineData.LastLogoutTime > 0 {
-		now := time.Now().Unix()
+		now := servertime.Now().Unix()
 		offlineSeconds := now - ors.offlineData.LastLogoutTime
 
 		// 限制离线时间上限
@@ -196,7 +196,7 @@ func (ors *OfflineRewardSys) ClaimReward(ctx context.Context) ([]*jsonconf.ItemA
 
 	// 标记已领取
 	ors.offlineData.RewardClaimed = true
-	ors.offlineData.LastClaimTime = time.Now().Unix()
+	ors.offlineData.LastClaimTime = servertime.Now().Unix()
 	ors.offlineData.TotalOfflineSeconds = 0 // 清零离线时间
 
 	log.Infof("[OfflineRewardSys] ClaimReward: Rewards=%d", len(rewards))
