@@ -13,6 +13,7 @@ import "base.proto";
 import "player.proto";
 import "system.proto";
 import "skill_def.proto";
+import "social_def.proto";
 
 enum S2CProtocol{
     S2CError = 0;// 错误消息
@@ -55,6 +56,29 @@ enum S2CProtocol{
     S2CGetNearestMonsterResult = 36;// 获取最近怪物结果
     S2CTimeSync = 37;// 服务器时间同步（动画/移动时间轴对齐）
     S2CSkillDamageResult = 38;// 技能伤害结果
+    S2CChatMessage = 39;// 聊天消息
+    S2CAddFriendResult = 40;// 添加好友结果
+    S2CFriendRequestNotify = 41;// 好友申请通知
+    S2CRespondFriendReqResult = 42;// 响应好友申请结果
+    S2CFriendList = 43;// 好友列表
+    S2CRemoveFriendResult = 44;// 删除好友结果
+    S2CQueryRankResult = 45;// 查询排行榜结果
+    S2CCreateGuildResult = 46;// 创建公会结果
+    S2CJoinGuildResult = 47;// 加入公会结果
+    S2CLeaveGuildResult = 48;// 离开公会结果
+    S2CGuildInfo = 49;// 公会信息
+    S2CAuctionPutOnResult = 50;// 拍卖上架结果
+    S2CAuctionBuyResult = 51;// 拍卖购买结果
+    S2CAuctionQueryResult = 52;// 拍卖查询结果
+    S2CGuildJoinApproveResult = 53;// 审批加入公会申请结果
+    S2CGuildJoinRejectResult = 54;// 拒绝加入公会申请结果
+    S2CGuildKickMemberResult = 55;// 踢出成员结果
+    S2CGuildChangePositionResult = 56;// 修改职位结果
+    S2CGuildUpdateAnnouncementResult = 57;// 修改公会宣言结果
+    S2CGuildUpdateNameResult = 58;// 修改公会名称结果
+    S2CAddToBlacklistResult = 59;// 添加到黑名单结果
+    S2CRemoveFromBlacklistResult = 60;// 从黑名单移除结果
+    S2CBlacklist = 61;// 黑名单列表
 }
 
 message S2CRoleListReq {
@@ -299,4 +323,149 @@ message S2CGetNearestMonsterResultReq {
 // 服务器时间同步：用于客户端对齐本地时间轴（动画、移动插值等）
 message S2CTimeSyncReq {
     int64 server_time_ms = 1;// 服务器当前时间（Unix 毫秒）
+}
+
+// 聊天消息
+message S2CChatMessageReq {
+    ChatMessage chat_msg = 1;// 聊天消息内容
+}
+
+// 添加好友结果
+message S2CAddFriendResultReq {
+    bool success = 1;// 是否成功
+    string message = 2;// 结果消息
+    uint64 target_id = 3;// 目标角色ID
+}
+
+// 好友申请通知
+message S2CFriendRequestNotifyReq {
+    uint64 requester_id = 1;// 申请者角色ID
+    string requester_name = 2;// 申请者名称
+}
+
+// 响应好友申请结果
+message S2CRespondFriendReqResultReq {
+    bool success = 1;// 是否成功
+    string message = 2;// 结果消息
+    uint64 requester_id = 3;// 申请者角色ID
+    bool accepted = 4;// 是否同意
+}
+
+// 好友列表
+message S2CFriendListReq {
+    repeated PlayerRankSnapshot friends = 1;// 好友列表（包含快照信息）
+    map<uint64, bool> online_status = 2;// 在线状态 role_id -> is_online
+}
+
+// 删除好友结果
+message S2CRemoveFriendResultReq {
+    bool success = 1;// 是否成功
+    string message = 2;// 结果消息
+    uint64 friend_id = 3;// 好友角色ID
+}
+
+// 查询排行榜结果
+message S2CQueryRankResultReq {
+    RankData rank_data = 1;// 排行榜数据
+    int64 requester_rank = 2;// 请求者的排名（-1表示未上榜）
+    int64 requester_value = 3;// 请求者的数值
+}
+
+// 创建公会结果
+message S2CCreateGuildResultReq {
+    bool success = 1;// 是否成功
+    string message = 2;// 结果消息
+    GuildData guild_data = 3;// 公会数据（成功时返回）
+}
+
+// 加入公会结果
+message S2CJoinGuildResultReq {
+    bool success = 1;// 是否成功
+    string message = 2;// 结果消息
+    GuildData guild_data = 3;// 公会数据（成功时返回）
+}
+
+// 离开公会结果
+message S2CLeaveGuildResultReq {
+    bool success = 1;// 是否成功
+    string message = 2;// 结果消息
+}
+
+// 公会信息
+message S2CGuildInfoReq {
+    GuildData guild_data = 1;// 公会数据
+}
+
+// 拍卖上架结果
+message S2CAuctionPutOnResultReq {
+    bool success = 1;// 是否成功
+    string message = 2;// 结果消息
+    uint64 auction_id = 3;// 拍卖ID（成功时返回）
+}
+
+// 拍卖购买结果
+message S2CAuctionBuyResultReq {
+    bool success = 1;// 是否成功
+    string message = 2;// 结果消息
+    AuctionItem item = 3;// 购买的物品（成功时返回）
+}
+
+// 拍卖查询结果
+message S2CAuctionQueryResultReq {
+    repeated AuctionItem items = 1;// 拍卖物品列表
+    int32 total_count = 2;// 总数量
+    int32 total_page = 3;// 总页数
+}
+
+// 审批加入公会申请结果
+message S2CGuildJoinApproveResultReq {
+    bool success = 1;// 是否成功
+    string message = 2;// 结果消息
+}
+
+// 拒绝加入公会申请结果
+message S2CGuildJoinRejectResultReq {
+    bool success = 1;// 是否成功
+    string message = 2;// 结果消息
+}
+
+// 踢出成员结果
+message S2CGuildKickMemberResultReq {
+    bool success = 1;// 是否成功
+    string message = 2;// 结果消息
+}
+
+// 修改职位结果
+message S2CGuildChangePositionResultReq {
+    bool success = 1;// 是否成功
+    string message = 2;// 结果消息
+}
+
+// 修改公会宣言结果
+message S2CGuildUpdateAnnouncementResultReq {
+    bool success = 1;// 是否成功
+    string message = 2;// 结果消息
+}
+
+// 修改公会名称结果
+message S2CGuildUpdateNameResultReq {
+    bool success = 1;// 是否成功
+    string message = 2;// 结果消息
+}
+
+// 添加到黑名单结果
+message S2CAddToBlacklistResultReq {
+    bool success = 1;// 是否成功
+    string message = 2;// 结果消息
+}
+
+// 从黑名单移除结果
+message S2CRemoveFromBlacklistResultReq {
+    bool success = 1;// 是否成功
+    string message = 2;// 结果消息
+}
+
+// 黑名单列表
+message S2CBlacklistReq {
+    repeated uint64 blacklist_ids = 1;// 黑名单角色ID列表
 }

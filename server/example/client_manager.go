@@ -66,6 +66,16 @@ func (cm *ClientManager) GetClient(playerID string) *GameClient {
 	return cm.clients[playerID]
 }
 
+// DestroyClient 关闭并移除指定客户端
+func (cm *ClientManager) DestroyClient(playerID string) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	if client, ok := cm.clients[playerID]; ok {
+		client.Close()
+		delete(cm.clients, playerID)
+	}
+}
+
 // Stop 停止管理器
 func (cm *ClientManager) Stop() {
 	log.Infof("停止客户端管理器...")

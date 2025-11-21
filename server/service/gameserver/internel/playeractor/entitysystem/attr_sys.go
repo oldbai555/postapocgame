@@ -6,13 +6,8 @@ import (
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/iface"
+	"postapocgame/server/service/gameserver/internel/playeractor/entitysystem/attrcalc"
 )
-
-// IAttrCalculator 属性计算器接口
-type IAttrCalculator interface {
-	// CalculateAttrs 计算该系统的属性，返回属性列表
-	CalculateAttrs(ctx context.Context) []*protocol.AttrSt
-}
 
 // AttrSys 属性系统汇总
 type AttrSys struct {
@@ -22,7 +17,7 @@ type AttrSys struct {
 	// 脏标记：标记需要重算的系统
 	dirtySystems map[uint32]bool
 	// 属性计算器注册表：key为SaAttrSys枚举值，value为属性计算器
-	calculators map[uint32]IAttrCalculator
+	calculators map[uint32]attrcalc.Calculator
 }
 
 // NewAttrSys 创建属性系统
@@ -31,7 +26,7 @@ func NewAttrSys() *AttrSys {
 		BaseSystem:   NewBaseSystem(uint32(protocol.SystemId_SysAttr)),
 		attrDataMap:  make(map[uint32]*protocol.AttrVec),
 		dirtySystems: make(map[uint32]bool),
-		calculators:  make(map[uint32]IAttrCalculator),
+		calculators:  make(map[uint32]attrcalc.Calculator),
 	}
 }
 
@@ -54,31 +49,18 @@ func GetAttrSys(ctx context.Context) *AttrSys {
 
 // OnInit 系统初始化
 func (as *AttrSys) OnInit(ctx context.Context) {
-	// 注册属性计算器
-	as.registerCalculators(ctx)
+	as.cloneCalculators(ctx)
 }
 
-// registerCalculators 注册所有属性计算器
-func (as *AttrSys) registerCalculators(ctx context.Context) {
-	// 注册等级系统属性计算器
-	levelSys := GetLevelSys(ctx)
-	if levelSys != nil {
-		as.calculators[uint32(protocol.SaAttrSys_SaLevel)] = levelSys
+func (as *AttrSys) cloneCalculators(ctx context.Context) {
+	calculators := attrcalc.CloneCalculators(ctx)
+	if len(calculators) == 0 {
+		as.calculators = make(map[uint32]attrcalc.Calculator)
+		log.Warnf("AttrSys: no calculators cloned")
+		return
 	}
-
-	// 注册装备系统属性计算器
-	equipSys := GetEquipSys(ctx)
-	if equipSys != nil {
-		as.calculators[uint32(protocol.SaAttrSys_SaEquip)] = equipSys
-	}
-
-	log.Infof("AttrSys registered %d calculators", len(as.calculators))
-}
-
-// RegisterAttrCalculator 注册属性计算器（供外部系统调用）
-func (as *AttrSys) RegisterAttrCalculator(saAttrSysId uint32, calculator IAttrCalculator) {
-	as.calculators[saAttrSysId] = calculator
-	log.Infof("AttrSys registered calculator for SaAttrSys=%d", saAttrSysId)
+	as.calculators = calculators
+	log.Infof("AttrSys cloned %d calculators", len(as.calculators))
 }
 
 // MarkDirty 标记需要重算的系统

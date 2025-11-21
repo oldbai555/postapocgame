@@ -181,10 +181,25 @@ func (c *Codec) DecodeForwardMessage(data []byte) (*ForwardMessage, error) {
 	sessionId := string(data[offset : offset+int(sessionIdLen)])
 	offset += int(sessionIdLen)
 
-	return &ForwardMessage{
-		SessionId: sessionId,
-		Payload:   data[offset:],
-	}, nil
+	msg := GetForwardMessage()
+	msg.SessionId = sessionId
+
+	payloadLen := len(data) - offset
+	if payloadLen <= 0 {
+		if msg.Payload != nil {
+			msg.Payload = msg.Payload[:0]
+		}
+		return msg, nil
+	}
+
+	if cap(msg.Payload) < payloadLen {
+		msg.Payload = make([]byte, payloadLen)
+	} else {
+		msg.Payload = msg.Payload[:payloadLen]
+	}
+	copy(msg.Payload, data[offset:])
+
+	return msg, nil
 }
 
 // ============================================

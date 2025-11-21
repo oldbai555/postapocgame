@@ -17,7 +17,7 @@ type PlayerRoleActor struct {
 
 func NewPlayerRoleActor(mode actor.ActorMode) *PlayerRoleActor {
 	defaultHandler := NewPlayerHandler()
-	defaultHandler.BaseActorHandler = actor.NewBaseActorHandler()
+	defaultHandler.BaseActorHandler = actor.NewBaseActorHandler("player role handler")
 	defaultHandler.OnInit()
 	p := &PlayerRoleActor{
 		mode:          mode,

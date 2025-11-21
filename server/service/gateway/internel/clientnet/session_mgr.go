@@ -5,6 +5,7 @@ import (
 	"errors"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/routine"
 	"postapocgame/server/pkg/tool"
@@ -55,7 +56,7 @@ func (sm *SessionManager) CreateSession(conn IConnection) (*Session, error) {
 	}
 
 	sessionID := tool.GenUUID()
-	now := time.Now()
+	now := servertime.Now()
 
 	session := &Session{
 		Id:         sessionID,
@@ -133,7 +134,7 @@ func (sm *SessionManager) UpdateActivity(sessionId string) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	if session, ok := sm.sessions[sessionId]; ok {
-		session.LastActive = time.Now()
+		session.LastActive = servertime.Now()
 	}
 }
 
@@ -160,7 +161,7 @@ func (sm *SessionManager) StartCleanup(ctx context.Context) {
 
 // cleanupTimeoutSessions 清理超时会话
 func (sm *SessionManager) cleanupTimeoutSessions() {
-	now := time.Now()
+	now := servertime.Now()
 	var toClose []string
 
 	sm.mu.RLock()

@@ -17,11 +17,11 @@ type Player struct {
 	Job          int
 	Sex          int
 	Level        int
-	LastLoginAt  time.Time
-	LastLogoutAt time.Time
+	LastLoginAt  int64  `gorm:"not null;default:0"`
+	LastLogoutAt int64  `gorm:"not null;default:0"`
 	BinaryData   []byte `gorm:"type:blob"` // PlayerRoleBinaryData的二进制数据
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	CreatedAt    int64  `gorm:"autoCreateTime"`
+	UpdatedAt    int64  `gorm:"autoUpdateTime"`
 }
 
 // CreatePlayer 创建角色
@@ -117,16 +117,16 @@ func GetPlayerMainData(playerId uint) (*protocol.PlayerRoleMainData, error) {
 		Sex:            uint32(player.Sex),
 		Level:          uint32(player.Level),
 		RoleName:       player.RoleName,
-		LastLoginTime:  player.LastLoginAt.Unix(),
-		LastLogoutTime: player.LastLogoutAt.Unix(),
+		LastLoginTime:  player.LastLoginAt,
+		LastLogoutTime: player.LastLogoutAt,
 	}
 	return mainData, nil
 }
 
 func UpdatePlayerLoginTime(playerId uint, loginAt time.Time) error {
-	return DB.Model(&Player{}).Where("id = ?", playerId).Update("last_login_at", loginAt).Error
+	return DB.Model(&Player{}).Where("id = ?", playerId).Update("last_login_at", loginAt.Unix()).Error
 }
 
 func UpdatePlayerLogoutTime(playerId uint, logoutAt time.Time) error {
-	return DB.Model(&Player{}).Where("id = ?", playerId).Update("last_logout_at", logoutAt).Error
+	return DB.Model(&Player{}).Where("id = ?", playerId).Update("last_logout_at", logoutAt.Unix()).Error
 }

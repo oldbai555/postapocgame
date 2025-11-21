@@ -18,7 +18,7 @@ type ClientHandler struct {
 
 func NewClientHandler() *ClientHandler {
 	h := &ClientHandler{
-		BaseActorHandler: actor.NewBaseActorHandler(),
+		BaseActorHandler: actor.NewBaseActorHandler("client_handler"),
 	}
 	h.OnInit()
 
@@ -34,6 +34,8 @@ func NewClientHandler() *ClientHandler {
 	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CEntityMove), h.handleEntityMove)
 	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CEntityStopMove), h.handleEntityStopMove)
 	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CSkillCastResult), h.handleSkillCastResult)
+	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CSkillDamageResult), h.handleSkillDamageResult)
+	h.RegisterMessageHandler(uint16(protocol.S2CProtocol_S2CTimeSync), h.handleTimeSync)
 
 	return h
 }
@@ -190,6 +192,32 @@ func (h *ClientHandler) handleSkillCastResult(msg actor.IActorMessage) {
 		return
 	}
 	client.OnSkillCastResult(&resp)
+}
+
+func (h *ClientHandler) handleSkillDamageResult(msg actor.IActorMessage) {
+	client, ok := h.getClient(msg)
+	if !ok {
+		return
+	}
+	var resp protocol.S2CSkillDamageResultReq
+	if err := proto.Unmarshal(msg.GetData(), &resp); err != nil {
+		log.Errorf("解析 SkillDamageResult 失败: %v", err)
+		return
+	}
+	client.OnSkillDamageResult(&resp)
+}
+
+func (h *ClientHandler) handleTimeSync(msg actor.IActorMessage) {
+	client, ok := h.getClient(msg)
+	if !ok {
+		return
+	}
+	var resp protocol.S2CTimeSyncReq
+	if err := proto.Unmarshal(msg.GetData(), &resp); err != nil {
+		log.Errorf("解析 TimeSync 失败: %v", err)
+		return
+	}
+	client.OnTimeSync(&resp)
 }
 
 // NetworkMessageHandler 网络消息处理器（转发到Actor）

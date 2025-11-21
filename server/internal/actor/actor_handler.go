@@ -18,11 +18,13 @@ type HandlerMessageFunc func(msg IActorMessage)
 type BaseActorHandler struct {
 	rw         sync.RWMutex
 	handlerMap map[uint16]HandlerMessageFunc
+	name       string
 }
 
-func NewBaseActorHandler() *BaseActorHandler {
+func NewBaseActorHandler(name string) *BaseActorHandler {
 	return &BaseActorHandler{
 		handlerMap: make(map[uint16]HandlerMessageFunc),
+		name:       name,
 	}
 }
 
@@ -31,7 +33,7 @@ func (b *BaseActorHandler) RegisterMessageHandler(msgId uint16, f HandlerMessage
 	defer b.rw.Unlock()
 
 	if _, ok := b.handlerMap[msgId]; ok {
-		log.Fatalf("msgId %d already register", msgId)
+		log.Fatalf("[%s] msgId %d already register", b.name, msgId)
 	}
 	b.handlerMap[msgId] = f
 }
@@ -42,7 +44,7 @@ func (b *BaseActorHandler) HandleMessage(msg IActorMessage) {
 	b.rw.RUnlock() // ✅ 修复：RLock 后应该 RUnlock
 
 	if f == nil {
-		log.Errorf("msgId %d not found handler", msg.GetMsgId())
+		log.Errorf("[%s] msgId %d not found handler", b.name, msg.GetMsgId())
 		return
 	}
 	f(msg)
@@ -64,13 +66,14 @@ func (b *BaseActorHandler) Clone() *BaseActorHandler {
 	b.rw.Lock()
 	defer b.rw.Unlock()
 
-	handler := NewBaseActorHandler()
+	handler := NewBaseActorHandler("actor_handler")
 
 	// 直接复制 handlerMap（高性能）
 	handler.handlerMap = make(map[uint16]HandlerMessageFunc, len(b.handlerMap))
 	for msgId, f := range b.handlerMap {
 		handler.handlerMap[msgId] = f
 	}
+	handler.name = b.name
 	return handler
 }
 

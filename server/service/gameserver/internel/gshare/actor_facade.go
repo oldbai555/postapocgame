@@ -14,9 +14,39 @@ type IActorFacade interface {
 }
 
 var (
-	actorFacade IActorFacade
-	facadeMu    sync.RWMutex
+	actorFacade       IActorFacade
+	publicActorFacade IPublicActorFacade
+	facadeMu          sync.RWMutex
 )
+
+// IPublicActorFacade PublicActor门面接口
+type IPublicActorFacade interface {
+	RegisterHandler(msgId uint16, f actor.HandlerMessageFunc)
+	SendMessageAsync(key string, message actor.IActorMessage) error
+}
+
+// SetPublicActorFacade 设置PublicActor门面（线程安全）
+func SetPublicActorFacade(facade IPublicActorFacade) {
+	facadeMu.Lock()
+	defer facadeMu.Unlock()
+	publicActorFacade = facade
+}
+
+// GetPublicActorFacade 获取PublicActor门面（线程安全）
+func GetPublicActorFacade() IPublicActorFacade {
+	facadeMu.RLock()
+	defer facadeMu.RUnlock()
+	return publicActorFacade
+}
+
+// SendPublicMessageAsync 发送异步消息到PublicActor（便捷方法）
+func SendPublicMessageAsync(key string, message actor.IActorMessage) error {
+	facade := GetPublicActorFacade()
+	if facade == nil {
+		return fmt.Errorf("public actor facade not initialized")
+	}
+	return facade.SendMessageAsync(key, message)
+}
 
 // SetActorFacade 设置Actor门面（线程安全）
 func SetActorFacade(facade IActorFacade) {

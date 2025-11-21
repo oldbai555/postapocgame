@@ -10,6 +10,7 @@ import (
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/iface"
+	"postapocgame/server/service/gameserver/internel/playeractor/entitysystem/attrcalc"
 )
 
 const (
@@ -496,7 +497,7 @@ func (es *EquipSys) CalculateEquipAttrs() map[uint32]int64 {
 		}
 
 		// 附魔属性（直接累加）
-		if equip.EnchantAttrs != nil && len(equip.EnchantAttrs) > 0 {
+		if len(equip.EnchantAttrs) > 0 {
 			for _, enchantAttr := range equip.EnchantAttrs {
 				if enchantAttr != nil {
 					attrs[enchantAttr.Type] += enchantAttr.Value
@@ -599,6 +600,9 @@ func init() {
 		if attrSys != nil {
 			attrSys.MarkDirty(uint32(protocol.SaAttrSys_SaEquip))
 		}
+	})
+	attrcalc.Register(uint32(protocol.SaAttrSys_SaEquip), func(ctx context.Context) attrcalc.Calculator {
+		return GetEquipSys(ctx)
 	})
 }
 

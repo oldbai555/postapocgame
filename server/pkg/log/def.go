@@ -16,6 +16,14 @@ const (
 	errorColor = "\033[31m[Error] %s\033[0m"
 	stackColor = "\033[31m[Stack] %s\033[0m"
 	fatalColor = "\033[31m[Fatal] %s\033[0m"
+
+	tracePlain = "[Trace] %s"
+	debugPlain = "[Debug] %s"
+	infoPlain  = "[Info] %s"
+	warnPlain  = "[Warn] %s"
+	errorPlain = "[Error] %s"
+	stackPlain = "[Stack] %s"
+	fatalPlain = "[Fatal] %s"
 )
 
 // 错误定义

@@ -119,11 +119,17 @@ func (a *actorContext) loop() {
 		if a.handler == nil {
 			return
 		}
-		a.handler.HandleMessage(msg)
+		// 使用 routine.Run 添加 panic 恢复机制
+		routine.Run(func() {
+			a.handler.HandleMessage(msg)
+		})
 	}
 	for {
 		if a.handler != nil {
-			a.handler.Loop()
+			// Loop 方法也添加 panic 恢复
+			routine.Run(func() {
+				a.handler.Loop()
+			})
 		}
 		select {
 		case msg := <-a.mailbox:

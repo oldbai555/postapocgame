@@ -37,7 +37,7 @@ type dungeonActorHandler struct {
 
 func newDungeonActorHandler() *dungeonActorHandler {
 	return &dungeonActorHandler{
-		BaseActorHandler: actor.NewBaseActorHandler(),
+		BaseActorHandler: actor.NewBaseActorHandler("dungeon_actor_handler"),
 	}
 }
 

@@ -4,15 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"google.golang.org/protobuf/proto"
+	"sort"
+	"sync"
+	"time"
+
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/attrdef"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
-	"sync"
-	"time"
+
+	"google.golang.org/protobuf/proto"
 )
 
 const defaultClientTimeout = 10 * time.Second
@@ -29,6 +33,21 @@ type EntityView struct {
 	StateFlags uint64
 }
 
+// RoleStatus 展示当前角色在服务器中的状态
+type RoleStatus struct {
+	Account      string
+	RoleID       uint64
+	RoleName     string
+	Level        uint32
+	SceneID      uint32
+	EntityHandle uint64
+	PosX         uint32
+	PosY         uint32
+	HP           int64
+	MP           int64
+	StateFlags   uint64
+}
+
 // GameClient 游戏客户端（使用Actor）
 type GameClient struct {
 	id          string
@@ -40,10 +59,12 @@ type GameClient struct {
 
 	username string
 	password string
-	roleName string
 
 	dataMu       sync.RWMutex
 	roleID       uint64
+	roleName     string
+	roleLevel    uint32
+	sceneID      uint32
 	entityHandle uint64
 	posX         uint32
 	posY         uint32
@@ -54,14 +75,20 @@ type GameClient struct {
 	observedMu sync.RWMutex
 	observed   map[uint64]*EntityView
 
+	syncMu   sync.RWMutex
+	timeSync struct {
+		serverMs int64
+		localMs  int64
+	}
+
 	flow struct {
-		registerCh   chan *protocol.S2CRegisterResultReq
-		loginCh      chan *protocol.S2CLoginResultReq
-		roleListCh   chan *protocol.S2CRoleListReq
-		createRoleCh chan *protocol.S2CCreateRoleResultReq
-		enterSceneCh chan *protocol.S2CEnterSceneReq
-		aoiCh        chan *EntityView
-		skillCh      chan *protocol.S2CSkillCastResultReq
+		registerCh    chan *protocol.S2CRegisterResultReq
+		loginCh       chan *protocol.S2CLoginResultReq
+		roleListCh    chan *protocol.S2CRoleListReq
+		createRoleCh  chan *protocol.S2CCreateRoleResultReq
+		enterSceneCh  chan *protocol.S2CEnterSceneReq
+		aoiCh         chan *EntityView
+		skillDamageCh chan *protocol.S2CSkillDamageResultReq
 	}
 }
 
@@ -79,7 +106,7 @@ func NewGameClient(playerID string, gatewayAddr string, actorMgr actor.IActorMan
 	client.flow.createRoleCh = make(chan *protocol.S2CCreateRoleResultReq, 1)
 	client.flow.enterSceneCh = make(chan *protocol.S2CEnterSceneReq, 1)
 	client.flow.aoiCh = make(chan *EntityView, 4)
-	client.flow.skillCh = make(chan *protocol.S2CSkillCastResultReq, 4)
+	client.flow.skillDamageCh = make(chan *protocol.S2CSkillDamageResultReq, 4)
 	return client
 }
 
@@ -140,30 +167,12 @@ func (c *GameClient) sendProtoMessage(msgID uint16, payload proto.Message) error
 	})
 }
 
-// RunLoginFlow 按照测试流程执行注册、登录、建角、进副本
-func (c *GameClient) RunLoginFlow(identity TestIdentity) error {
-	c.username = identity.Account
-	c.password = identity.Password
-	c.roleName = identity.RoleName
-
-	if err := c.RegisterAccount(); err != nil {
-		log.Warnf("[%s] register failed (maybe already exists): %v", c.id, err)
-	}
-	if err := c.LoginAccount(); err != nil {
-		return err
-	}
-	roleID, err := c.EnsureRole()
-	if err != nil {
-		return err
-	}
-	c.roleID = roleID
-	return c.EnterGame(roleID)
-}
-
-func (c *GameClient) RegisterAccount() error {
+func (c *GameClient) RegisterAccount(username, password string) error {
+	c.username = username
+	c.password = password
 	req := &protocol.C2SRegisterReq{
-		Username: c.username,
-		Password: c.password,
+		Username: username,
+		Password: password,
 	}
 	if err := c.sendProtoMessage(uint16(protocol.C2SProtocol_C2SRegister), req); err != nil {
 		return err
@@ -178,10 +187,12 @@ func (c *GameClient) RegisterAccount() error {
 	return nil
 }
 
-func (c *GameClient) LoginAccount() error {
+func (c *GameClient) LoginAccount(username, password string) error {
+	c.username = username
+	c.password = password
 	req := &protocol.C2SLoginReq{
-		Username: c.username,
-		Password: c.password,
+		Username: username,
+		Password: password,
 	}
 	if err := c.sendProtoMessage(uint16(protocol.C2SProtocol_C2SLogin), req); err != nil {
 		return err
@@ -196,46 +207,38 @@ func (c *GameClient) LoginAccount() error {
 	return nil
 }
 
-func (c *GameClient) EnsureRole() (uint64, error) {
+func (c *GameClient) ListRoles() ([]*protocol.PlayerSimpleData, error) {
 	if err := c.QueryRoles(); err != nil {
-		return 0, err
+		return nil, err
 	}
-	roleList, err := waitForResponse(c.flow.roleListCh, defaultClientTimeout)
+	resp, err := waitForResponse(c.flow.roleListCh, defaultClientTimeout)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	if len(roleList.RoleList) == 0 {
-		if err := c.CreateRole(); err != nil {
-			return 0, err
-		}
-		if err := c.QueryRoles(); err != nil {
-			return 0, err
-		}
-		roleList, err = waitForResponse(c.flow.roleListCh, defaultClientTimeout)
-		if err != nil {
-			return 0, err
-		}
-	}
-	c.roleID = roleList.RoleList[0].RoleId
-	return c.roleID, nil
+	return resp.RoleList, nil
 }
 
 func (c *GameClient) QueryRoles() error {
 	return c.sendProtoMessage(uint16(protocol.C2SProtocol_C2SQueryRoles), &protocol.C2SQueryRolesReq{})
 }
 
-func (c *GameClient) CreateRole() error {
+func (c *GameClient) CreateRole(roleName string, job, sex uint32) error {
 	req := &protocol.C2SCreateRoleReq{
 		RoleData: &protocol.PlayerSimpleData{
-			RoleName: c.roleName,
-			Job:      1,
-			Sex:      1,
+			RoleName: roleName,
+			Job:      job,
+			Sex:      sex,
 		},
 	}
 	if err := c.sendProtoMessage(uint16(protocol.C2SProtocol_C2SCreateRole), req); err != nil {
 		return err
 	}
 	_, err := waitForResponse(c.flow.createRoleCh, defaultClientTimeout)
+	if err == nil {
+		c.dataMu.Lock()
+		c.roleName = roleName
+		c.dataMu.Unlock()
+	}
 	return err
 }
 
@@ -244,8 +247,13 @@ func (c *GameClient) EnterGame(roleID uint64) error {
 	if err := c.sendProtoMessage(uint16(protocol.C2SProtocol_C2SEnterGame), req); err != nil {
 		return err
 	}
-	_, err := waitForResponse(c.flow.enterSceneCh, defaultClientTimeout)
-	return err
+	if _, err := waitForResponse(c.flow.enterSceneCh, defaultClientTimeout); err != nil {
+		return err
+	}
+	c.dataMu.Lock()
+	c.roleID = roleID
+	c.dataMu.Unlock()
+	return nil
 }
 
 func (c *GameClient) NudgeMove(dx, dy int32) error {
@@ -256,7 +264,7 @@ func (c *GameClient) NudgeMove(dx, dy int32) error {
 
 	targetX := clampToUint32(int64(startX) + int64(dx))
 	targetY := clampToUint32(int64(startY) + int64(dy))
-	seq := uint32(time.Now().UnixNano() & 0xffffffff)
+	seq := uint32(servertime.Now().UnixNano() & 0xffffffff)
 
 	startReq := &protocol.C2SStartMoveReq{
 		FromX: startX,
@@ -279,11 +287,16 @@ func (c *GameClient) NudgeMove(dx, dy int32) error {
 }
 
 func (c *GameClient) CastNormalAttack(targetHdl uint64) error {
+	c.dataMu.RLock()
+	posX := c.posX
+	posY := c.posY
+	c.dataMu.RUnlock()
+
 	req := &protocol.C2SUseSkillReq{
 		SkillId:   0,
 		TargetHdl: targetHdl,
-		PosX:      c.posX,
-		PosY:      c.posY,
+		PosX:      posX,
+		PosY:      posY,
 	}
 	return c.sendProtoMessage(uint16(protocol.C2SProtocol_C2SUseSkill), req)
 }
@@ -293,19 +306,78 @@ func (c *GameClient) WaitForEntityInView(timeout time.Duration) (*EntityView, er
 }
 
 func (c *GameClient) WaitForSkillResult(targetHdl uint64, timeout time.Duration) (*protocol.SkillHitResultSt, error) {
-	deadline := time.After(timeout)
+	deadline := servertime.Now().Add(timeout)
 	for {
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return nil, fmt.Errorf("[%s] wait skill result timeout", c.id)
+		}
+
+		timer := time.NewTimer(remaining)
 		select {
-		case resp := <-c.flow.skillCh:
+		case resp := <-c.flow.skillDamageCh:
+			timer.Stop()
 			for _, hit := range resp.Hits {
 				if hit.TargetHdl == targetHdl {
 					return hit, nil
 				}
 			}
-		case <-deadline:
+		case <-timer.C:
 			return nil, fmt.Errorf("[%s] wait skill result timeout", c.id)
 		}
 	}
+}
+
+func (c *GameClient) ObservedEntities() []*EntityView {
+	c.observedMu.RLock()
+	defer c.observedMu.RUnlock()
+	results := make([]*EntityView, 0, len(c.observed))
+	for _, view := range c.observed {
+		copyView := *view
+		results = append(results, &copyView)
+	}
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Handle < results[j].Handle
+	})
+	return results
+}
+
+func (c *GameClient) RoleStatus() RoleStatus {
+	c.dataMu.RLock()
+	defer c.dataMu.RUnlock()
+	return RoleStatus{
+		Account:      c.username,
+		RoleID:       c.roleID,
+		RoleName:     c.roleName,
+		Level:        c.roleLevel,
+		SceneID:      c.sceneID,
+		EntityHandle: c.entityHandle,
+		PosX:         c.posX,
+		PosY:         c.posY,
+		HP:           c.hp,
+		MP:           c.mp,
+		StateFlags:   c.stateFlags,
+	}
+}
+
+func (c *GameClient) HasEnteredScene() bool {
+	c.dataMu.RLock()
+	defer c.dataMu.RUnlock()
+	return c.entityHandle != 0
+}
+
+func (c *GameClient) AccountName() string {
+	return c.username
+}
+
+func (c *GameClient) LastServerTime() (int64, bool) {
+	c.syncMu.RLock()
+	defer c.syncMu.RUnlock()
+	if c.timeSync.serverMs == 0 {
+		return 0, false
+	}
+	delta := servertime.Now().UnixMilli() - c.timeSync.localMs
+	return c.timeSync.serverMs + delta, true
 }
 
 func (c *GameClient) EntityHandle() uint64 {
@@ -357,6 +429,11 @@ func (c *GameClient) OnEnterScene(resp *protocol.S2CEnterSceneReq) {
 	c.hp = attrValueOrZero(entity.Attrs, attrdef.AttrHP)
 	c.mp = attrValueOrZero(entity.Attrs, attrdef.AttrMP)
 	c.stateFlags = entity.StateFlags
+	c.sceneID = entity.SceneId
+	c.roleLevel = entity.Level
+	if entity.ShowName != "" {
+		c.roleName = entity.ShowName
+	}
 	c.dataMu.Unlock()
 
 	select {
@@ -394,6 +471,12 @@ func (c *GameClient) OnEntityStop(resp *protocol.S2CEntityStopMoveReq) {
 }
 
 func (c *GameClient) OnSkillCastResult(resp *protocol.S2CSkillCastResultReq) {
+	if resp.ErrCode != 0 {
+		log.Warnf("[%s] skill cast failed, skillId=%d err=%d", c.id, resp.SkillId, resp.ErrCode)
+	}
+}
+
+func (c *GameClient) OnSkillDamageResult(resp *protocol.S2CSkillDamageResultReq) {
 	for _, hit := range resp.Hits {
 		view := &EntityView{
 			Handle:     hit.TargetHdl,
@@ -410,8 +493,24 @@ func (c *GameClient) OnSkillCastResult(resp *protocol.S2CSkillCastResultReq) {
 		c.updateObserved(view)
 	}
 	select {
-	case c.flow.skillCh <- resp:
+	case c.flow.skillDamageCh <- resp:
 	default:
+	}
+}
+
+func (c *GameClient) OnTimeSync(resp *protocol.S2CTimeSyncReq) {
+	localMs := servertime.Now().UnixMilli()
+	c.syncMu.Lock()
+	c.timeSync.serverMs = resp.ServerTimeMs
+	c.timeSync.localMs = localMs
+	c.syncMu.Unlock()
+
+	diff := resp.ServerTimeMs - localMs
+	if diff < 0 {
+		diff = -diff
+	}
+	if diff > 200 {
+		log.Warnf("[%s] server time drift detected: %dms", c.id, diff)
 	}
 }
 
@@ -451,10 +550,13 @@ func (c *GameClient) updateObserved(view *EntityView) {
 // waitForResponse 等待带超时的响应
 func waitForResponse[T any](ch <-chan T, timeout time.Duration) (T, error) {
 	var zero T
+	deadline := servertime.Now().Add(timeout)
+	timer := time.NewTimer(time.Until(deadline))
+	defer timer.Stop()
 	select {
 	case resp := <-ch:
 		return resp, nil
-	case <-time.After(timeout):
+	case <-timer.C:
 		return zero, fmt.Errorf("wait response timeout (%s)", timeout)
 	}
 }

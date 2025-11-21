@@ -13,7 +13,7 @@ var (
 )
 
 func init() {
-	currentProvider.Store(defaultTimeProvider)
+	currentProvider.Store(timeFunc(defaultTimeProvider))
 }
 
 func defaultTimeProvider() time.Time {
@@ -43,7 +43,7 @@ func Since(t time.Time) time.Duration {
 // SetTimeProvider 替换时间源（测试用途）
 func SetTimeProvider(fn func() time.Time) {
 	if fn == nil {
-		currentProvider.Store(defaultTimeProvider)
+		currentProvider.Store(timeFunc(defaultTimeProvider))
 		return
 	}
 	currentProvider.Store(timeFunc(func() time.Time {
@@ -59,4 +59,17 @@ func AddOffset(delta time.Duration) {
 // ResetOffset 清空额外时间偏移
 func ResetOffset() {
 	offsetMillis.Store(0)
+}
+
+// DaysSince 返回距离给定秒级时间戳的天数（从1开始，同一天返回1）
+func DaysSince(timestampSec int64) int64 {
+	if timestampSec <= 0 {
+		return 0
+	}
+	nowSec := Now().Unix()
+	if nowSec < timestampSec {
+		return 0
+	}
+	diff := (nowSec - timestampSec) / 86400
+	return diff + 1
 }

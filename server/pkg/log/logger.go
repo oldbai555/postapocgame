@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -34,6 +35,7 @@ type logger struct {
 	perm           os.FileMode
 	writer         *FileLoggerWriter
 	goroutineTrace bool
+	enableColor    bool
 	mu             sync.RWMutex // 保护配置变更
 	closed         atomic.Bool  // 是否已关闭
 }
@@ -52,6 +54,8 @@ func InitLogger(opts ...Option) ILogger {
 	if instance == nil {
 		instance = &logger{
 			goroutineTrace: true,
+			enableColor:    true,
+			level:          int32(InfoLevel),
 		}
 	}
 
@@ -76,6 +80,8 @@ func InitLogger(opts ...Option) ILogger {
 	if instance.perm == 0 {
 		instance.perm = fileMode
 	}
+
+	instance.applyEnvOverrides()
 
 	// 初始化 writer
 	if instance.writer == nil {
@@ -171,32 +177,30 @@ func Flush() {
 
 // 日志级别方法实现
 func (l *logger) Warnf(format string, v ...interface{}) {
-	if atomic.LoadInt32(&l.level) > int32(WarnLevel) {
-		return
-	}
-	l.writeLog(WarnLevel, warnColor, format, v...)
+	l.writeLog(WarnLevel, nil, format, v...)
 }
 
 func (l *logger) Infof(format string, v ...interface{}) {
-	if atomic.LoadInt32(&l.level) > int32(InfoLevel) {
-		return
-	}
-	l.writeLog(InfoLevel, infoColor, format, v...)
+	l.writeLog(InfoLevel, nil, format, v...)
 }
 
 func (l *logger) Errorf(format string, v ...interface{}) {
-	if atomic.LoadInt32(&l.level) > int32(ErrorLevel) {
-		return
-	}
-	l.writeLog(ErrorLevel, errorColor, format, v...)
+	l.writeLog(ErrorLevel, nil, format, v...)
 }
 
 func (l *logger) Fatalf(format string, v ...interface{}) {
+	l.logFatal(nil, format, v...)
+}
+
+func (l *logger) logFatal(fields Fields, format string, v ...interface{}) {
 	callInfo := GetCallInfo(GetSkipCall())
 	content := buildContent(format, v...)
+	if formatted := formatFields(fields); formatted != "" {
+		content += formatted
+	}
 	record := buildRecord(
 		FatalLevel,
-		fatalColor,
+		l.levelTemplate(FatalLevel),
 		buildTimeInfo(),
 		buildTraceInfo(),
 		buildCallInfo(callInfo),
@@ -231,24 +235,15 @@ func (l *logger) Fatalf(format string, v ...interface{}) {
 }
 
 func (l *logger) Debugf(format string, v ...interface{}) {
-	if atomic.LoadInt32(&l.level) > int32(DebugLevel) {
-		return
-	}
-	l.writeLog(DebugLevel, debugColor, format, v...)
+	l.writeLog(DebugLevel, nil, format, v...)
 }
 
 func (l *logger) Stackf(format string, v ...interface{}) {
-	if atomic.LoadInt32(&l.level) > int32(StackLevel) {
-		return
-	}
-	l.writeLog(StackLevel, stackColor, format, v...)
+	l.writeLog(StackLevel, nil, format, v...)
 }
 
 func (l *logger) Tracef(format string, v ...interface{}) {
-	if atomic.LoadInt32(&l.level) > int32(TraceLevel) {
-		return
-	}
-	l.writeLog(TraceLevel, traceColor, format, v...)
+	l.writeLog(TraceLevel, nil, format, v...)
 }
 
 func (l *logger) Flush() {
@@ -261,20 +256,25 @@ func (l *logger) Flush() {
 }
 
 // writeLog 统一的日志写入方法
-func (l *logger) writeLog(level int, colorInfo, format string, v ...interface{}) {
-	if l.closed.Load() {
+func (l *logger) writeLog(level int, fields Fields, format string, v ...interface{}) {
+	if l.closed.Load() || atomic.LoadInt32(&l.level) > int32(level) {
 		return
+	}
+
+	content := buildContent(format, v...)
+	if formatted := formatFields(fields); formatted != "" {
+		content += formatted
 	}
 
 	callInfo := GetCallInfo(GetSkipCall())
 	record := buildRecord(
 		level,
-		colorInfo,
+		l.levelTemplate(level),
 		buildTimeInfo(),
 		buildTraceInfo(),
 		buildCallInfo(callInfo),
 		l.prefix,
-		buildContent(format, v...),
+		content,
 		l.goroutineTrace,
 	)
 
@@ -331,6 +331,127 @@ func Stackf(format string, v ...interface{}) {
 
 func Fatalf(format string, v ...interface{}) {
 	if instance != nil {
-		instance.Fatalf(format, v...)
+		instance.logFatal(nil, format, v...)
+	}
+}
+
+func InfofWithFields(fields Fields, format string, v ...interface{}) {
+	if instance == nil {
+		InitLogger()
+	}
+	instance.writeLog(InfoLevel, fields, format, v...)
+}
+
+func ErrorfWithFields(fields Fields, format string, v ...interface{}) {
+	if instance == nil {
+		InitLogger()
+	}
+	instance.writeLog(ErrorLevel, fields, format, v...)
+}
+
+func DebugfWithFields(fields Fields, format string, v ...interface{}) {
+	if instance == nil {
+		InitLogger()
+	}
+	instance.writeLog(DebugLevel, fields, format, v...)
+}
+
+func WithFields(fields Fields) *Entry {
+	if instance == nil {
+		InitLogger()
+	}
+	return &Entry{
+		base:   instance,
+		fields: cloneFields(fields),
+	}
+}
+
+func (l *logger) levelTemplate(level int) string {
+	if l.enableColor {
+		return levelColorTemplate(level)
+	}
+	return levelPlainTemplate(level)
+}
+
+func levelColorTemplate(level int) string {
+	switch level {
+	case TraceLevel:
+		return traceColor
+	case DebugLevel:
+		return debugColor
+	case InfoLevel:
+		return infoColor
+	case WarnLevel:
+		return warnColor
+	case ErrorLevel:
+		return errorColor
+	case StackLevel:
+		return stackColor
+	case FatalLevel:
+		return fatalColor
+	default:
+		return infoColor
+	}
+}
+
+func levelPlainTemplate(level int) string {
+	switch level {
+	case TraceLevel:
+		return tracePlain
+	case DebugLevel:
+		return debugPlain
+	case InfoLevel:
+		return infoPlain
+	case WarnLevel:
+		return warnPlain
+	case ErrorLevel:
+		return errorPlain
+	case StackLevel:
+		return stackPlain
+	case FatalLevel:
+		return fatalPlain
+	default:
+		return infoPlain
+	}
+}
+
+func (l *logger) applyEnvOverrides() {
+	if lvl := os.Getenv("LOG_LEVEL"); lvl != "" {
+		if parsed, ok := parseLevel(strings.ToLower(lvl)); ok {
+			atomic.StoreInt32(&l.level, int32(parsed))
+		}
+	}
+	if color := os.Getenv("LOG_COLOR"); color != "" {
+		l.enableColor = !isFalse(color)
+	}
+}
+
+func parseLevel(val string) (int, bool) {
+	switch strings.ToLower(val) {
+	case "trace":
+		return TraceLevel, true
+	case "debug":
+		return DebugLevel, true
+	case "info":
+		return InfoLevel, true
+	case "warn", "warning":
+		return WarnLevel, true
+	case "error":
+		return ErrorLevel, true
+	case "stack":
+		return StackLevel, true
+	case "fatal":
+		return FatalLevel, true
+	default:
+		return 0, false
+	}
+}
+
+func isFalse(val string) bool {
+	switch strings.ToLower(strings.TrimSpace(val)) {
+	case "0", "false", "no", "off":
+		return true
+	default:
+		return false
 	}
 }

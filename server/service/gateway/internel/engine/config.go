@@ -7,6 +7,8 @@
 package engine
 
 import (
+	"fmt"
+	"net"
 	"os"
 	"path"
 	"postapocgame/server/internal"
@@ -34,6 +36,75 @@ type Config struct {
 	MaxFrameSize int // 帧协议配置 最大帧大小
 }
 
+const (
+	defaultWSPath            = "/ws"
+	defaultSessionBufferSize = 256
+	defaultMaxSessions       = 10000
+	defaultSessionTimeout    = 5 * time.Minute
+	defaultMaxFrameSize      = 10 * 1024 * 1024 // 10MB
+)
+
+func (c *Config) applyDefaults() {
+	if c.WSPath == "" {
+		c.WSPath = defaultWSPath
+	}
+	if c.SessionBufferSize <= 0 {
+		c.SessionBufferSize = defaultSessionBufferSize
+	}
+	if c.MaxSessions == 0 {
+		c.MaxSessions = defaultMaxSessions
+	}
+	if c.SessionTimeout <= 0 {
+		c.SessionTimeout = defaultSessionTimeout
+	}
+	if c.MaxFrameSize <= 0 {
+		c.MaxFrameSize = defaultMaxFrameSize
+	}
+}
+
+func (c *Config) Validate() error {
+	if c.GameServerAddr == "" {
+		return fmt.Errorf("gameServerAddr is required")
+	}
+	if err := validateAddr(c.GameServerAddr); err != nil {
+		return fmt.Errorf("invalid gameServerAddr: %w", err)
+	}
+	if c.TCPAddr == "" && c.WSAddr == "" {
+		return fmt.Errorf("at least one of tcp_addr or ws_addr must be configured")
+	}
+	if c.TCPAddr != "" {
+		if err := validateAddr(c.TCPAddr); err != nil {
+			return fmt.Errorf("invalid tcp_addr: %w", err)
+		}
+	}
+	if c.WSAddr != "" {
+		if err := validateAddr(c.WSAddr); err != nil {
+			return fmt.Errorf("invalid ws_addr: %w", err)
+		}
+	}
+	if c.SessionBufferSize <= 0 {
+		return fmt.Errorf("sessionBufferSize must be greater than 0")
+	}
+	if c.MaxSessions == 0 {
+		return fmt.Errorf("maxSessions must be greater than 0")
+	}
+	if c.SessionTimeout <= 0 {
+		return fmt.Errorf("sessionTimeout must be greater than 0")
+	}
+	if c.MaxFrameSize <= 0 {
+		return fmt.Errorf("maxFrameSize must be greater than 0")
+	}
+	return nil
+}
+
+func validateAddr(addr string) error {
+	if addr == "" {
+		return fmt.Errorf("address is empty")
+	}
+	_, _, err := net.SplitHostPort(addr)
+	return err
+}
+
 func LoadGatewayConf(confPath string) (*Config, error) {
 	if confPath == "" {
 		confPath = path.Join(tool.GetCurDir(), "gateway.json")
@@ -47,10 +118,9 @@ func LoadGatewayConf(confPath string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	conf.WSPath = "/ws"
-	conf.SessionBufferSize = 256
-	conf.MaxSessions = 10000
-	conf.SessionTimeout = 5 * time.Minute
-	conf.MaxFrameSize = 10 * 1024 * 1024 // 10MB
+	conf.applyDefaults()
+	if err := conf.Validate(); err != nil {
+		return nil, err
+	}
 	return &conf, nil
 }

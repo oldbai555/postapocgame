@@ -46,6 +46,7 @@ func (h *GameMessageHandler) HandleMessage(ctx context.Context, conn network.ICo
 		return nil
 	default:
 		log.Warnf("receive channel full, drop message for session: %s", forwardMsg.SessionId)
+		network.PutForwardMessage(forwardMsg)
 		return nil
 	}
 }

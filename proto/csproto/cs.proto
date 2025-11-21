@@ -11,6 +11,7 @@ package pb3;
 option go_package = "server/internal/protocol";
 import "base.proto";
 import "player.proto";
+import "social_def.proto";
 
 enum C2SProtocol{
     C2SProtocolNil = 0;
@@ -42,6 +43,29 @@ enum C2SProtocol{
     C2SClaimOfflineReward = 25;// 领取离线收益
     C2SRevive = 26;// 角色复活
     C2SGetNearestMonster = 27;// 获取最近怪物
+    C2SChatWorld = 28;// 世界聊天
+    C2SChatPrivate = 29;// 私聊
+    C2SAddFriend = 30;// 添加好友
+    C2SRespondFriendReq = 31;// 响应好友申请
+    C2SQueryFriendList = 32;// 查询好友列表
+    C2SRemoveFriend = 33;// 删除好友
+    C2SQueryRank = 34;// 查询排行榜
+    C2SCreateGuild = 35;// 创建公会
+    C2SJoinGuild = 36;// 加入公会
+    C2SLeaveGuild = 37;// 离开公会
+    C2SQueryGuildInfo = 38;// 查询公会信息
+    C2SAuctionPutOn = 39;// 拍卖上架
+    C2SAuctionBuy = 40;// 拍卖购买
+    C2SAuctionQuery = 41;// 拍卖查询
+    C2SGuildJoinApprove = 42;// 审批加入公会申请
+    C2SGuildJoinReject = 43;// 拒绝加入公会申请
+    C2SGuildKickMember = 44;// 踢出成员
+    C2SGuildChangePosition = 45;// 修改职位
+    C2SGuildUpdateAnnouncement = 46;// 修改公会宣言
+    C2SGuildUpdateName = 47;// 修改公会名称
+    C2SAddToBlacklist = 48;// 添加到黑名单
+    C2SRemoveFromBlacklist = 49;// 从黑名单移除
+    C2SQueryBlacklist = 50;// 查询黑名单
 }
 
 message C2SRegisterReq {
@@ -177,5 +201,136 @@ message C2SReviveReq {
 // 获取最近怪物请求
 message C2SGetNearestMonsterReq {
     // 空消息，服务端自动查找最近怪物
+}
+
+// 添加好友请求
+message C2SAddFriendReq {
+    uint64 target_id = 1;// 目标角色ID
+}
+
+// 响应好友申请请求
+message C2SRespondFriendReqReq {
+    uint64 requester_id = 1;// 申请者角色ID
+    bool accepted = 2;// true=同意, false=拒绝
+}
+
+// 查询好友列表请求
+message C2SQueryFriendListReq {
+    // 空消息，服务端返回完整好友列表
+}
+
+// 删除好友请求
+message C2SRemoveFriendReq {
+    uint64 friend_id = 1;// 好友角色ID
+}
+
+// 查询排行榜请求
+message C2SQueryRankReq {
+    RankType rank_type = 1;// 排行榜类型
+    int32 top_n = 2;// 查询前N名（默认100）
+}
+
+// 创建公会请求
+message C2SCreateGuildReq {
+    string guild_name = 1;// 公会名称
+}
+
+// 加入公会请求
+message C2SJoinGuildReq {
+    uint64 guild_id = 1;// 公会ID
+}
+
+// 离开公会请求
+message C2SLeaveGuildReq {
+    // 空消息，服务端自动处理
+}
+
+// 查询公会信息请求
+message C2SQueryGuildInfoReq {
+    // 空消息，服务端返回当前玩家所在公会信息
+}
+
+// 拍卖上架请求
+message C2SAuctionPutOnReq {
+    uint32 item_id = 1;// 物品ID
+    uint32 count = 2;// 数量
+    int64 price = 3;// 价格
+    int64 duration = 4;// 持续时间（秒）
+}
+
+// 拍卖购买请求
+message C2SAuctionBuyReq {
+    uint64 auction_id = 1;// 拍卖ID
+}
+
+// 拍卖查询请求
+message C2SAuctionQueryReq {
+    uint32 item_id = 1;// 物品ID（0表示查询所有）
+    int32 page = 2;// 页码（从1开始）
+    int32 page_size = 3;// 每页数量
+}
+
+// 审批加入公会申请
+message C2SGuildJoinApproveReq {
+    uint64 guild_id = 1;// 公会ID
+    uint64 applicant_id = 2;// 申请人ID
+}
+
+// 拒绝加入公会申请
+message C2SGuildJoinRejectReq {
+    uint64 guild_id = 1;// 公会ID
+    uint64 applicant_id = 2;// 申请人ID
+}
+
+// 踢出成员
+message C2SGuildKickMemberReq {
+    uint64 guild_id = 1;// 公会ID
+    uint64 target_id = 2;// 被踢出的成员ID
+}
+
+// 修改职位
+message C2SGuildChangePositionReq {
+    uint64 guild_id = 1;// 公会ID
+    uint64 target_id = 2;// 目标成员ID
+    uint32 new_position = 3;// 新职位（GuildPosition枚举）
+}
+
+// 修改公会宣言
+message C2SGuildUpdateAnnouncementReq {
+    uint64 guild_id = 1;// 公会ID
+    string announcement = 2;// 新宣言
+}
+
+// 修改公会名称
+message C2SGuildUpdateNameReq {
+    uint64 guild_id = 1;// 公会ID
+    string new_name = 2;// 新名称
+}
+
+// 添加到黑名单
+message C2SAddToBlacklistReq {
+    uint64 target_id = 1;// 目标角色ID
+    string reason = 2;// 拉黑原因
+}
+
+// 从黑名单移除
+message C2SRemoveFromBlacklistReq {
+    uint64 target_id = 1;// 目标角色ID
+}
+
+// 查询黑名单
+message C2SQueryBlacklistReq {
+    // 空消息，返回当前玩家的黑名单列表
+}
+
+// 世界聊天请求
+message C2SChatWorldReq {
+    string content = 1;// 聊天内容
+}
+
+// 私聊请求
+message C2SChatPrivateReq {
+    uint64 target_id = 1;// 目标角色ID
+    string content = 2;// 聊天内容
 }
 

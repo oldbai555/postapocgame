@@ -51,3 +51,9 @@ func WithoutGoRoutineTrace() Option {
 		log.goroutineTrace = false
 	}
 }
+
+func WithColor(enabled bool) Option {
+	return func(log *logger) {
+		log.enableColor = enabled
+	}
+}

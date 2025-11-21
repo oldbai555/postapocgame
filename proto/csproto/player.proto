@@ -55,4 +55,7 @@ message PlayerRoleBinaryData {
     SiDailyActivityData daily_activity_data = 14;// 日常活跃数据
     SiAchievementData achievement_data = 15;// 成就数据
     SiNewbieData newbie_data = 16;// 新手保护数据
+    SiFriendData friend_data = 17;// 好友数据
+    SiGuildData guild_data = 18;// 公会数据
+    SiAuctionData auction_data = 19;// 拍卖行数据
 }

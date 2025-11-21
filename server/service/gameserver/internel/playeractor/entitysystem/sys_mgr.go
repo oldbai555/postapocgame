@@ -203,7 +203,7 @@ func (m *SysMgr) CheckAllSysOpen(ctx context.Context) {
 		if system == nil {
 			continue
 		}
-		if !system.IsOpened() {
+		if system.IsOpened() {
 			continue
 		}
 		iPlayerRole.SetSysStatus(system.GetId(), true)

@@ -187,38 +187,58 @@ func (g *GatewayServer) dispatchGameServerMessages(ctx context.Context) {
 		msg, err := g.gsConnector.ReceiveGsMessage(receiveCtx)
 		cancel()
 
+		releaseMsg := func() {
+			if msg != nil {
+				network.PutForwardMessage(msg)
+				msg = nil
+			}
+		}
+
 		if err != nil {
 			select {
 			case <-g.stopChan:
 				log.Infof("Dispatch stopped by stopChan")
+				releaseMsg()
 				return
 			case <-ctx.Done():
 				log.Infof("Dispatch stopped by context")
+				releaseMsg()
 				return
 			default:
 				if err == context.DeadlineExceeded {
+					releaseMsg()
 					continue
 				}
 				log.Errorf("Receive message from game server failed: %v", err)
+				releaseMsg()
 				return
 			}
+		}
+
+		if msg == nil {
+			continue
 		}
 
 		// 获取会话
 		session, ok := g.sessionMgr.GetSession(msg.SessionId)
 		if !ok {
 			log.Debugf("Session not found: %s", msg.SessionId)
+			releaseMsg()
 			continue
 		}
 
 		// 发送到客户端（非阻塞）
 		select {
 		case session.SendChan <- msg.Payload:
+			releaseMsg()
 		case <-time.After(100 * time.Millisecond):
 			log.Warnf("Session send channel full or timeout: %s", msg.SessionId)
+			releaseMsg()
 		case <-g.stopChan:
+			releaseMsg()
 			return
 		case <-ctx.Done():
+			releaseMsg()
 			return
 		}
 	}

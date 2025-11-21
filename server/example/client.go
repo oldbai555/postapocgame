@@ -1,9 +1,11 @@
 package main
 
 import (
-	"bufio"
 	"context"
-	"os"
+	"errors"
+	"os/signal"
+	"syscall"
+
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
 )
@@ -12,23 +14,14 @@ func main() {
 	log.InitLogger(log.WithAppName("example_client_actor"), log.WithScreen(true), log.WithPath(tool.GetCurDir()+"log"))
 	defer log.Flush()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	log.Infof("===============================")
-	log.Infof("   集成测试客户端")
-	log.Infof("===============================")
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
 	clientMgr := NewClientManager(ctx)
 	defer clientMgr.Stop()
 
-	scenario := NewIntegrationScenario(ctx, clientMgr)
-	if err := scenario.Run(); err != nil {
-		log.Errorf("❌ 集成测试失败: %v", err)
-	} else {
-		log.Infof("✅ 集成测试成功")
+	panel := NewAdventurePanel(ctx, clientMgr)
+	if err := panel.Run(); err != nil && !errors.Is(err, context.Canceled) {
+		log.Errorf("⚠️ 文字冒险面板退出: %v", err)
 	}
-
-	log.Infof("\n按 Enter 退出客户端...")
-	bufio.NewReader(os.Stdin).ReadBytes('\n')
 }

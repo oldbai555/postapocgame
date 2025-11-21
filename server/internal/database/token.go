@@ -4,13 +4,13 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"time"
+	"postapocgame/server/internal/servertime"
 )
 
 // GenerateToken 生成登录token
 func GenerateToken(accountID uint) string {
 	// 使用账号ID + 时间戳 + 随机数生成token
-	timestamp := time.Now().Unix()
+	timestamp := servertime.Now().Unix()
 	randomBytes := make([]byte, 16)
 	rand.Read(randomBytes)
 

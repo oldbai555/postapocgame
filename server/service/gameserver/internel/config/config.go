@@ -7,6 +7,8 @@
 package config
 
 import (
+	"fmt"
+	"net"
 	"os"
 	"path"
 	"postapocgame/server/internal"
@@ -34,6 +36,66 @@ type ServerConfig struct {
 	DungeonServerAddrMap map[uint8]string `json:"dungeon_server_addr_map"` // DungeonServer地址映射 [srvType]addr
 }
 
+const (
+	defaultActorMailboxSize = 1024
+	defaultActorPoolSize    = 1
+)
+
+func (c *ServerConfig) applyDefaults() {
+	if c.ActorMailboxSize <= 0 {
+		c.ActorMailboxSize = defaultActorMailboxSize
+	}
+	if c.ActorPoolSize <= 0 {
+		c.ActorPoolSize = defaultActorPoolSize
+	}
+	if c.ActorMode != actor.ModeSingle && c.ActorMode != actor.ModePerKey {
+		c.ActorMode = actor.ModePerKey
+	}
+}
+
+func (c *ServerConfig) Validate() error {
+	if c.AppID == 0 {
+		return fmt.Errorf("app_id must be greater than 0")
+	}
+	if c.PlatformID == 0 {
+		return fmt.Errorf("platform_id must be greater than 0")
+	}
+	if c.SrvId == 0 {
+		return fmt.Errorf("srv_id must be greater than 0")
+	}
+	if c.ActorMailboxSize <= 0 {
+		return fmt.Errorf("actor_mailbox_size must be greater than 0")
+	}
+	if c.ActorPoolSize <= 0 {
+		return fmt.Errorf("actor_pool_size must be greater than 0")
+	}
+	if len(c.DungeonServerAddrMap) == 0 {
+		return fmt.Errorf("dungeon_server_addr_map must not be empty")
+	}
+	for srvType, addr := range c.DungeonServerAddrMap {
+		if addr == "" {
+			return fmt.Errorf("dungeon_server_addr_map[%d] is empty", srvType)
+		}
+		if err := validateAddr(addr); err != nil {
+			return fmt.Errorf("invalid dungeon server addr for srvType=%d: %w", srvType, err)
+		}
+	}
+	if c.TCPAddr != "" {
+		if err := validateAddr(c.TCPAddr); err != nil {
+			return fmt.Errorf("invalid tcp_addr: %w", err)
+		}
+	}
+	return nil
+}
+
+func validateAddr(addr string) error {
+	if addr == "" {
+		return fmt.Errorf("address is empty")
+	}
+	_, _, err := net.SplitHostPort(addr)
+	return err
+}
+
 func LoadServerConfig(confPath string) (*ServerConfig, error) {
 	if confPath == "" {
 		confPath = path.Join(tool.GetCurDir(), "gamesrv.json")
@@ -45,6 +107,11 @@ func LoadServerConfig(confPath string) (*ServerConfig, error) {
 	var conf ServerConfig
 	err = internal.Unmarshal(bytes, &conf)
 	if err != nil {
+		return nil, customerr.Wrap(err)
+	}
+
+	conf.applyDefaults()
+	if err := conf.Validate(); err != nil {
 		return nil, customerr.Wrap(err)
 	}
 

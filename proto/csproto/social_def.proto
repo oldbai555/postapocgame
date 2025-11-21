@@ -1,0 +1,105 @@
+/**
+ * @Author: zjj
+ * @Date: 2025/11/20
+ * @Desc: 社交经济相关定义 proto
+**/
+
+syntax = "proto3";
+package pb3;
+option go_package = "server/internal/protocol";
+import "base.proto";
+
+enum ChatType {
+    ChatTypeNil = 0;
+    ChatTypeWorld = 1;  // 世界聊天
+    ChatTypePrivate = 2; // 私聊
+    ChatTypeGuild = 3;  // 公会聊天
+    ChatTypeTeam = 4;   // 队伍聊天
+}
+
+message ChatMessage {
+    ChatType chat_type = 1;
+    uint64 sender_id = 2;
+    string sender_name = 3;
+    uint64 target_id = 4;  // 私聊时使用
+    string content = 5;
+    int64 timestamp = 6;
+}
+
+enum RankType {
+    RankTypeNil = 0;
+    RankTypeRoleCombatPower = 1; // 角色战力排行榜
+    RankTypeRoleLevel = 2;        // 角色等级排行榜
+    RankTypeGuildCombatPower = 3; // 公会战力排行榜
+}
+
+message RankItem {
+    int64 key = 1;   // 角色ID或公会ID
+    int64 value = 2; // 排行榜数值（战力/等级等）
+}
+
+message RankData {
+    RankType rank_type = 1;
+    repeated RankItem items = 2;
+    int64 updated_at = 3;
+}
+
+message PlayerRankSnapshot {
+    uint64 role_id = 1;
+    string role_name = 2;
+    uint32 job = 3;
+    uint32 sex = 4;
+    uint32 level = 5;
+    int64 combat_power = 6;
+    string avatar = 7;
+    map<uint32, uint32> fashion = 8;
+    int64 updated_at = 9;
+}
+
+enum GuildPosition {
+    GuildPositionNil = 0;
+    GuildPositionMember = 1;      // 普通成员
+    GuildPositionGroupLeader = 2;  // 组长
+    GuildPositionViceLeader = 3;  // 副会长
+    GuildPositionLeader = 4;       // 会长
+}
+
+// 公会权限（服务端内部按 bitmask 组合使用，枚举仅承载“第几位”的语义，具体位运算在 Go 侧完成）
+enum GuildPermission {
+    GuildPermissionNil = 0;                 // 无权限，占位
+    GuildPermissionApproveJoin = 1;         // 审批加入申请
+    GuildPermissionKickMember = 2;          // 踢出成员
+    GuildPermissionChangePos = 3;           // 修改职位（不能修改会长）
+    GuildPermissionUpdateAnn = 4;           // 修改宣言
+    GuildPermissionUpdateName = 5;          // 修改名称
+    GuildPermissionApproveJoinGroup = 6;    // 审批加入申请（仅限自己组）
+    GuildPermissionKickMemberGroup = 7;     // 踢出成员（仅限自己组）
+    GuildPermissionView = 8;                // 查看公会信息
+}
+
+message GuildMember {
+    uint64 role_id = 1;
+    uint32 position = 2;
+    int64 join_time = 3;
+}
+
+message GuildData {
+    uint64 guild_id = 1;
+    string guild_name = 2;
+    uint64 creator_id = 3;
+    uint32 level = 4;
+    int64 create_time = 5;
+    repeated GuildMember members = 6;
+    string announcement = 7;
+}
+
+message AuctionItem {
+    uint64 auction_id = 1;
+    uint32 item_id = 2;
+    uint32 count = 3;
+    int64 price = 4;
+    uint64 seller_id = 5;
+    int64 expire_time = 6;
+    int64 create_time = 7;
+}
+

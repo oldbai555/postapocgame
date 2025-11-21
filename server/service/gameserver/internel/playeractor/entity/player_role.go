@@ -3,6 +3,7 @@ package entity
 import (
 	"context"
 	"google.golang.org/protobuf/proto"
+	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/database"
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
@@ -66,6 +67,11 @@ func NewPlayerRole(sessionId string, roleInfo *protocol.PlayerSimpleData) *Playe
 	// 创建系统管理器
 	pr.sysMgr = entitysystem.NewSysMgr()
 
+	// 订阅升级事件，自动更新排行榜（订阅到玩家自己的事件总线）
+	pr.eventBus.Subscribe(gevent.OnPlayerLevelUp, 3, func(evCtx context.Context, ev *event.Event) {
+		pr.UpdateRankSnapshot(pr.WithContext(nil))
+	})
+
 	// 从数据库加载BinaryData
 	binaryData, err := database.GetPlayerBinaryData(uint(roleInfo.RoleId))
 	if err != nil {
@@ -124,8 +130,22 @@ func (pr *PlayerRole) OnLogin() error {
 	pr.timeCursor = newTimeCursorMark(now)
 	pr.handleOfflineRollover(now)
 
+	// 注册到 PublicActor（在线状态管理）
+	registerMsg := &protocol.RegisterOnlineMsg{
+		RoleId:    pr.SimpleData.RoleId,
+		SessionId: pr.SessionId,
+	}
+	registerData, err := proto.Marshal(registerMsg)
+	if err == nil {
+		actorMsg := actor.NewBaseMessage(pr.WithContext(nil), uint16(protocol.PublicActorMsgId_PublicActorMsgIdRegisterOnline), registerData)
+		gshare.SendPublicMessageAsync("global", actorMsg)
+	}
+
 	// 发布玩家登录事件
 	pr.Publish(gevent.OnPlayerLogin)
+
+	// 更新排行榜快照（玩家上线时）
+	pr.UpdateRankSnapshot(pr.WithContext(nil))
 
 	var resp protocol.S2CLoginSuccessReq
 	resp.ReconnectKey = pr.ReconnectKey
@@ -134,12 +154,109 @@ func (pr *PlayerRole) OnLogin() error {
 	return pr.SendProtoMessage(uint16(protocol.S2CProtocol_S2CLoginSuccess), &resp)
 }
 
+// UpdateRankSnapshot 更新排行榜快照和数值
+func (pr *PlayerRole) UpdateRankSnapshot(ctx context.Context) {
+	if pr.SimpleData == nil {
+		return
+	}
+
+	roleId := pr.SimpleData.RoleId
+	roleInfo := pr.SimpleData
+
+	// 获取等级
+	levelSys := entitysystem.GetLevelSys(ctx)
+	var level uint32
+	if levelSys != nil {
+		level = levelSys.GetLevel()
+	} else {
+		level = roleInfo.Level
+	}
+
+	// 计算战力（简化版：从属性系统获取）
+	var combatPower int64
+	attrSys := entitysystem.GetAttrSys(ctx)
+	if attrSys != nil {
+		// 计算所有属性
+		allAttrs := attrSys.CalculateAllAttrs(ctx)
+		// 简化计算：将所有属性值相加作为战力（实际应该根据配置计算）
+		for _, attrVec := range allAttrs {
+			if attrVec != nil && attrVec.Attrs != nil {
+				for _, attr := range attrVec.Attrs {
+					if attr != nil {
+						combatPower += attr.Value
+					}
+				}
+			}
+		}
+	}
+
+	// 构建排行榜快照
+	snapshot := &protocol.PlayerRankSnapshot{
+		RoleId:      roleId,
+		RoleName:    roleInfo.RoleName,
+		Job:         roleInfo.Job,
+		Sex:         roleInfo.Sex,
+		Level:       level,
+		CombatPower: combatPower,
+		Avatar:      "",                      // 暂时为空，后续可以从配置或数据中获取
+		Fashion:     make(map[uint32]uint32), // 暂时为空，后续可以从装备系统获取
+		UpdatedAt:   servertime.UnixMilli(),
+	}
+
+	// 发送更新快照消息到 PublicActor
+	updateSnapshotMsg := &protocol.UpdateRankSnapshotMsg{
+		RoleId:   roleId,
+		Snapshot: snapshot,
+	}
+	snapshotData, err := proto.Marshal(updateSnapshotMsg)
+	if err == nil {
+		actorMsg := actor.NewBaseMessage(pr.WithContext(ctx), uint16(protocol.PublicActorMsgId_PublicActorMsgIdUpdateRankSnapshot), snapshotData)
+		gshare.SendPublicMessageAsync("global", actorMsg)
+	}
+
+	// 更新等级排行榜数值
+	updateLevelValueMsg := &protocol.UpdateRankValueMsg{
+		RankType: protocol.RankType_RankTypeRoleLevel,
+		Key:      int64(roleId),
+		Value:    int64(level),
+	}
+	levelValueData, err := proto.Marshal(updateLevelValueMsg)
+	if err == nil {
+		actorMsg := actor.NewBaseMessage(pr.WithContext(ctx), uint16(protocol.PublicActorMsgId_PublicActorMsgIdUpdateRankValue), levelValueData)
+		gshare.SendPublicMessageAsync("global", actorMsg)
+	}
+
+	// 更新战力排行榜数值
+	updateCombatPowerValueMsg := &protocol.UpdateRankValueMsg{
+		RankType: protocol.RankType_RankTypeRoleCombatPower,
+		Key:      int64(roleId),
+		Value:    combatPower,
+	}
+	combatPowerValueData, err := proto.Marshal(updateCombatPowerValueMsg)
+	if err == nil {
+		actorMsg := actor.NewBaseMessage(pr.WithContext(ctx), uint16(protocol.PublicActorMsgId_PublicActorMsgIdUpdateRankValue), combatPowerValueData)
+		gshare.SendPublicMessageAsync("global", actorMsg)
+	}
+
+	log.Debugf("Updated rank snapshot for role %d: level=%d, combat_power=%d", roleId, level, combatPower)
+}
+
 // OnLogout 登出回调
 func (pr *PlayerRole) OnLogout() error {
 	log.Infof("[PlayerRole] OnLogout: RoleId=%d", pr.SimpleData.RoleId)
 
 	pr.IsOnline = false
 	pr.touchLogoutTime(servertime.Now())
+
+	// 注销 PublicActor 在线状态
+	unregisterMsg := &protocol.UnregisterOnlineMsg{
+		RoleId: pr.SimpleData.RoleId,
+	}
+	unregisterData, err := proto.Marshal(unregisterMsg)
+	if err == nil {
+		actorMsg := actor.NewBaseMessage(pr.WithContext(nil), uint16(protocol.PublicActorMsgId_PublicActorMsgIdUnregisterOnline), unregisterData)
+		gshare.SendPublicMessageAsync("global", actorMsg)
+	}
 
 	// 保存BinaryData到数据库
 	if pr.BinaryData != nil {

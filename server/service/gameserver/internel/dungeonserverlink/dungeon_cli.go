@@ -164,6 +164,19 @@ func (dc *DungeonClient) RegisterRPCHandler(msgId uint16, handler RPCHandler) {
 	dc.handler.RegisterRPCHandler(msgId, handler)
 }
 
+func (dc *DungeonClient) getClient(srvType uint8) (network.ITCPClient, error) {
+	dc.mu.RLock()
+	defer dc.mu.RUnlock()
+	client, ok := dc.connPools[srvType]
+	if !ok {
+		return nil, fmt.Errorf("dungeon service not connected: srvType=%d", srvType)
+	}
+	if !client.IsConnected() {
+		return nil, fmt.Errorf("dungeon service not connected: srvType=%d", srvType)
+	}
+	return client, nil
+}
+
 // Connect 连接到DungeonServer(使用自动重连)
 func (dc *DungeonClient) Connect(ctx context.Context, srvType uint8, addr string) error {
 	dc.mu.Lock()
@@ -207,19 +220,10 @@ func (dc *DungeonClient) Connect(ctx context.Context, srvType uint8, addr string
 
 // AsyncCall 异步调用DungeonServer
 func (dc *DungeonClient) AsyncCall(ctx context.Context, srvType uint8, sessionId string, msgId uint16, data []byte) error {
-	dc.mu.RLock()
-	client, ok := dc.connPools[srvType]
-	if !ok {
-		dc.mu.RUnlock()
-		return fmt.Errorf("dungeon service not connected: srvType=%d", srvType)
+	client, err := dc.getClient(srvType)
+	if err != nil {
+		return err
 	}
-
-	// 在锁内检查连接状态
-	if !client.IsConnected() {
-		dc.mu.RUnlock()
-		return fmt.Errorf("dungeon service not connected: srvType=%d", srvType)
-	}
-	dc.mu.RUnlock()
 
 	// 🔧 添加重试逻辑
 	maxRetries := 3
@@ -232,30 +236,22 @@ func (dc *DungeonClient) AsyncCall(ctx context.Context, srvType uint8, sessionId
 			return fmt.Errorf("dungeon service not connected after %d retries: srvType=%d", maxRetries, srvType)
 		}
 
-		req := network.GetRPCRequest()
-		req.SessionId = sessionId
-		req.MsgId = msgId
-		req.Data = data
+		var sendErr error
+		if msgId == 0 {
+			sendErr = dc.sendClientMessage(client, srvType, sessionId, data)
+		} else {
+			sendErr = dc.sendRPCRequest(client, sessionId, msgId, data)
+		}
 
-		rpcBuf := dc.codec.EncodeRPCRequest(req)
-		msg := network.GetMessage()
-		msg.Type = network.MsgTypeRPCRequest
-		msg.Payload = rpcBuf
-
-		err := client.SendMessage(msg)
-
-		network.PutMessage(msg)
-		network.PutBuffer(rpcBuf)
-		network.PutRPCRequest(req)
-
-		if err == nil {
-			log.Debugf("Async RPC: MsgId=%d, SessionId=%s", msgId, sessionId)
+		if sendErr == nil {
 			return nil
 		}
 
 		if i < maxRetries-1 {
-			log.Warnf("Send RPC failed (attempt %d/%d): %v", i+1, maxRetries, err)
+			log.Warnf("send to DungeonServer failed (attempt %d/%d): %v", i+1, maxRetries, sendErr)
 			time.Sleep(time.Millisecond * 100 * time.Duration(i+1))
+		} else {
+			return sendErr
 		}
 	}
 
@@ -276,5 +272,55 @@ func (dc *DungeonClient) Close() error {
 	dc.mu.Unlock()
 
 	log.Infof("DungeonClient shutdown complete")
+	return nil
+}
+
+func (dc *DungeonClient) sendRPCRequest(client network.ITCPClient, sessionId string, msgId uint16, data []byte) error {
+	req := network.GetRPCRequest()
+	defer network.PutRPCRequest(req)
+
+	req.SessionId = sessionId
+	req.MsgId = msgId
+	req.Data = data
+
+	rpcBuf := dc.codec.EncodeRPCRequest(req)
+	msg := network.GetMessage()
+	msg.Type = network.MsgTypeRPCRequest
+	msg.Payload = rpcBuf
+
+	err := client.SendMessage(msg)
+
+	network.PutMessage(msg)
+	network.PutBuffer(rpcBuf)
+
+	if err != nil {
+		return err
+	}
+
+	log.Debugf("Async RPC: MsgId=%d, SessionId=%s", msgId, sessionId)
+	return nil
+}
+
+func (dc *DungeonClient) sendClientMessage(client network.ITCPClient, srvType uint8, sessionId string, payload []byte) error {
+	forwardMsg := network.GetForwardMessage()
+	defer network.PutForwardMessage(forwardMsg)
+	forwardMsg.SessionId = sessionId
+	forwardMsg.Payload = payload
+
+	fwdBuf := dc.codec.EncodeForwardMessage(forwardMsg)
+	msg := network.GetMessage()
+	msg.Type = network.MsgTypeClient
+	msg.Payload = fwdBuf
+
+	err := client.SendMessage(msg)
+
+	network.PutMessage(msg)
+	network.PutBuffer(fwdBuf)
+
+	if err != nil {
+		return fmt.Errorf("forward client message failed: srvType=%d, sessionId=%s, err=%w", srvType, sessionId, err)
+	}
+
+	log.Debugf("Forward client message: srvType=%d, SessionId=%s, PayloadSize=%d", srvType, sessionId, len(payload))
 	return nil
 }

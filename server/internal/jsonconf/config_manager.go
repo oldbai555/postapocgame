@@ -43,6 +43,7 @@ type ConfigManager struct {
 	equipEnchantConfigs        map[uint32]*EquipEnchantConfig
 	equipSetConfigs            map[uint32]*EquipSetConfig
 	bagConfigs                 map[uint32]*BagConfig // key: bagType
+	sensitiveWordConfig        *SensitiveWordConfig
 }
 
 var (
@@ -240,6 +241,12 @@ func (cm *ConfigManager) LoadAllConfigs() error {
 	if err := cm.loadBagConfigs(); err != nil {
 		log.Warnf("load bag configs failed: %v", err)
 		// 不返回错误，允许配置不存在
+	}
+
+	// 加载敏感词配置
+	if err := cm.loadSensitiveWordConfig(); err != nil {
+		log.Warnf("load sensitive word config failed: %v", err)
+		// 不返回错误，使用默认配置
 	}
 
 	log.Infof("All configs loaded successfully")

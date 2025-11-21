@@ -30,7 +30,10 @@ type ForwardMessage struct {
 }
 
 func (x *ForwardMessage) Reset() {
-	*x = ForwardMessage{}
+	x.SessionId = ""
+	if x.Payload != nil {
+		x.Payload = x.Payload[:0]
+	}
 }
 
 // RPCRequest RPC请求

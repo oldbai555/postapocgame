@@ -9,6 +9,7 @@ import (
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/iface"
+	"postapocgame/server/service/gameserver/internel/playeractor/entitysystem/attrcalc"
 )
 
 // LevelSys 等级系统
@@ -33,12 +34,12 @@ func GetLevelSys(ctx context.Context) *LevelSys {
 	}
 	system := playerRole.GetSystem(uint32(protocol.SystemId_SysLevel))
 	if system == nil {
-		log.Errorf("not found system [%v] error:%v", protocol.SystemId_SysLevel, err)
+		log.Errorf("not found system [%v]", protocol.SystemId_SysLevel)
 		return nil
 	}
 	sys := system.(*LevelSys)
 	if sys == nil || !sys.IsOpened() {
-		log.Errorf("get player role system [%v] error:%v", protocol.SystemId_SysLevel, err)
+		log.Errorf("get player role system [%v]", protocol.SystemId_SysLevel)
 		return nil
 	}
 	return sys
@@ -208,7 +209,7 @@ func (ls *LevelSys) CheckLevelUp(ctx context.Context) error {
 			}
 		}
 
-		// 发布升级事件
+		// 发布升级事件（包含level信息，供事件订阅者使用）
 		playerRole.Publish(gevent.OnPlayerLevelUp, map[string]interface{}{
 			"level": ls.levelData.Level,
 		})
@@ -254,4 +255,7 @@ func init() {
 	})
 	gevent.SubscribePlayerEventH(gevent.OnPlayerLevelUp, func(ctx context.Context, ev *event.Event) {})
 	gevent.SubscribePlayerEventH(gevent.OnPlayerExpChange, func(ctx context.Context, ev *event.Event) {})
+	attrcalc.Register(uint32(protocol.SaAttrSys_SaLevel), func(ctx context.Context) attrcalc.Calculator {
+		return GetLevelSys(ctx)
+	})
 }

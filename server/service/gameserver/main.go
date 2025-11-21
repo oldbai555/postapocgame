@@ -15,7 +15,9 @@ import (
 	"postapocgame/server/service/gameserver/internel/engine"
 	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
+	"postapocgame/server/service/gameserver/internel/manager"
 	"postapocgame/server/service/gameserver/internel/playeractor"
+	"postapocgame/server/service/gameserver/internel/publicactor"
 	"postapocgame/server/service/gameserver/internel/timesync"
 	"syscall"
 	"time"
@@ -44,6 +46,12 @@ func main() {
 	gshare.SetPlatformId(serverConfig.PlatformID)
 	gshare.SetSrvId(serverConfig.SrvId)
 
+	serverInfo, err := database.EnsureServerInfo(serverConfig.PlatformID, serverConfig.SrvId)
+	if err != nil {
+		log.Fatalf("ensure server info failed: %v", err)
+	}
+	gshare.SetOpenSrvTime(serverInfo.ServerOpenTimeAt)
+
 	// 创建GameServer
 	gs := engine.NewGameServer(serverConfig)
 
@@ -52,6 +60,13 @@ func main() {
 	err = playerRoleActor.Init()
 	if err != nil {
 		log.Fatalf("err:%v", err)
+	}
+
+	// 公共Actor（社交经济系统）
+	publicActor := publicactor.NewPublicActor()
+	err = publicActor.Init()
+	if err != nil {
+		log.Fatalf("init publicActor failed: %v", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -65,6 +80,10 @@ func main() {
 
 	if err := playerRoleActor.Start(ctx); err != nil {
 		log.Fatalf("Start playerRoleActor failed: %v", err)
+	}
+
+	if err := publicActor.Start(ctx); err != nil {
+		log.Fatalf("Start publicActor failed: %v", err)
 	}
 
 	// 启动GameServer
@@ -87,9 +106,13 @@ func main() {
 	dungeonserverlink.Stop()
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
+	if err := publicActor.Stop(shutdownCtx); err != nil {
+		log.Errorf("Stop publicActor failed: %v", err)
+	}
 	if err := playerRoleActor.Stop(shutdownCtx); err != nil {
 		log.Errorf("Stop playerRoleActor failed: %v", err)
 	}
+	manager.GetPlayerRoleManager().FlushAndSave(shutdownCtx)
 	if err := gs.Stop(shutdownCtx); err != nil {
 		log.Fatalf("Stop GameServer failed: %v", err)
 	}

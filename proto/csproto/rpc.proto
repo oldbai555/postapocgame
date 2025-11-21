@@ -12,6 +12,7 @@ option go_package = "server/internal/protocol";
 import "base.proto";
 import "player.proto";
 import "attr_def.proto";
+import "social_def.proto";
 
 enum G2DRpcProtocol{
     G2DRPCProtocolNil = 0;
@@ -149,4 +150,245 @@ message D2GSyncPositionReq {
 message D2GSyncPositionResp {
     bool success = 1;// 是否成功
     string error_msg = 2;// 错误信息
+}
+
+// ========== PublicActor <-> PlayerActor 内部消息 ==========
+
+// PublicActor 内部消息ID（用于 GameServer 内部路由）
+// 说明：服务端所有针对 PublicActor 的消息ID必须使用此枚举，禁止在 Go 代码中自行定义常量。
+enum PublicActorMsgId {
+    PublicActorMsgIdNil = 0;
+
+    // 在线状态管理
+    PublicActorMsgIdRegisterOnline = 1;
+    PublicActorMsgIdUnregisterOnline = 2;
+
+    // 聊天系统
+    PublicActorMsgIdChatWorld = 3;
+    PublicActorMsgIdChatPrivate = 4;
+
+    // 好友系统
+    PublicActorMsgIdAddFriendReq = 5;
+    PublicActorMsgIdAddFriendResp = 6;
+    PublicActorMsgIdNotifyAddFriend = 7;
+    PublicActorMsgIdFriendListQuery = 8;
+
+    // 排行榜系统
+    PublicActorMsgIdUpdateRankSnapshot = 9;
+    PublicActorMsgIdUpdateRankValue = 10;
+    PublicActorMsgIdQueryRank = 11;
+
+    // 公会系统
+    PublicActorMsgIdCreateGuild = 12;
+    PublicActorMsgIdJoinGuildReq = 13;
+    PublicActorMsgIdLeaveGuild = 14;
+    PublicActorMsgIdGuildJoinApprove = 15;
+    PublicActorMsgIdGuildJoinReject = 16;
+    PublicActorMsgIdGuildKickMember = 17;
+    PublicActorMsgIdGuildChangePosition = 18;
+    PublicActorMsgIdGuildUpdateAnnouncement = 19;
+    PublicActorMsgIdGuildUpdateName = 20;
+
+    // 拍卖行系统
+    PublicActorMsgIdAuctionPutOn = 21;
+    PublicActorMsgIdAuctionBuy = 22;
+    PublicActorMsgIdAuctionQuery = 23;
+
+    PublicActorMsgRunOne = 24;
+}
+
+// 在线状态管理
+message RegisterOnlineMsg {
+    uint64 role_id = 1;
+    string session_id = 2;
+}
+
+message UnregisterOnlineMsg {
+    uint64 role_id = 1;
+}
+
+// 聊天消息
+message ChatWorldMsg {
+    uint64 sender_id = 1;
+    string sender_name = 2;
+    string content = 3;
+}
+
+message ChatPrivateMsg {
+    uint64 sender_id = 1;
+    uint64 target_id = 2;
+    string sender_name = 3;
+    string content = 4;
+}
+
+message ChatBroadcastMsg {
+    ChatMessage chat_msg = 1;
+}
+
+// 好友系统
+message AddFriendReqMsg {
+    uint64 requester_id = 1;
+    uint64 target_id = 2;
+    string requester_name = 3;
+}
+
+message AddFriendRespMsg {
+    uint64 requester_id = 1;
+    uint64 target_id = 2;
+    bool accepted = 3; // true=同意, false=拒绝
+}
+
+message AddFriendNotifyMsg {
+    uint64 requester_id = 1;
+    uint64 target_id = 2;
+    string requester_name = 3;
+    string target_session_id = 4; // 目标玩家的SessionId，用于推送通知
+}
+
+message FriendListQueryMsg {
+    uint64 requester_id = 1;
+    string requester_session_id = 2;
+    repeated uint64 friend_ids = 3;
+}
+
+message FriendListQueryRespMsg {
+    repeated PlayerRankSnapshot snapshots = 1;
+    map<uint64, bool> online_status = 2; // role_id -> is_online
+}
+
+// 排行榜系统
+message UpdateRankSnapshotMsg {
+    uint64 role_id = 1;
+    PlayerRankSnapshot snapshot = 2;
+}
+
+message UpdateRankValueMsg {
+    RankType rank_type = 1;
+    int64 key = 2;   // 角色ID或公会ID
+    int64 value = 3; // 排行榜数值
+}
+
+message QueryRankReqMsg {
+    RankType rank_type = 1;
+    int32 top_n = 2;
+    string requester_session_id = 3;
+    uint64 requester_role_id = 4;
+}
+
+message QueryRankRespMsg {
+    RankData rank_data = 1;
+    int64 requester_rank = 2; // 请求者的排名（-1表示未上榜）
+    int64 requester_value = 3; // 请求者的数值
+}
+
+// 公会系统
+message CreateGuildMsg {
+    uint64 creator_id = 1;
+    string guild_name = 2;
+    string creator_name = 3;
+}
+
+message CreateGuildRespMsg {
+    bool success = 1;
+    string error_msg = 2;
+    GuildData guild_data = 3;
+}
+
+message JoinGuildReqMsg {
+    uint64 requester_id = 1;
+    uint64 guild_id = 2;
+    string requester_name = 3;
+}
+
+message JoinGuildRespMsg {
+    bool success = 1;
+    string error_msg = 2;
+    GuildData guild_data = 3;
+}
+
+message LeaveGuildMsg {
+    uint64 role_id = 1;
+    uint64 guild_id = 2;
+}
+
+message GuildMemberUpdateMsg {
+    uint64 guild_id = 1;
+    GuildData guild_data = 2;
+}
+
+// 公会审批流程
+message GuildJoinApproveMsg {
+    uint64 guild_id = 1;
+    uint64 approver_id = 2;  // 审批者ID
+    uint64 applicant_id = 3; // 申请人ID
+}
+
+message GuildJoinRejectMsg {
+    uint64 guild_id = 1;
+    uint64 approver_id = 2;  // 审批者ID
+    uint64 applicant_id = 3; // 申请人ID
+}
+
+message GuildKickMemberMsg {
+    uint64 guild_id = 1;
+    uint64 operator_id = 2;  // 操作者ID
+    uint64 target_id = 3;    // 被踢出的成员ID
+}
+
+message GuildChangePositionMsg {
+    uint64 guild_id = 1;
+    uint64 operator_id = 2;  // 操作者ID
+    uint64 target_id = 3;    // 目标成员ID
+    uint32 new_position = 4; // 新职位
+}
+
+message GuildUpdateAnnouncementMsg {
+    uint64 guild_id = 1;
+    uint64 operator_id = 2;  // 操作者ID
+    string announcement = 3; // 新宣言
+}
+
+message GuildUpdateNameMsg {
+    uint64 guild_id = 1;
+    uint64 operator_id = 2;  // 操作者ID
+    string new_name = 3;     // 新名称
+}
+
+// 拍卖行系统
+message AuctionPutOnMsg {
+    uint64 seller_id = 1;
+    uint32 item_id = 2;
+    uint32 count = 3;
+    int64 price = 4;
+    int64 duration = 5; // 持续时间（秒）
+}
+
+message AuctionPutOnRespMsg {
+    bool success = 1;
+    string error_msg = 2;
+    uint64 auction_id = 3;
+}
+
+message AuctionBuyMsg {
+    uint64 buyer_id = 1;
+    uint64 auction_id = 2;
+}
+
+message AuctionBuyRespMsg {
+    bool success = 1;
+    string error_msg = 2;
+    AuctionItem item = 3;
+}
+
+message AuctionQueryMsg {
+    uint32 item_id = 1;      // 0表示查询所有
+    int32 page = 2;          // 页码（从1开始）
+    int32 page_size = 3;     // 每页数量
+    string requester_session_id = 4;
+}
+
+message AuctionQueryRespMsg {
+    repeated AuctionItem items = 1;
+    int32 total_count = 2;
+    int32 total_page = 3;
 }

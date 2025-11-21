@@ -1,17 +1,14 @@
 package database
 
-import (
-	"golang.org/x/crypto/bcrypt"
-	"time"
-)
+import "golang.org/x/crypto/bcrypt"
 
 // Account 账号表
 type Account struct {
 	ID        uint   `gorm:"primaryKey"`
 	Username  string `gorm:"unique;not null;size:32"`
 	Password  string `gorm:"not null;size:128"` // 存储bcrypt hash
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	CreatedAt int64  `gorm:"autoCreateTime"`
+	UpdatedAt int64  `gorm:"autoUpdateTime"`
 }
 
 // SetPassword 对密码加密并设置

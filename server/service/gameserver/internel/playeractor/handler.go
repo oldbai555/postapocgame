@@ -11,7 +11,7 @@ var _ actor.IActorHandler = (*PlayerHandler)(nil)
 // NewPlayerHandler 创建玩家消息处理器
 func NewPlayerHandler() *PlayerHandler {
 	return &PlayerHandler{
-		BaseActorHandler: actor.NewBaseActorHandler(),
+		BaseActorHandler: actor.NewBaseActorHandler("player handler"),
 	}
 }
 

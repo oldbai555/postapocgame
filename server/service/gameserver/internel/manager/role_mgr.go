@@ -1,6 +1,8 @@
 package manager
 
 import (
+	"context"
+	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/iface"
 	"sync"
 )
@@ -72,4 +74,34 @@ func (m *PlayerRoleManager) GetBySession(sessionId string) iface.IPlayerRole {
 		}
 	}
 	return nil
+}
+
+// FlushAndSave 遍历所有在线角色并同步保存数据，用于优雅停服
+func (m *PlayerRoleManager) FlushAndSave(ctx context.Context) {
+	roles := m.GetAll()
+	total := len(roles)
+	if total == 0 {
+		return
+	}
+
+	log.Infof("FlushAndSave start: total=%d", total)
+	for idx, role := range roles {
+		if role == nil {
+			continue
+		}
+
+		if ctx != nil {
+			select {
+			case <-ctx.Done():
+				log.Warnf("FlushAndSave cancelled after %d/%d roles: %v", idx, total, ctx.Err())
+				return
+			default:
+			}
+		}
+
+		if err := role.SaveToDB(); err != nil {
+			log.Errorf("FlushAndSave roleId=%d failed: %v", role.GetPlayerRoleId(), err)
+		}
+	}
+	log.Infof("FlushAndSave completed: total=%d", total)
 }
