@@ -2,11 +2,13 @@ package entitysystem
 
 import (
 	"context"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/iface"
 	"time"
 )
@@ -258,5 +260,7 @@ func (das *DailyActivitySys) syncMoneyBalance(ctx context.Context) error {
 func init() {
 	RegisterSystemFactory(uint32(protocol.SystemId_SysDailyActivity), func() iface.ISystem {
 		return NewDailyActivitySys()
+	})
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
 	})
 }

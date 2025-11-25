@@ -69,3 +69,14 @@ func GetIPlayerRoleByContext(ctx context.Context) (iface.IPlayerRole, error) {
 	}
 	return iPlayerRole, nil
 }
+
+func errCodeFromError(err error) uint32 {
+	if err == nil {
+		return uint32(protocol.ErrorCode_Success)
+	}
+	code := customerr.GetErrCode(err)
+	if code <= 0 {
+		return uint32(protocol.ErrorCode_Internal_Error)
+	}
+	return uint32(code)
+}

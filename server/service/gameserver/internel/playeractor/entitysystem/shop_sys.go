@@ -2,11 +2,18 @@ package entitysystem
 
 import (
 	"context"
+	"google.golang.org/protobuf/proto"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/jsonconf"
+	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/gatewaylink"
+	"postapocgame/server/service/gameserver/internel/gevent"
+	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/iface"
+	"postapocgame/server/service/gameserver/internel/playeractor/clientprotocol"
 )
 
 const shopDefaultMoneyID uint32 = 1
@@ -143,8 +150,50 @@ func scaleItemAmounts(items []*jsonconf.ItemAmount, times uint32) []*jsonconf.It
 	return result
 }
 
+func handleShopBuy(ctx context.Context, msg *network.ClientMessage) error {
+	sessionId := ctx.Value(gshare.ContextKeySession).(string)
+	var req protocol.C2SShopBuyReq
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
+		return err
+	}
+	resp := &protocol.S2CShopBuyResultReq{
+		ItemId: req.ItemId,
+		Count:  req.Count,
+	}
+	sendResp := func() error {
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CShopBuyResult), resp)
+	}
+
+	if req.ItemId == 0 || req.Count == 0 {
+		resp.ErrCode = uint32(protocol.ErrorCode_Param_Invalid)
+		return sendResp()
+	}
+
+	shopSys := GetShopSys(ctx)
+	if shopSys == nil {
+		resp.ErrCode = uint32(protocol.ErrorCode_Internal_Error)
+		return sendResp()
+	}
+	if err := shopSys.Buy(ctx, req.ItemId, req.Count); err != nil {
+		resp.ErrCode = errCodeFromError(err)
+		return sendResp()
+	}
+
+	resp.ErrCode = uint32(protocol.ErrorCode_Success)
+	if err := sendResp(); err != nil {
+		return err
+	}
+
+	pushBagData(ctx, sessionId)
+	pushMoneyData(ctx, sessionId)
+	return nil
+}
+
 func init() {
 	RegisterSystemFactory(uint32(protocol.SystemId_SysShop), func() iface.ISystem {
 		return NewShopSys()
+	})
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SShopBuy), handleShopBuy)
 	})
 }

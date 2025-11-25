@@ -21,7 +21,7 @@ func (e *Entry) log(level int, format string, v ...interface{}) {
 	if e == nil || e.base == nil {
 		return
 	}
-	e.base.writeLog(level, e.fields, format, v...)
+	e.base.writeLog(level, e.fields, nil, format, v...)
 }
 
 func (e *Entry) Infof(format string, v ...interface{}) {

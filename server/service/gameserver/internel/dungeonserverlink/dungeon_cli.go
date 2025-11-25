@@ -147,8 +147,7 @@ type DungeonClient struct {
 	connPools map[uint8]network.ITCPClient
 	mu        sync.RWMutex
 
-	codec   *network.Codec
-	handler *DungeonMessageHandler
+	codec *network.Codec
 }
 
 func NewDungeonClient(config *config.ServerConfig) *DungeonClient {
@@ -156,12 +155,7 @@ func NewDungeonClient(config *config.ServerConfig) *DungeonClient {
 		config:    config,
 		connPools: make(map[uint8]network.ITCPClient),
 		codec:     network.DefaultCodec(),
-		handler:   NewDungeonMessageHandler(),
 	}
-}
-
-func (dc *DungeonClient) RegisterRPCHandler(msgId uint16, handler RPCHandler) {
-	dc.handler.RegisterRPCHandler(msgId, handler)
 }
 
 func (dc *DungeonClient) getClient(srvType uint8) (network.ITCPClient, error) {
@@ -205,7 +199,7 @@ func (dc *DungeonClient) Connect(ctx context.Context, srvType uint8, addr string
 		network.WithTCPClientOptionOnDisConn(func(conn network.IConnection) {
 			log.Warnf("disconnected from DungeonServer: srvType=%d, addr=%s", srvType, addr)
 		}),
-		network.WithTCPClientOptionNetworkMessageHandler(dc.handler),
+		network.WithTCPClientOptionNetworkMessageHandler(handler),
 	)
 	dc.connPools[srvType] = client
 

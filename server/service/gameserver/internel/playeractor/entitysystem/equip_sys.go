@@ -2,14 +2,19 @@ package entitysystem
 
 import (
 	"context"
+	"google.golang.org/protobuf/proto"
 	"math"
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/jsonconf"
+	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/gatewaylink"
 	"postapocgame/server/service/gameserver/internel/gevent"
+	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/iface"
+	"postapocgame/server/service/gameserver/internel/playeractor/clientprotocol"
 	"postapocgame/server/service/gameserver/internel/playeractor/entitysystem/attrcalc"
 )
 
@@ -582,30 +587,6 @@ func (es *EquipSys) CalculateAttrs(ctx context.Context) []*protocol.AttrSt {
 	return result
 }
 
-// 注册系统工厂
-func init() {
-	RegisterSystemFactory(uint32(protocol.SystemId_SysEquip), func() iface.ISystem {
-		return NewEquipSys()
-	})
-	gevent.SubscribePlayerEvent(gevent.OnEquipChange, func(ctx context.Context, ev *event.Event) {
-		// 装备变更时标记属性系统需要重算
-		attrSys := GetAttrSys(ctx)
-		if attrSys != nil {
-			attrSys.MarkDirty(uint32(protocol.SaAttrSys_SaEquip))
-		}
-	})
-	gevent.SubscribePlayerEvent(gevent.OnEquipUpgrade, func(ctx context.Context, ev *event.Event) {
-		// 装备升级时标记属性系统需要重算
-		attrSys := GetAttrSys(ctx)
-		if attrSys != nil {
-			attrSys.MarkDirty(uint32(protocol.SaAttrSys_SaEquip))
-		}
-	})
-	attrcalc.Register(uint32(protocol.SaAttrSys_SaEquip), func(ctx context.Context) attrcalc.Calculator {
-		return GetEquipSys(ctx)
-	})
-}
-
 // RefineEquip 精炼装备（提升品质）
 func (es *EquipSys) RefineEquip(ctx context.Context, slot uint32) error {
 	playerRole, err := GetIPlayerRoleByContext(ctx)
@@ -725,4 +706,59 @@ func (es *EquipSys) EnchantEquip(ctx context.Context, slot uint32) error {
 
 	log.Infof("EnchantEquip: Slot=%d, EnchantCount=%d", slot, len(equip.EnchantAttrs))
 	return nil
+}
+
+func handleEquipItem(ctx context.Context, msg *network.ClientMessage) error {
+	sessionId := ctx.Value(gshare.ContextKeySession).(string)
+	var req protocol.C2SEquipItemReq
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
+		return err
+	}
+	resp := &protocol.S2CEquipResultReq{
+		Slot:   req.Slot,
+		ItemId: req.ItemId,
+	}
+	equipSys := GetEquipSys(ctx)
+	if equipSys == nil {
+		resp.ErrCode = uint32(protocol.ErrorCode_Internal_Error)
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CEquipResult), resp)
+	}
+
+	err := equipSys.EquipItem(ctx, req.ItemId, req.Slot)
+	resp.ErrCode = errCodeFromError(err)
+
+	if sendErr := gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CEquipResult), resp); sendErr != nil {
+		return sendErr
+	}
+	if err == nil {
+		pushBagData(ctx, sessionId)
+	}
+	return err
+}
+
+// 注册系统工厂
+func init() {
+	RegisterSystemFactory(uint32(protocol.SystemId_SysEquip), func() iface.ISystem {
+		return NewEquipSys()
+	})
+	gevent.SubscribePlayerEvent(gevent.OnEquipChange, func(ctx context.Context, ev *event.Event) {
+		// 装备变更时标记属性系统需要重算
+		attrSys := GetAttrSys(ctx)
+		if attrSys != nil {
+			attrSys.MarkDirty(uint32(protocol.SaAttrSys_SaEquip))
+		}
+	})
+	gevent.SubscribePlayerEvent(gevent.OnEquipUpgrade, func(ctx context.Context, ev *event.Event) {
+		// 装备升级时标记属性系统需要重算
+		attrSys := GetAttrSys(ctx)
+		if attrSys != nil {
+			attrSys.MarkDirty(uint32(protocol.SaAttrSys_SaEquip))
+		}
+	})
+	attrcalc.Register(uint32(protocol.SaAttrSys_SaEquip), func(ctx context.Context) attrcalc.Calculator {
+		return GetEquipSys(ctx)
+	})
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SEquipItem), handleEquipItem)
+	})
 }

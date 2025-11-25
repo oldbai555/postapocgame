@@ -258,4 +258,6 @@ func init() {
 	attrcalc.Register(uint32(protocol.SaAttrSys_SaLevel), func(ctx context.Context) attrcalc.Calculator {
 		return GetLevelSys(ctx)
 	})
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
+	})
 }

@@ -180,7 +180,7 @@ func (m *MonsterEntity) generateDrops(killer iface.IEntity) {
 		ownerHdl = killer.GetHdl()
 		// 如果是角色实体，获取角色ID
 		if roleEntity, ok := killer.(*RoleEntity); ok {
-			ownerRoleId = roleEntity.GetRoleId()
+			ownerRoleId = roleEntity.GetId()
 		}
 	}
 

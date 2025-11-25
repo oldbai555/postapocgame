@@ -3,8 +3,10 @@ package entitysystem
 import (
 	"context"
 	"postapocgame/server/internal"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/iface"
 	"postapocgame/server/service/gameserver/internel/playeractor/entitysystem/attrcalc"
 )
@@ -188,5 +190,7 @@ func (as *AttrSys) syncAttrsToDungeonServer(ctx context.Context, playerRole ifac
 func init() {
 	RegisterSystemFactory(uint32(protocol.SystemId_SysAttr), func() iface.ISystem {
 		return NewAttrSys()
+	})
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
 	})
 }

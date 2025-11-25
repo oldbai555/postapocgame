@@ -78,7 +78,7 @@ func (d *DropItemEntity) IsOwner(entity iface.IEntity) bool {
 	}
 	// 如果是角色实体，检查角色ID是否匹配
 	if roleEntity, ok := entity.(*RoleEntity); ok {
-		return roleEntity.GetRoleId() == d.ownerRoleId
+		return roleEntity.GetId() == d.ownerRoleId
 	}
 	return false
 }

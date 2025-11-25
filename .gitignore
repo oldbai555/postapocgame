@@ -19,3 +19,4 @@
 /server/output/postapocgame.db
 /server/*/postapocgame.db
 *.cs.uid
+/server/service/output/example.exe

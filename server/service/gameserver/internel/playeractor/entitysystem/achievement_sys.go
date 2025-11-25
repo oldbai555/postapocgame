@@ -2,11 +2,13 @@ package entitysystem
 
 import (
 	"context"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/iface"
 )
 
@@ -353,5 +355,7 @@ func (as *AchievementSys) GetAchievementData() *protocol.SiAchievementData {
 func init() {
 	RegisterSystemFactory(uint32(protocol.SystemId_SysAchievement), func() iface.ISystem {
 		return NewAchievementSys()
+	})
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
 	})
 }

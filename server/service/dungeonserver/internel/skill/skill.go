@@ -60,9 +60,9 @@ func (s *Skill) FindSkillTargets(ctx *argsdef.SkillCastContext, caster iface.IEn
 			return nil, int(protocol.SkillUseErr_ErrSkillTargetInvalId)
 		}
 
-		// 检查距离
+		// 检查距离（格子距离）
 		distance := s.calculateDistance(caster.GetPosition(), target.GetPosition())
-		if distance > skillCfg.Range {
+		if distance > skillCfg.Range { // skillCfg.Range 是格子距离
 			return nil, int(protocol.SkillUseErr_ErrSkillTargetTooFar)
 		}
 
@@ -114,18 +114,22 @@ func (s *Skill) CheckCd() bool {
 	return servertime.UnixMilli() >= s.GetCd()
 }
 
+// calculateDistance 计算两个位置之间的格子距离（欧几里得距离）
+// 注意：Position 中的 X、Y 是格子坐标，返回的是格子距离
 func (s *Skill) calculateDistance(pos1, pos2 *argsdef.Position) uint32 {
 	dx := pos1.X - pos2.X
 	dy := pos1.Y - pos2.Y
-	return uint32(math.Sqrt(float64(dx*dx + dy*dy)))
+	return uint32(math.Sqrt(float64(dx*dx + dy*dy))) // 格子距离
 }
 
+// findAOETargets 查找AOE范围内的目标
+// 注意：posX、posY 是格子坐标，radius 是格子距离
 func (s *Skill) findAOETargets(caster iface.IEntity, posX, posY, radius uint32, maxCount int) []iface.IEntity {
 	entityMgr := entitymgr.GetEntityMgr()
 	allEntities := entityMgr.GetAll()
 
 	targets := make([]iface.IEntity, 0)
-	targetPos := &argsdef.Position{X: posX, Y: posY}
+	targetPos := &argsdef.Position{X: posX, Y: posY} // 格子坐标
 
 	for _, et := range allEntities {
 		// 跳过施法者自己
@@ -133,9 +137,9 @@ func (s *Skill) findAOETargets(caster iface.IEntity, posX, posY, radius uint32, 
 			continue
 		}
 
-		// 检查距离
+		// 检查距离（格子距离）
 		distance := s.calculateDistance(targetPos, et.GetPosition())
-		if distance <= radius {
+		if distance <= radius { // radius 是格子距离
 			targets = append(targets, et)
 
 			// 最多5个目标

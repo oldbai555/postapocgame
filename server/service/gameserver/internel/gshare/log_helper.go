@@ -36,17 +36,27 @@ func buildLogPrefix(ctx context.Context) string {
 	if len(parts) == 0 {
 		return ""
 	}
-	return "[" + strings.Join(parts, " ") + "] "
+	return "[" + strings.Join(parts, " ") + "]"
 }
 
 func InfofCtx(ctx context.Context, format string, v ...interface{}) {
-	log.Infof(buildLogPrefix(ctx)+format, v...)
+	log.InfofWithRequester(newCtxRequester(ctx), format, v...)
 }
 
 func WarnfCtx(ctx context.Context, format string, v ...interface{}) {
-	log.Warnf(buildLogPrefix(ctx)+format, v...)
+	log.WarnfWithRequester(newCtxRequester(ctx), format, v...)
 }
 
 func ErrorfCtx(ctx context.Context, format string, v ...interface{}) {
-	log.Errorf(buildLogPrefix(ctx)+format, v...)
+	log.ErrorfWithRequester(newCtxRequester(ctx), format, v...)
+}
+
+func newCtxRequester(ctx context.Context) log.IRequester {
+	base := log.GetSkipCall()
+	skip := log.DefaultSkipCall
+	if base != nil {
+		skip = base.GetLogCallStackSkip()
+	}
+	// +1 to skip the gshare helper wrapper itself
+	return log.NewRequester(buildLogPrefix(ctx), skip+1)
 }

@@ -2,10 +2,18 @@ package entitysystem
 
 import (
 	"context"
+	"google.golang.org/protobuf/proto"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/jsonconf"
+	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/gatewaylink"
+	"postapocgame/server/service/gameserver/internel/gevent"
+	"postapocgame/server/service/gameserver/internel/gshare"
+	"postapocgame/server/service/gameserver/internel/manager"
+	"postapocgame/server/service/gameserver/internel/playeractor/clientprotocol"
 )
 
 // RecycleSys 物品回收系统
@@ -96,4 +104,63 @@ func (rs *RecycleSys) RecycleItem(ctx context.Context, itemID uint32, count uint
 
 	log.Infof("Item recycled: ItemID=%d, Count=%d, Awards=%d", itemID, count, len(protocolAwards))
 	return protocolAwards, nil
+}
+
+// handleRecycleItem 处理回收物品
+func handleRecycleItem(ctx context.Context, msg *network.ClientMessage) error {
+	sessionId := ctx.Value(gshare.ContextKeySession).(string)
+	var req protocol.C2SRecycleItemReq
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
+		return err
+	}
+
+	// 默认回收数量为1
+	if req.Count == 0 {
+		req.Count = 1
+	}
+
+	// 获取玩家角色
+	roleMgr := manager.GetPlayerRoleManager()
+	playerRole := roleMgr.GetBySession(sessionId)
+	if playerRole == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "player role not found")
+	}
+
+	// 创建回收系统实例
+	recycleSys := NewRecycleSys()
+
+	// 回收物品
+	awards, err := recycleSys.RecycleItem(ctx, req.ItemId, req.Count)
+
+	// 构造响应
+	resp := &protocol.S2CRecycleItemResultReq{
+		Success:       err == nil,
+		ItemId:        req.ItemId,
+		RecycledCount: req.Count,
+		Awards:        awards,
+	}
+
+	if err != nil {
+		resp.Message = err.Error()
+		resp.Success = false
+	} else {
+		resp.Message = "回收成功"
+		// 推送背包数据更新
+		pushBagData(ctx, sessionId)
+		// 推送货币数据更新（如果有货币奖励）
+		pushMoneyData(ctx, sessionId)
+	}
+
+	// 发送响应
+	if sendErr := gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CRecycleItemResult), resp); sendErr != nil {
+		return sendErr
+	}
+
+	return err
+}
+
+func init() {
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SRecycleItem), handleRecycleItem)
+	})
 }

@@ -7,14 +7,21 @@
 package entitysystem
 
 import (
+	"context"
 	"time"
 
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/argsdef"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/jsonconf"
+	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/dungeonserver/internel/clientprotocol"
+	"postapocgame/server/service/dungeonserver/internel/devent"
+	"postapocgame/server/service/dungeonserver/internel/entitymgr"
 	"postapocgame/server/service/dungeonserver/internel/iface"
 	"postapocgame/server/service/dungeonserver/internel/skill"
 )
@@ -141,4 +148,72 @@ func (s *FightSys) applyHitEffects(hits []*skill.SkillHitResult) {
 			}
 		}
 	}
+}
+
+const normalAttackSkillID = 1001
+
+// handleUseSkill 处理技能使用请求
+func handleUseSkill(entity iface.IEntity, msg *network.ClientMessage) error {
+	var req protocol.C2SUseSkillReq
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
+		return err
+	}
+
+	scene, err := getSceneByEntity(entity)
+	if err != nil {
+		return err
+	}
+
+	skillId := req.SkillId
+	if skillId == 0 {
+		skillId = normalAttackSkillID
+	}
+
+	// 将客户端发送的像素坐标转换为格子坐标
+	tileX, tileY := argsdef.PixelCoordToTile(req.PosX, req.PosY)
+	ctx := &argsdef.SkillCastContext{
+		TargetHdl:     req.TargetHdl,
+		TargetHdlList: req.TargetList,
+		SkillId:       skillId,
+		PosX:          tileX, // 格子坐标
+		PosY:          tileY, // 格子坐标
+	}
+
+	fightSys, ok := entity.GetFightSys().(*FightSys)
+	if !ok {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "invalid fight sys type")
+	}
+
+	result, errCode := fightSys.CastSkill(ctx)
+	if result == nil {
+		result = &skill.CastResult{
+			ErrCode: errCode,
+		}
+	}
+
+	SendSkillCastAck(scene, entity, skillId, errCode, DefaultLatencyToleranceMs)
+
+	if errCode == int(protocol.SkillUseErr_SkillUseErrSuccess) {
+		fightSys.ApplySkillHits(scene, skillId, result.Hits)
+	}
+
+	return nil
+}
+
+// getSceneByEntity 获取实体所在场景
+func getSceneByEntity(entity iface.IEntity) (iface.IScene, error) {
+	if entity == nil {
+		return nil, customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "entity missing")
+	}
+	scene, ok := entitymgr.GetEntityMgr().GetSceneByHandle(entity.GetHdl())
+	if !ok {
+		return nil, customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "scene not bound")
+	}
+	return scene, nil
+}
+
+func init() {
+	devent.Subscribe(devent.OnSrvStart, func(ctx context.Context, event *event.Event) {
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SUseSkill), handleUseSkill)
+	})
 }

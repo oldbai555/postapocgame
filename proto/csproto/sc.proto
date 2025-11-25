@@ -79,6 +79,8 @@ enum S2CProtocol{
     S2CAddToBlacklistResult = 59;// 添加到黑名单结果
     S2CRemoveFromBlacklistResult = 60;// 从黑名单移除结果
     S2CBlacklist = 61;// 黑名单列表
+    S2CStartMove = 62;// 开始移动广播
+    S2CEndMove = 63;// 结束移动广播
 }
 
 message S2CRoleListReq {
@@ -181,19 +183,21 @@ message S2CSkillDamageResultReq {
     repeated SkillHitResultSt hits = 6;
 }
 
+// 实体移动广播
+// 注意：pos_x、pos_y 是格子坐标（不是像素坐标）
 message S2CEntityMoveReq {
     uint64 entity_hdl = 1;
-    uint32 pos_x = 2;
-    uint32 pos_y = 3;
-    uint32 speed = 4;
-    uint32 seq = 5;
+    uint32 pos_x = 2; // 格子X坐标
+    uint32 pos_y = 3; // 格子Y坐标
+    uint32 speed = 4; // 移动速度（像素/秒）
 }
 
+// 实体停止移动广播
+// 注意：pos_x、pos_y 是格子坐标（不是像素坐标）
 message S2CEntityStopMoveReq {
     uint64 entity_hdl = 1;
-    uint32 pos_x = 2;
-    uint32 pos_y = 3;
-    uint32 seq = 4;
+    uint32 pos_x = 2; // 格子X坐标
+    uint32 pos_y = 3; // 格子Y坐标
 }
 
 message S2CEntityAppearReq {
@@ -468,4 +472,21 @@ message S2CRemoveFromBlacklistResultReq {
 // 黑名单列表
 message S2CBlacklistReq {
     repeated uint64 blacklist_ids = 1;// 黑名单角色ID列表
+}
+
+// 开始移动广播
+// 注意：pos_x、pos_y 是像素坐标（客户端显示用），move_data 包含目的地信息
+message S2CStartMoveReq {
+    uint64 entity_hdl = 1; // 实体句柄
+    uint32 pos_x = 2;      // 当前位置X坐标（像素坐标）
+    uint32 pos_y = 3;      // 当前位置Y坐标（像素坐标）
+    MoveData move_data = 4; // 移动数据（包含目的地）
+}
+
+// 结束移动广播
+// 注意：pos_x、pos_y 是像素坐标（客户端显示用）
+message S2CEndMoveReq {
+    uint64 entity_hdl = 1; // 实体句柄
+    uint32 pos_x = 2;      // 最终位置X坐标（像素坐标）
+    uint32 pos_y = 3;      // 最终位置Y坐标（像素坐标）
 }

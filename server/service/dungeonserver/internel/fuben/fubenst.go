@@ -76,11 +76,11 @@ func NewFuBenSt(fbId uint32, name string, fbType uint32, maxPlayers int, maxDura
 // InitScenes 初始化场景
 func (fb *FuBenSt) InitScenes(sceneConfigs []jsonconf.SceneConfig) {
 	for _, cfg := range sceneConfigs {
-		scene := scene.NewSceneSt(fb, cfg.SceneId, fb.fbId, cfg.Name, cfg.Width, cfg.Height)
-		fb.sceneMgr.AddScene(scene)
+		sc := scene.NewSceneSt(fb, cfg.SceneId, fb.fbId, cfg.Name, cfg.Width, cfg.Height, cfg.GameMap, cfg.BornArea)
+		fb.sceneMgr.AddScene(sc)
 
-		// 初始化场景怪物
-		scene.InitMonsters()
+		// todo 临时注释 初始化场景怪物
+		//scene.InitMonsters()
 
 		log.Infof("FuBen %d: Scene %d initialized", fb.fbId, cfg.SceneId)
 	}
@@ -186,13 +186,13 @@ func (fb *FuBenSt) Complete(success bool) {
 	for sessionId := range fb.playerSessions {
 		// 从sessionId获取entity和roleId
 		entityMgr := entitymgr.GetEntityMgr()
-		entity, ok := entityMgr.GetBySession(sessionId)
+		et, ok := entityMgr.GetBySession(sessionId)
 		if !ok {
 			log.Warnf("Entity not found for session %s", sessionId)
 			continue
 		}
 
-		roleId := entity.GetId()
+		roleId := et.GetId()
 		settlement := &DungeonSettlement{
 			SessionId:  sessionId,
 			RoleId:     roleId,
@@ -263,13 +263,16 @@ func (fb *FuBenSt) Close() {
 	// 清理场景数据
 	if fb.sceneMgr != nil {
 		allScenes := fb.sceneMgr.GetAllScenes()
-		for _, scene := range allScenes {
+		for _, sc := range allScenes {
 			// 清理场景中的所有实体（除了玩家，玩家已经移走）
-			allEntities := scene.GetAllEntities()
-			for _, entity := range allEntities {
+			allEntities := sc.GetAllEntities()
+			for _, et := range allEntities {
 				// 只清理非玩家实体（怪物、掉落物等）
-				if entity.GetEntityType() != uint32(protocol.EntityType_EtRole) {
-					scene.RemoveEntity(entity.GetHdl())
+				if et.GetEntityType() != uint32(protocol.EntityType_EtRole) {
+					err := sc.RemoveEntity(et.GetHdl())
+					if err != nil {
+						log.Errorf("err:%v", err)
+					}
 				}
 			}
 		}

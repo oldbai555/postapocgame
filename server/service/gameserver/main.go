@@ -7,6 +7,7 @@ import (
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/database"
 	"postapocgame/server/internal/event"
+	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
@@ -18,13 +19,17 @@ import (
 	"postapocgame/server/service/gameserver/internel/manager"
 	"postapocgame/server/service/gameserver/internel/playeractor"
 	"postapocgame/server/service/gameserver/internel/publicactor"
-	"postapocgame/server/service/gameserver/internel/timesync"
 	"syscall"
 	"time"
 )
 
 func main() {
-	log.InitLogger(log.WithAppName("gameserver"), log.WithScreen(true), log.WithPath(tool.GetCurDir()+"log"))
+	log.InitLogger(log.WithAppName("gameserver"), log.WithScreen(true), log.WithPath(tool.GetCurDir()+"log"), log.WithLevel(log.DebugLevel))
+
+	configPath := tool.GetCurDir() + "config"
+	if err := jsonconf.GetConfigManager().Init(configPath); err != nil {
+		log.Fatalf("init config manager failed: %v", err)
+	}
 
 	// 初始化数据库
 	dbPath := tool.GetCurDir() + "postapocgame.db"
@@ -72,12 +77,6 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// 连接DungeonServer
-	dungeonserverlink.StartDungeonClient(ctx, serverConfig)
-
-	// 初始化协议注册RPC处理器
-	dungeonserverlink.InitProtocolRegistration()
-
 	if err := playerRoleActor.Start(ctx); err != nil {
 		log.Fatalf("Start playerRoleActor failed: %v", err)
 	}
@@ -91,10 +90,10 @@ func main() {
 		log.Fatalf("Start GameServer failed: %v", err)
 	}
 
-	timeBroadcaster := timesync.NewBroadcaster(time.Second)
-	timeBroadcaster.Start(ctx)
-
 	gevent.Publish(context.Background(), event.NewEvent(gevent.OnSrvStart))
+
+	// 连接DungeonServer
+	dungeonserverlink.StartDungeonClient(ctx, serverConfig)
 
 	// 等待退出信号
 	sigChan := make(chan os.Signal, 1)
@@ -102,7 +101,6 @@ func main() {
 	<-sigChan
 
 	log.Infof("Shutting down GameServer...")
-	timeBroadcaster.Stop()
 	dungeonserverlink.Stop()
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()

@@ -2,10 +2,16 @@ package entitysystem
 
 import (
 	"context"
+	"postapocgame/server/internal/event"
+	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/gatewaylink"
+	"postapocgame/server/service/gameserver/internel/gevent"
+	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/iface"
+	"postapocgame/server/service/gameserver/internel/playeractor/clientprotocol"
 
 	"gorm.io/gorm"
 )
@@ -201,8 +207,39 @@ func (ms *MoneySys) UpdateBalanceOnlyMemory(moneyID uint32, amount int64) {
 	ms.moneyData.MoneyMap[moneyID] = amount
 }
 
+func handleOpenMoney(ctx context.Context, _ *network.ClientMessage) error {
+	sessionId := ctx.Value(gshare.ContextKeySession).(string)
+	moneySys := GetMoneySys(ctx)
+	var moneyData *protocol.SiMoneyData
+	if moneySys != nil {
+		moneyData = moneySys.GetMoneyData()
+	} else {
+		moneyData = &protocol.SiMoneyData{
+			MoneyMap: map[uint32]int64{},
+		}
+	}
+	return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CMoneyData), &protocol.S2CMoneyDataReq{
+		MoneyData: moneyData,
+	})
+}
+
+func pushMoneyData(ctx context.Context, sessionId string) {
+	moneySys := GetMoneySys(ctx)
+	if moneySys == nil {
+		return
+	}
+	if err := gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CMoneyData), &protocol.S2CMoneyDataReq{
+		MoneyData: moneySys.GetMoneyData(),
+	}); err != nil {
+		log.Errorf("push money data failed: %v", err)
+	}
+}
+
 func init() {
 	RegisterSystemFactory(uint32(protocol.SystemId_SysMoney), func() iface.ISystem {
 		return NewMoneySys()
+	})
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SOpenMoney), handleOpenMoney)
 	})
 }

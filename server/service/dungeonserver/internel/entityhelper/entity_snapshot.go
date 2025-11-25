@@ -35,11 +35,9 @@ func BuildEntitySnapshot(entity iface.IEntity) *protocol.EntitySt {
 }
 
 func resolveEntityName(entity iface.IEntity) string {
-	type named interface {
-		GetName() string
-	}
-	if n, ok := entity.(named); ok {
-		return n.GetName()
+	name := entity.GetName()
+	if name != "" {
+		return name
 	}
 	return fmt.Sprintf("Entity-%d", entity.GetId())
 }

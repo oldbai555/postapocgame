@@ -2,9 +2,11 @@ package entitysystem
 
 import (
 	"context"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/iface"
 	"time"
 )
@@ -153,5 +155,7 @@ func (ns *NewbieSys) GetNewbieData() *protocol.SiNewbieData {
 func init() {
 	RegisterSystemFactory(uint32(protocol.SystemId_SysNewbie), func() iface.ISystem {
 		return NewNewbieSys()
+	})
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
 	})
 }

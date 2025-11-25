@@ -50,9 +50,22 @@ func (m *FuBenMgr) CreateDefaultFuBen() error {
 	defaultFuBen := fuben.NewFuBenSt(0, "默认副本", uint32(protocol.FuBenType_FuBenTypePermanent), 0, 0)
 
 	// 初始化场景
-	sceneConfigs := []jsonconf.SceneConfig{
-		{SceneId: 1, Name: "新手村", Width: 1028, Height: 1028},
-		{SceneId: 2, Name: "森林", Width: 1028, Height: 1028},
+	defaultSceneIds := []uint32{1, 2}
+	sceneConfigs := make([]jsonconf.SceneConfig, 0, len(defaultSceneIds))
+	configMgr := jsonconf.GetConfigManager()
+	for _, sceneId := range defaultSceneIds {
+		if cfg, ok := configMgr.GetSceneConfig(sceneId); ok && cfg != nil {
+			if cfg.GameMap == nil {
+				log.Warnf("scene %d missing GameMap, fallback to random map", sceneId)
+			}
+			sceneConfigs = append(sceneConfigs, *cfg)
+		}
+	}
+	if len(sceneConfigs) == 0 {
+		log.Warnf("scene configs not found for default fuben, using fallback definitions")
+		sceneConfigs = []jsonconf.SceneConfig{
+			{SceneId: 1, Name: "默认场景", Width: 1028, Height: 1028},
+		}
 	}
 	defaultFuBen.InitScenes(sceneConfigs)
 

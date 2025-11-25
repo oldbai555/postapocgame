@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/iface"
 	"strconv"
 	"strings"
@@ -469,5 +471,7 @@ func (ms *MailSys) cleanExpiredMails() {
 func init() {
 	RegisterSystemFactory(uint32(protocol.SystemId_SysMail), func() iface.ISystem {
 		return NewMailSys()
+	})
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
 	})
 }

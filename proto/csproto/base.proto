@@ -38,12 +38,14 @@ message MailSt {
     ItemSt items = 9; //附件真实的道具
 }
 
+// 实体数据
+// 注意：pos_x、pos_y 是格子坐标（不是像素坐标）
 message EntitySt {
     uint64 hdl = 1;
     uint64 id = 2;
-    uint32 et = 3;// 实体类型
-    uint32 pos_x = 4;
-    uint32 pos_y = 5;
+    uint32 et = 3; // 实体类型
+    uint32 pos_x = 4; // 格子X坐标
+    uint32 pos_y = 5; // 格子Y坐标
     uint32 scene_id = 6;
     uint32 fb_id = 7;
     uint32 level = 8;
@@ -62,4 +64,11 @@ message ItemAmount {
     uint32 item_id = 2;   // 物品ID
     int64 count = 3;      // 数量
     uint32 bind = 4;      // 绑定标记：0=不绑定，1=绑定
+}
+
+// 移动数据（用于广播移动开始）
+// 注意：dest_px、dest_py 是像素坐标
+message MoveData {
+    int32 dest_px = 1; // 目标X坐标（像素坐标）
+    int32 dest_py = 2; // 目标Y坐标（像素坐标）
 }

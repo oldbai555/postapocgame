@@ -2,13 +2,21 @@ package entitysystem
 
 import (
 	"context"
+	"google.golang.org/protobuf/proto"
+	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/jsonconf"
+	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/dungeonserverlink"
+	"postapocgame/server/service/gameserver/internel/gatewaylink"
 	"postapocgame/server/service/gameserver/internel/gevent"
+	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/iface"
+	"postapocgame/server/service/gameserver/internel/manager"
+	"postapocgame/server/service/gameserver/internel/playeractor/clientprotocol"
 )
 
 const (
@@ -431,6 +439,94 @@ func (bs *BagSys) RestoreItemsSnapshot(snapshot map[uint32]*protocol.ItemSt) {
 	bs.rebuildIndex()
 }
 
+func handleOpenBag(ctx context.Context, _ *network.ClientMessage) error {
+	sessionId := ctx.Value(gshare.ContextKeySession).(string)
+	bagSys := GetBagSys(ctx)
+	var bagData *protocol.SiBagData
+	if bagSys != nil {
+		bagData = bagSys.GetBagData()
+	} else {
+		bagData = &protocol.SiBagData{}
+	}
+	return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CBagData), &protocol.S2CBagDataReq{
+		BagData: bagData,
+	})
+}
+
+func pushBagData(ctx context.Context, sessionId string) {
+	bagSys := GetBagSys(ctx)
+	if bagSys == nil {
+		return
+	}
+	if err := gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CBagData), &protocol.S2CBagDataReq{
+		BagData: bagSys.GetBagData(),
+	}); err != nil {
+		log.Errorf("push bag data failed: %v", err)
+	}
+}
+
+func handleAddItemActorMessage(message actor.IActorMessage) {
+	ctx := message.GetContext()
+	sessionId, _ := ctx.Value(gshare.ContextKeySession).(string)
+	if err := handleAddItem(ctx, sessionId, message.GetData()); err != nil {
+		log.Errorf("handleAddItem failed: %v", err)
+	}
+}
+
+// handleAddItem 处理添加物品请求（拾取掉落物）- 在Actor中异步处理
+func handleAddItem(ctx context.Context, sessionId string, data []byte) error {
+	var req protocol.D2GAddItemReq
+	if err := proto.Unmarshal(data, &req); err != nil {
+		log.Errorf("unmarshal add item request failed: %v", err)
+		return customerr.Wrap(err)
+	}
+
+	log.Infof("received add item request: RoleId=%d, ItemId=%d, Count=%d", req.RoleId, req.ItemId, req.Count)
+
+	playerRole := manager.GetPlayerRole(req.RoleId)
+	if playerRole == nil {
+		log.Errorf("player role not found: RoleId=%d, SessionId=%s", req.RoleId, sessionId)
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "player role not found")
+	}
+
+	roleCtx := playerRole.WithContext(ctx)
+	itemCfg, ok := jsonconf.GetConfigManager().GetItemConfig(req.ItemId)
+	if !ok {
+		log.Errorf("item config not found: ItemId=%d", req.ItemId)
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "item config not found")
+	}
+
+	rewards := []*jsonconf.ItemAmount{
+		{
+			ItemType: itemCfg.Type,
+			ItemId:   req.ItemId,
+			Count:    int64(req.Count),
+			Bind:     0,
+		},
+	}
+
+	if err := playerRole.GrantRewards(roleCtx, rewards); err != nil {
+		log.Errorf("grant rewards failed: RoleId=%d, ItemId=%d, Count=%d, Error=%v", req.RoleId, req.ItemId, req.Count, err)
+		_ = playerRole.SendProtoMessage(uint16(protocol.S2CProtocol_S2CPickupItemResult), &protocol.S2CPickupItemResultReq{
+			Success: false,
+			Message: "拾取失败，请稍后重试",
+			ItemHdl: req.ItemHdl,
+		})
+		return customerr.Wrap(err)
+	}
+
+	if bagSys := GetBagSys(roleCtx); bagSys != nil {
+		if err := playerRole.SendProtoMessage(uint16(protocol.S2CProtocol_S2CBagData), &protocol.S2CBagDataReq{
+			BagData: bagSys.GetBagData(),
+		}); err != nil {
+			log.Warnf("send bag data failed: %v", err)
+		}
+	}
+
+	log.Infof("item added successfully: RoleId=%d, ItemId=%d, Count=%d", req.RoleId, req.ItemId, req.Count)
+	return nil
+}
+
 // 注册系统工厂
 func init() {
 	RegisterSystemFactory(uint32(protocol.SystemId_SysBag), func() iface.ISystem {
@@ -439,4 +535,10 @@ func init() {
 	gevent.SubscribePlayerEvent(gevent.OnItemAdd, func(ctx context.Context, ev *event.Event) {})
 	gevent.SubscribePlayerEvent(gevent.OnItemRemove, func(ctx context.Context, ev *event.Event) {})
 	gevent.SubscribePlayerEventL(gevent.OnBagExpand, func(ctx context.Context, ev *event.Event) {})
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SOpenBag), handleOpenBag)
+		gshare.RegisterHandler(uint16(protocol.D2GRpcProtocol_D2GAddItem), handleAddItemActorMessage)
+		// 注册添加物品的RPC处理器
+		dungeonserverlink.RegisterRPCHandler(uint16(protocol.D2GRpcProtocol_D2GAddItem), handleAddItem)
+	})
 }

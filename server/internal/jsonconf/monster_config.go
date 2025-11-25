@@ -32,13 +32,23 @@ type MonsterDrop struct {
 	LifetimeSeconds uint32  `json:"lifetimeSeconds"` // 存在时间（秒），0表示使用默认60秒
 }
 
+// PathfindingType 寻路算法类型
+type PathfindingType uint32
+
+const (
+	PathfindingTypeStraight PathfindingType = 1 // 直线寻路（最短直线，不绕障碍）
+	PathfindingTypeAStar    PathfindingType = 2 // A*寻路（绕障碍，贴墙走）
+)
+
 // MonsterAIConfig 怪物AI参数
 type MonsterAIConfig struct {
-	PatrolRadius    uint32 `json:"patrolRadius"`  // 巡逻半径
-	DetectRange     uint32 `json:"detectRange"`   // 侦测范围
-	AttackRange     uint32 `json:"attackRange"`   // 攻击范围
-	ResetDistance   uint32 `json:"resetDistance"` // 超出此距离则回家
-	ThinkIntervalMS uint32 `json:"thinkInterval"` // 决策间隔(ms)
+	PatrolRadius      uint32          `json:"patrolRadius"`      // 巡逻半径
+	DetectRange       uint32          `json:"detectRange"`       // 侦测范围
+	AttackRange       uint32          `json:"attackRange"`       // 攻击范围
+	ResetDistance     uint32          `json:"resetDistance"`     // 超出此距离则回家
+	ThinkIntervalMS   uint32          `json:"thinkInterval"`     // 决策间隔(ms)
+	PatrolPathfinding PathfindingType `json:"patrolPathfinding"` // 巡逻时使用的寻路算法: 1=直线 2=A*
+	ChasePathfinding  PathfindingType `json:"chasePathfinding"`  // 追击时使用的寻路算法: 1=直线 2=A*
 }
 
 // WithDefaults 填充默认值
@@ -57,6 +67,12 @@ func (cfg MonsterAIConfig) WithDefaults() MonsterAIConfig {
 	}
 	if cfg.ThinkIntervalMS == 0 {
 		cfg.ThinkIntervalMS = 500
+	}
+	if cfg.PatrolPathfinding == 0 {
+		cfg.PatrolPathfinding = PathfindingTypeStraight // 默认巡逻用直线
+	}
+	if cfg.ChasePathfinding == 0 {
+		cfg.ChasePathfinding = PathfindingTypeAStar // 默认追击用A*
 	}
 	return cfg
 }

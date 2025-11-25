@@ -2,6 +2,18 @@ package entitysystem
 
 import (
 	"context"
+	"google.golang.org/protobuf/proto"
+	"postapocgame/server/internal/actor"
+	"postapocgame/server/internal/event"
+	"postapocgame/server/internal/jsonconf"
+	"postapocgame/server/internal/network"
+	"postapocgame/server/pkg/customerr"
+	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/gatewaylink"
+	"postapocgame/server/service/gameserver/internel/gevent"
+	"postapocgame/server/service/gameserver/internel/gshare"
+	"postapocgame/server/service/gameserver/internel/playeractor/clientprotocol"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -94,6 +106,237 @@ outer:
 	return false
 }
 
+// handleChatWorld 处理世界聊天
+func handleChatWorld(ctx context.Context, msg *network.ClientMessage) error {
+	sessionId := ctx.Value(gshare.ContextKeySession).(string)
+	playerRole, err := GetIPlayerRoleByContext(ctx)
+	if err != nil {
+		log.Errorf("handleChatWorld: get player role failed: %v", err)
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
+			Code: -1,
+			Msg:  "未登录",
+		})
+	}
+
+	// 解析聊天请求
+	var req protocol.C2SChatWorldReq
+	err = proto.Unmarshal(msg.Data, &req)
+	if err != nil {
+		log.Errorf("handleChatWorld: unmarshal failed: %v", err)
+		return customerr.Wrap(err)
+	}
+
+	// 获取角色信息
+	roleId := playerRole.GetPlayerRoleId()
+	roleInfo := playerRole.GetRoleInfo()
+	if roleInfo == nil {
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
+			Code: -1,
+			Msg:  "角色信息不存在",
+		})
+	}
+
+	// 内容验证
+	content := req.Content
+	if len(content) == 0 {
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
+			Code: -1,
+			Msg:  "聊天内容不能为空",
+		})
+	}
+
+	// 内容长度限制（最大200字符）
+	if len(content) > 200 {
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
+			Code: -1,
+			Msg:  "聊天内容过长，最多200个字符",
+		})
+	}
+
+	// 频率限制（使用防作弊系统）
+	antiCheatSys := GetAntiCheatSys(ctx)
+	if antiCheatSys != nil {
+		if !antiCheatSys.CheckOperationFrequency("chat_world") {
+			return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
+				Code: -1,
+				Msg:  "发言过于频繁，请稍后再试",
+			})
+		}
+	}
+
+	// 内容过滤
+	filteredContent := filterChatContent(content)
+	if filteredContent != content {
+		// 包含敏感词，记录可疑行为
+		if antiCheatSys != nil {
+			antiCheatSys.RecordSuspiciousBehavior("chat_content_filtered")
+		}
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
+			Code: -1,
+			Msg:  "聊天内容包含敏感词，请重新输入",
+		})
+	}
+
+	// 发送到 PublicActor 进行广播
+	chatMsg := &protocol.ChatWorldMsg{
+		SenderId:   roleId,
+		SenderName: roleInfo.RoleName,
+		Content:    filteredContent,
+	}
+	msgData, err := proto.Marshal(chatMsg)
+	if err != nil {
+		log.Errorf("handleChatWorld: marshal failed: %v", err)
+		return customerr.Wrap(err)
+	}
+
+	actorMsg := actor.NewBaseMessage(ctx, uint16(protocol.PublicActorMsgId_PublicActorMsgIdChatWorld), msgData)
+	err = gshare.SendPublicMessageAsync("global", actorMsg)
+	if err != nil {
+		log.Errorf("handleChatWorld: send to public actor failed: %v", err)
+		return customerr.Wrap(err)
+	}
+
+	return nil
+}
+
+// handleChatPrivate 处理私聊
+func handleChatPrivate(ctx context.Context, msg *network.ClientMessage) error {
+	sessionId := ctx.Value(gshare.ContextKeySession).(string)
+	playerRole, err := GetIPlayerRoleByContext(ctx)
+	if err != nil {
+		log.Errorf("handleChatPrivate: get player role failed: %v", err)
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
+			Code: -1,
+			Msg:  "未登录",
+		})
+	}
+
+	// 解析聊天请求
+	var req protocol.C2SChatPrivateReq
+	err = proto.Unmarshal(msg.Data, &req)
+	if err != nil {
+		log.Errorf("handleChatPrivate: unmarshal failed: %v", err)
+		return customerr.Wrap(err)
+	}
+
+	// 获取角色信息
+	roleId := playerRole.GetPlayerRoleId()
+	roleInfo := playerRole.GetRoleInfo()
+	if roleInfo == nil {
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
+			Code: -1,
+			Msg:  "角色信息不存在",
+		})
+	}
+
+	// 验证目标角色
+	if req.TargetId == 0 {
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
+			Code: -1,
+			Msg:  "目标角色ID无效",
+		})
+	}
+
+	if req.TargetId == roleId {
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
+			Code: -1,
+			Msg:  "不能给自己发私聊",
+		})
+	}
+
+	// 内容验证
+	content := req.Content
+	if len(content) == 0 {
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
+			Code: -1,
+			Msg:  "聊天内容不能为空",
+		})
+	}
+
+	// 内容长度限制（最大200字符）
+	if len(content) > 200 {
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
+			Code: -1,
+			Msg:  "聊天内容过长，最多200个字符",
+		})
+	}
+
+	// 频率限制（使用防作弊系统）
+	antiCheatSys := GetAntiCheatSys(ctx)
+	if antiCheatSys != nil {
+		if !antiCheatSys.CheckOperationFrequency("chat_private") {
+			return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
+				Code: -1,
+				Msg:  "发言过于频繁，请稍后再试",
+			})
+		}
+	}
+
+	// 内容过滤
+	filteredContent := filterChatContent(content)
+	if filteredContent != content {
+		// 包含敏感词，记录可疑行为
+		if antiCheatSys != nil {
+			antiCheatSys.RecordSuspiciousBehavior("chat_content_filtered")
+		}
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
+			Code: -1,
+			Msg:  "聊天内容包含敏感词，请重新输入",
+		})
+	}
+
+	// 发送到 PublicActor 进行转发
+	chatMsg := &protocol.ChatPrivateMsg{
+		SenderId:   roleId,
+		TargetId:   req.TargetId,
+		SenderName: roleInfo.RoleName,
+		Content:    filteredContent,
+	}
+	msgData, err := proto.Marshal(chatMsg)
+	if err != nil {
+		log.Errorf("handleChatPrivate: marshal failed: %v", err)
+		return customerr.Wrap(err)
+	}
+
+	actorMsg := actor.NewBaseMessage(ctx, uint16(protocol.PublicActorMsgId_PublicActorMsgIdChatPrivate), msgData)
+	err = gshare.SendPublicMessageAsync("global", actorMsg)
+	if err != nil {
+		log.Errorf("handleChatPrivate: send to public actor failed: %v", err)
+		return customerr.Wrap(err)
+	}
+
+	return nil
+}
+
+// filterChatContent 过滤聊天内容（使用配置化的敏感词库）
+func filterChatContent(content string) string {
+	// 从配置管理器获取敏感词配置
+	configMgr := jsonconf.GetConfigManager()
+	if configMgr == nil {
+		return content
+	}
+
+	sensitiveWordConfig := configMgr.GetSensitiveWordConfig()
+	if sensitiveWordConfig == nil || len(sensitiveWordConfig.Words) == 0 {
+		return content
+	}
+
+	contentLower := strings.ToLower(content)
+	for _, word := range sensitiveWordConfig.Words {
+		// 简单的字符串包含检查
+		if strings.Contains(contentLower, strings.ToLower(word)) {
+			// 包含敏感词，返回空字符串表示需要过滤
+			return ""
+		}
+	}
+
+	return content
+}
+
 func init() {
 	RegisterSystemFactory(uint32(protocol.SystemId_SysChat), NewChatSys)
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SChatWorld), handleChatWorld)
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SChatPrivate), handleChatPrivate)
+	})
 }

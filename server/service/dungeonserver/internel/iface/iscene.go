@@ -14,6 +14,7 @@ type IScene interface {
 	EntityMove(hdl uint64, newX, newY uint32) error
 	IsWalkable(x, y int) bool
 	GetRandomWalkablePos() (uint32, uint32)
+	GetSpawnPos() (uint32, uint32)
 
 	GetSceneId() uint32
 	GetFuBenId() uint32

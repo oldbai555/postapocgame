@@ -6,6 +6,7 @@ import (
 	"os/signal"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/event"
+	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
@@ -22,7 +23,12 @@ import (
 )
 
 func main() {
-	log.InitLogger(log.WithAppName("dungeonserver"), log.WithScreen(true), log.WithPath(tool.GetCurDir()+"log"))
+	log.InitLogger(log.WithAppName("dungeonserver"), log.WithScreen(true), log.WithPath(tool.GetCurDir()+"log"), log.WithLevel(log.DebugLevel))
+
+	configPath := tool.GetCurDir() + "config"
+	if err := jsonconf.GetConfigManager().Init(configPath); err != nil {
+		log.Fatalf("init config manager failed: %v", err)
+	}
 
 	// 初始化错误码映射
 	protocol.InitErrorCodes()

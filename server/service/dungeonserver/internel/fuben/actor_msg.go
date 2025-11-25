@@ -175,7 +175,7 @@ func handleG2DEnterDungeon(msg actor.IActorMessage) error {
 		scene = scenes[0]
 	}
 
-	spawnX, spawnY := scene.GetRandomWalkablePos()
+	spawnX, spawnY := scene.GetSpawnPos()
 	roleEntity.SetPosition(spawnX, spawnY)
 
 	if err := scene.AddEntity(roleEntity); err != nil {

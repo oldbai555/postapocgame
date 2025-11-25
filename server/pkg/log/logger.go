@@ -159,15 +159,6 @@ func SetSkipCall(skip int) {
 	atomic.StoreInt32(&specSkip, int32(skip))
 }
 
-// GetSkipCall 获取跳过调用层级
-func GetSkipCall() int {
-	skip := atomic.LoadInt32(&specSkip)
-	if skip <= 0 {
-		return DefaultSkipCall
-	}
-	return int(skip)
-}
-
 // Flush 刷新日志
 func Flush() {
 	if instance != nil && instance.writer != nil {
@@ -177,15 +168,15 @@ func Flush() {
 
 // 日志级别方法实现
 func (l *logger) Warnf(format string, v ...interface{}) {
-	l.writeLog(WarnLevel, nil, format, v...)
+	l.writeLog(WarnLevel, nil, nil, format, v...)
 }
 
 func (l *logger) Infof(format string, v ...interface{}) {
-	l.writeLog(InfoLevel, nil, format, v...)
+	l.writeLog(InfoLevel, nil, nil, format, v...)
 }
 
 func (l *logger) Errorf(format string, v ...interface{}) {
-	l.writeLog(ErrorLevel, nil, format, v...)
+	l.writeLog(ErrorLevel, nil, nil, format, v...)
 }
 
 func (l *logger) Fatalf(format string, v ...interface{}) {
@@ -193,7 +184,12 @@ func (l *logger) Fatalf(format string, v ...interface{}) {
 }
 
 func (l *logger) logFatal(fields Fields, format string, v ...interface{}) {
-	callInfo := GetCallInfo(GetSkipCall())
+	l.logFatalWithRequester(fields, nil, format, v...)
+}
+
+func (l *logger) logFatalWithRequester(fields Fields, requester IRequester, format string, v ...interface{}) {
+	req := normalizeRequester(requester)
+	callInfo := GetCallInfo(req.GetLogCallStackSkip())
 	content := buildContent(format, v...)
 	if formatted := formatFields(fields); formatted != "" {
 		content += formatted
@@ -204,7 +200,7 @@ func (l *logger) logFatal(fields Fields, format string, v ...interface{}) {
 		buildTimeInfo(),
 		buildTraceInfo(),
 		buildCallInfo(callInfo),
-		l.prefix,
+		mergePrefixes(l.prefix, req.GetLogPrefix()),
 		content,
 		l.goroutineTrace,
 	)
@@ -235,15 +231,15 @@ func (l *logger) logFatal(fields Fields, format string, v ...interface{}) {
 }
 
 func (l *logger) Debugf(format string, v ...interface{}) {
-	l.writeLog(DebugLevel, nil, format, v...)
+	l.writeLog(DebugLevel, nil, nil, format, v...)
 }
 
 func (l *logger) Stackf(format string, v ...interface{}) {
-	l.writeLog(StackLevel, nil, format, v...)
+	l.writeLog(StackLevel, nil, nil, format, v...)
 }
 
 func (l *logger) Tracef(format string, v ...interface{}) {
-	l.writeLog(TraceLevel, nil, format, v...)
+	l.writeLog(TraceLevel, nil, nil, format, v...)
 }
 
 func (l *logger) Flush() {
@@ -256,24 +252,25 @@ func (l *logger) Flush() {
 }
 
 // writeLog 统一的日志写入方法
-func (l *logger) writeLog(level int, fields Fields, format string, v ...interface{}) {
+func (l *logger) writeLog(level int, fields Fields, requester IRequester, format string, v ...interface{}) {
 	if l.closed.Load() || atomic.LoadInt32(&l.level) > int32(level) {
 		return
 	}
 
+	req := normalizeRequester(requester)
 	content := buildContent(format, v...)
 	if formatted := formatFields(fields); formatted != "" {
 		content += formatted
 	}
 
-	callInfo := GetCallInfo(GetSkipCall())
+	callInfo := GetCallInfo(req.GetLogCallStackSkip())
 	record := buildRecord(
 		level,
 		l.levelTemplate(level),
 		buildTimeInfo(),
 		buildTraceInfo(),
 		buildCallInfo(callInfo),
-		l.prefix,
+		mergePrefixes(l.prefix, req.GetLogPrefix()),
 		content,
 		l.goroutineTrace,
 	)
@@ -299,10 +296,24 @@ func Tracef(format string, v ...interface{}) {
 	}
 }
 
+func TracefWithRequester(requester IRequester, format string, v ...interface{}) {
+	if instance == nil {
+		return
+	}
+	instance.writeLog(TraceLevel, nil, requester, format, v...)
+}
+
 func Debugf(format string, v ...interface{}) {
 	if instance != nil {
 		instance.Debugf(format, v...)
 	}
+}
+
+func DebugfWithRequester(requester IRequester, format string, v ...interface{}) {
+	if instance == nil {
+		return
+	}
+	instance.writeLog(DebugLevel, nil, requester, format, v...)
 }
 
 func Warnf(format string, v ...interface{}) {
@@ -311,10 +322,24 @@ func Warnf(format string, v ...interface{}) {
 	}
 }
 
+func WarnfWithRequester(requester IRequester, format string, v ...interface{}) {
+	if instance == nil {
+		return
+	}
+	instance.writeLog(WarnLevel, nil, requester, format, v...)
+}
+
 func Infof(format string, v ...interface{}) {
 	if instance != nil {
 		instance.Infof(format, v...)
 	}
+}
+
+func InfofWithRequester(requester IRequester, format string, v ...interface{}) {
+	if instance == nil {
+		return
+	}
+	instance.writeLog(InfoLevel, nil, requester, format, v...)
 }
 
 func Errorf(format string, v ...interface{}) {
@@ -323,10 +348,24 @@ func Errorf(format string, v ...interface{}) {
 	}
 }
 
+func ErrorfWithRequester(requester IRequester, format string, v ...interface{}) {
+	if instance == nil {
+		return
+	}
+	instance.writeLog(ErrorLevel, nil, requester, format, v...)
+}
+
 func Stackf(format string, v ...interface{}) {
 	if instance != nil {
 		instance.Stackf(format, v...)
 	}
+}
+
+func StackfWithRequester(requester IRequester, format string, v ...interface{}) {
+	if instance == nil {
+		return
+	}
+	instance.writeLog(StackLevel, nil, requester, format, v...)
 }
 
 func Fatalf(format string, v ...interface{}) {
@@ -335,25 +374,32 @@ func Fatalf(format string, v ...interface{}) {
 	}
 }
 
+func FatalfWithRequester(requester IRequester, format string, v ...interface{}) {
+	if instance == nil {
+		return
+	}
+	instance.logFatalWithRequester(nil, requester, format, v...)
+}
+
 func InfofWithFields(fields Fields, format string, v ...interface{}) {
 	if instance == nil {
 		InitLogger()
 	}
-	instance.writeLog(InfoLevel, fields, format, v...)
+	instance.writeLog(InfoLevel, fields, nil, format, v...)
 }
 
 func ErrorfWithFields(fields Fields, format string, v ...interface{}) {
 	if instance == nil {
 		InitLogger()
 	}
-	instance.writeLog(ErrorLevel, fields, format, v...)
+	instance.writeLog(ErrorLevel, fields, nil, format, v...)
 }
 
 func DebugfWithFields(fields Fields, format string, v ...interface{}) {
 	if instance == nil {
 		InitLogger()
 	}
-	instance.writeLog(DebugLevel, fields, format, v...)
+	instance.writeLog(DebugLevel, fields, nil, format, v...)
 }
 
 func WithFields(fields Fields) *Entry {
@@ -453,5 +499,19 @@ func isFalse(val string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func mergePrefixes(basePrefix, extraPrefix string) string {
+	base := strings.TrimSpace(basePrefix)
+	extra := strings.TrimSpace(extraPrefix)
+
+	switch {
+	case base == "":
+		return extra
+	case extra == "":
+		return base
+	default:
+		return base + " " + extra
 	}
 }

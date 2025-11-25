@@ -12,7 +12,9 @@ type SceneConfig struct {
 	Name     string    `json:"name"`     // 场景名称
 	Width    int       `json:"width"`    // 场景宽度
 	Height   int       `json:"height"`   // 场景高度
+	MapId    uint32    `json:"mapId"`    // 关联的地图配置ID
 	BornArea *BornArea `json:"bornArea"` // 出生点范围
+	GameMap  *GameMap  `json:"-"`        // 运行期挂载的地图数据
 }
 
 // BornArea 出生点范围（矩形区域）

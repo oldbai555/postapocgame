@@ -34,6 +34,7 @@ type ConfigManager struct {
 	shopConfigs                map[uint32]*ShopConfig // key: itemId
 	jobConfigs                 map[uint32]*JobConfig
 	sceneConfigs               map[uint32]*SceneConfig
+	mapConfigs                 map[uint32]*MapConfig
 	monsterSceneConfigs        []*MonsterSceneConfig // 列表形式，因为一个场景可能有多个怪物配置
 	npcSceneConfigs            []*NPCSceneConfig     // 列表形式，因为一个场景可能有多个NPC
 	teleportConfigs            map[uint32]*TeleportConfig
@@ -73,6 +74,7 @@ func GetConfigManager() *ConfigManager {
 			shopConfigs:                make(map[uint32]*ShopConfig),
 			jobConfigs:                 make(map[uint32]*JobConfig),
 			sceneConfigs:               make(map[uint32]*SceneConfig),
+			mapConfigs:                 make(map[uint32]*MapConfig),
 			monsterSceneConfigs:        make([]*MonsterSceneConfig, 0),
 			npcSceneConfigs:            make([]*NPCSceneConfig, 0),
 			teleportConfigs:            make(map[uint32]*TeleportConfig),
@@ -191,6 +193,11 @@ func (cm *ConfigManager) LoadAllConfigs() error {
 
 	// 加载场景配置
 	if err := cm.loadSceneConfigs(); err != nil {
+		return customerr.Wrap(err)
+	}
+
+	// 加载地图配置
+	if err := cm.loadMapConfigs(); err != nil {
 		return customerr.Wrap(err)
 	}
 
@@ -519,9 +526,7 @@ func (cm *ConfigManager) loadEquipUpgradeConfigs() error {
 		return fmt.Errorf("unmarshal equip upgrade config failed: %w", err)
 	}
 
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-
+	// 注意：LoadAllConfigs 已经持有锁，这里不需要再次获取锁
 	for _, cfg := range configs {
 		if cfg != nil {
 			cm.equipUpgradeConfigs[cfg.ItemId] = cfg
@@ -843,9 +848,7 @@ func (cm *ConfigManager) loadJobConfigs() error {
 		return fmt.Errorf("unmarshal job config failed: %w", err)
 	}
 
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-
+	// 注意：LoadAllConfigs 已经持有锁，这里不需要再次获取锁
 	cm.jobConfigs = make(map[uint32]*JobConfig)
 	for _, cfg := range configs {
 		if cfg != nil {
@@ -876,9 +879,7 @@ func (cm *ConfigManager) loadSceneConfigs() error {
 		return fmt.Errorf("unmarshal scene config failed: %w", err)
 	}
 
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-
+	// 注意：LoadAllConfigs 已经持有锁，这里不需要再次获取锁
 	cm.sceneConfigs = make(map[uint32]*SceneConfig)
 	for _, cfg := range configs {
 		if cfg != nil {
@@ -888,6 +889,70 @@ func (cm *ConfigManager) loadSceneConfigs() error {
 
 	log.Infof("Loaded %d scene configs", len(cm.sceneConfigs))
 	return nil
+}
+
+// loadMapConfigs 加载地图配置
+func (cm *ConfigManager) loadMapConfigs() error {
+	filePath := filepath.Join(cm.configPath, "map_config.json")
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Warnf("map_config.json not found, skip map binding")
+			// 注意：LoadAllConfigs 已经持有锁，这里不需要再次获取锁
+			cm.mapConfigs = make(map[uint32]*MapConfig)
+			cm.bindMapsToScenesLocked()
+			return nil
+		}
+		return fmt.Errorf("read map config failed: %w", err)
+	}
+
+	var configs []*MapConfig
+	if err := internal.Unmarshal(data, &configs); err != nil {
+		return fmt.Errorf("unmarshal map config failed: %w", err)
+	}
+
+	prepared := make(map[uint32]*MapConfig)
+	for _, cfg := range configs {
+		if cfg == nil {
+			continue
+		}
+		gameMap, err := newGameMapFromTileData(cfg.TileData)
+		if err != nil {
+			return fmt.Errorf("mapId=%d invalid: %w", cfg.MapId, err)
+		}
+		cfg.gameMap = gameMap
+		prepared[cfg.MapId] = cfg
+	}
+
+	// 注意：LoadAllConfigs 已经持有锁，这里不需要再次获取锁
+	cm.mapConfigs = prepared
+	bound := cm.bindMapsToScenesLocked()
+
+	log.Infof("Loaded %d map configs, bound to %d scenes", len(cm.mapConfigs), bound)
+	return nil
+}
+
+func (cm *ConfigManager) bindMapsToScenesLocked() int {
+	bound := 0
+	for _, sceneCfg := range cm.sceneConfigs {
+		if sceneCfg == nil {
+			continue
+		}
+		sceneCfg.GameMap = nil
+		if sceneCfg.MapId == 0 {
+			continue
+		}
+		mapCfg, ok := cm.mapConfigs[sceneCfg.MapId]
+		if !ok || mapCfg == nil || mapCfg.gameMap == nil {
+			log.Warnf("scene %d references missing mapId=%d", sceneCfg.SceneId, sceneCfg.MapId)
+			continue
+		}
+		sceneCfg.GameMap = mapCfg.gameMap
+		sceneCfg.Width = int(sceneCfg.GameMap.Width())
+		sceneCfg.Height = int(sceneCfg.GameMap.Height())
+		bound++
+	}
+	return bound
 }
 
 // loadMonsterSceneConfigs 加载怪物场景配置
@@ -909,9 +974,7 @@ func (cm *ConfigManager) loadMonsterSceneConfigs() error {
 		return fmt.Errorf("unmarshal monster scene config failed: %w", err)
 	}
 
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-
+	// 注意：LoadAllConfigs 已经持有锁，这里不需要再次获取锁
 	cm.monsterSceneConfigs = make([]*MonsterSceneConfig, 0, len(configs))
 	for _, cfg := range configs {
 		if cfg != nil {
@@ -942,9 +1005,7 @@ func (cm *ConfigManager) loadNPCSceneConfigs() error {
 		return fmt.Errorf("unmarshal npc scene config failed: %w", err)
 	}
 
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-
+	// 注意：LoadAllConfigs 已经持有锁，这里不需要再次获取锁
 	cm.npcSceneConfigs = make([]*NPCSceneConfig, 0, len(configs))
 	for _, cfg := range configs {
 		if cfg != nil {
@@ -975,9 +1036,7 @@ func (cm *ConfigManager) loadTeleportConfigs() error {
 		return fmt.Errorf("unmarshal teleport config failed: %w", err)
 	}
 
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-
+	// 注意：LoadAllConfigs 已经持有锁，这里不需要再次获取锁
 	cm.teleportConfigs = make(map[uint32]*TeleportConfig)
 	for _, cfg := range configs {
 		if cfg != nil {
@@ -1002,6 +1061,14 @@ func (cm *ConfigManager) GetSceneConfig(sceneId uint32) (*SceneConfig, bool) {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 	cfg, ok := cm.sceneConfigs[sceneId]
+	return cfg, ok
+}
+
+// GetMapConfig 获取地图配置
+func (cm *ConfigManager) GetMapConfig(mapId uint32) (*MapConfig, bool) {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	cfg, ok := cm.mapConfigs[mapId]
 	return cfg, ok
 }
 
@@ -1085,9 +1152,7 @@ func (cm *ConfigManager) loadDailyActivityRewardConfigs() error {
 		return fmt.Errorf("unmarshal daily activity reward config failed: %w", err)
 	}
 
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-
+	// 注意：LoadAllConfigs 已经持有锁，这里不需要再次获取锁
 	cm.dailyActivityRewardConfigs = make(map[uint32]*DailyActivityRewardConfig)
 	for _, cfg := range configs {
 		if cfg != nil {
@@ -1140,9 +1205,7 @@ func (cm *ConfigManager) loadAchievementConfigs() error {
 		return fmt.Errorf("unmarshal achievement config failed: %w", err)
 	}
 
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-
+	// 注意：LoadAllConfigs 已经持有锁，这里不需要再次获取锁
 	cm.achievementConfigs = make(map[uint32]*AchievementConfig)
 	for _, cfg := range configs {
 		if cfg != nil {
@@ -1195,9 +1258,7 @@ func (cm *ConfigManager) loadEquipRefineConfigs() error {
 		return fmt.Errorf("unmarshal equip refine config failed: %w", err)
 	}
 
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-
+	// 注意：LoadAllConfigs 已经持有锁，这里不需要再次获取锁
 	cm.equipRefineConfigs = make(map[uint32]*EquipRefineConfig)
 	for _, cfg := range configs {
 		if cfg != nil {
@@ -1236,9 +1297,7 @@ func (cm *ConfigManager) loadEquipEnchantConfigs() error {
 		return fmt.Errorf("unmarshal equip enchant config failed: %w", err)
 	}
 
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-
+	// 注意：LoadAllConfigs 已经持有锁，这里不需要再次获取锁
 	cm.equipEnchantConfigs = make(map[uint32]*EquipEnchantConfig)
 	for _, cfg := range configs {
 		if cfg != nil {
@@ -1277,9 +1336,7 @@ func (cm *ConfigManager) loadEquipSetConfigs() error {
 		return fmt.Errorf("unmarshal equip set config failed: %w", err)
 	}
 
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-
+	// 注意：LoadAllConfigs 已经持有锁，这里不需要再次获取锁
 	cm.equipSetConfigs = make(map[uint32]*EquipSetConfig)
 	for _, cfg := range configs {
 		if cfg != nil {
@@ -1307,9 +1364,8 @@ func (cm *ConfigManager) loadBagConfigs() error {
 		// 如果文件不存在，使用空配置（允许可选）
 		if os.IsNotExist(err) {
 			log.Warnf("bag_config.json not found, using empty config")
-			cm.mu.Lock()
+			// 注意：LoadAllConfigs 已经持有锁，这里不需要再次获取锁
 			cm.bagConfigs = make(map[uint32]*BagConfig)
-			cm.mu.Unlock()
 			return nil
 		}
 		return fmt.Errorf("read bag config failed: %w", err)
@@ -1320,9 +1376,7 @@ func (cm *ConfigManager) loadBagConfigs() error {
 		return fmt.Errorf("unmarshal bag config failed: %w", err)
 	}
 
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-
+	// 注意：LoadAllConfigs 已经持有锁，这里不需要再次获取锁
 	cm.bagConfigs = make(map[uint32]*BagConfig)
 	for _, cfg := range configs {
 		if cfg != nil {

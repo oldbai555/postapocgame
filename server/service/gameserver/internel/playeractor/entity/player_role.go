@@ -41,6 +41,7 @@ type PlayerRole struct {
 
 	// 系统管理器
 	sysMgr       iface.ISystemMgr
+	_1sChecker   *tool.TimeChecker
 	_5minChecker *tool.TimeChecker
 	timeCursor   timeCursorMark
 }
@@ -112,6 +113,7 @@ func NewPlayerRole(sessionId string, roleInfo *protocol.PlayerSimpleData) *Playe
 		return nil
 	}
 
+	pr._1sChecker = tool.NewTimeChecker(time.Second)
 	pr._5minChecker = tool.NewTimeChecker(5 * time.Minute)
 	pr.timeCursor = newTimeCursorMark(servertime.Now())
 
@@ -420,6 +422,16 @@ func (pr *PlayerRole) CallDungeonServer(ctx context.Context, msgId uint16, data 
 	return dungeonserverlink.AsyncCall(ctx, srvType, pr.GetSessionId(), msgId, data)
 }
 
+func (pr *PlayerRole) timeSync() {
+	resp := &protocol.S2CTimeSyncReq{
+		ServerTimeMs: servertime.UnixMilli(),
+	}
+	err := pr.SendProtoMessage(uint16(protocol.S2CProtocol_S2CTimeSync), resp)
+	if err != nil {
+		log.Errorf("send time sync failed, err: %v", err)
+	}
+}
+
 // RunOne 每帧调用，处理属性增量更新等
 func (pr *PlayerRole) RunOne() {
 	if !pr.IsOnline {
@@ -429,9 +441,12 @@ func (pr *PlayerRole) RunOne() {
 	pr.handleTimeEvents()
 
 	ctx := pr.WithContext(nil)
-	attrSys := entitysystem.GetAttrSys(ctx)
-	if attrSys != nil {
-		attrSys.RunOne(ctx)
+
+	if pr._1sChecker.CheckAndSet(true) {
+		pr.timeSync()
+		if attrSys := entitysystem.GetAttrSys(ctx); attrSys != nil {
+			attrSys.RunOne(ctx)
+		}
 	}
 
 	if pr._5minChecker.CheckAndSet(true) {

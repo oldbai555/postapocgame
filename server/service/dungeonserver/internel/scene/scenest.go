@@ -13,11 +13,12 @@ import (
 
 // SceneSt 场景结构
 type SceneSt struct {
-	sceneId uint32
-	fuBenId uint32
-	name    string
-	width   int
-	height  int
+	sceneId  uint32
+	fuBenId  uint32
+	name     string
+	width    int
+	height   int
+	bornArea *jsonconf.BornArea
 
 	fuBen iface.IFuBen
 
@@ -28,7 +29,8 @@ type SceneSt struct {
 	aoiMgr *AOIManager
 
 	// 地图数据
-	walkableMap [][]bool // 可行走地图
+	gameMap     *jsonconf.GameMap
+	walkableMap [][]bool // fallback 使用
 
 	// 怪物管理
 	monsters map[uint64]*entity.MonsterEntity
@@ -37,7 +39,7 @@ type SceneSt struct {
 }
 
 // NewSceneSt 创建场景
-func NewSceneSt(fuBen iface.IFuBen, sceneId, fuBenId uint32, name string, wIdth, height int) *SceneSt {
+func NewSceneSt(fuBen iface.IFuBen, sceneId, fuBenId uint32, name string, wIdth, height int, mapData *jsonconf.GameMap, bornArea *jsonconf.BornArea) *SceneSt {
 	scene := &SceneSt{
 		sceneId:      sceneId,
 		fuBenId:      fuBenId,
@@ -49,6 +51,8 @@ func NewSceneSt(fuBen iface.IFuBen, sceneId, fuBenId uint32, name string, wIdth,
 		monsters:     make(map[uint64]*entity.MonsterEntity),
 		aoiMgr:       NewAOIManager(),
 		nextEntityId: 1,
+		gameMap:      mapData,
+		bornArea:     bornArea,
 	}
 
 	// 初始化地图
@@ -63,6 +67,13 @@ func (s *SceneSt) GetFuBen() iface.IFuBen {
 
 // initMap 初始化地图
 func (s *SceneSt) initMap() {
+	if s.gameMap != nil {
+		s.width = int(s.gameMap.Width())
+		s.height = int(s.gameMap.Height())
+		log.Infof("Scene %d map loaded from config: %dx%d, movable=%d", s.sceneId, s.width, s.height, s.gameMap.MovableCount())
+		return
+	}
+
 	s.walkableMap = make([][]bool, s.height)
 	for i := 0; i < s.height; i++ {
 		s.walkableMap[i] = make([]bool, s.width)
@@ -84,7 +95,11 @@ func (s *SceneSt) initMap() {
 }
 
 // IsWalkable 检查位置是否可行走
+// 注意：x, y 是格子坐标（不是像素坐标）
 func (s *SceneSt) IsWalkable(x, y int) bool {
+	if s.gameMap != nil {
+		return s.gameMap.IsWalkable(int32(x), int32(y))
+	}
 	if x < 0 || x >= s.width || y < 0 || y >= s.height {
 		return false
 	}
@@ -92,7 +107,14 @@ func (s *SceneSt) IsWalkable(x, y int) bool {
 }
 
 // GetRandomWalkablePos 获取随机可行走位置
+// 返回：格子坐标（不是像素坐标）
 func (s *SceneSt) GetRandomWalkablePos() (uint32, uint32) {
+	if s.gameMap != nil {
+		if x, y, ok := s.gameMap.RandomWalkableCoord(); ok {
+			return uint32(x), uint32(y)
+		}
+		return uint32(s.width / 2), uint32(s.height / 2)
+	}
 	maxAttempts := 100
 	for i := 0; i < maxAttempts; i++ {
 		x := rand.Intn(s.width)
@@ -104,6 +126,54 @@ func (s *SceneSt) GetRandomWalkablePos() (uint32, uint32) {
 
 	// 如果找不到，返回中心点
 	return uint32(s.width / 2), uint32(s.height / 2)
+}
+
+// GetSpawnPos 获取出生点位置
+// 返回：格子坐标（不是像素坐标）
+func (s *SceneSt) GetSpawnPos() (uint32, uint32) {
+	if x, y, ok := s.randomWalkableInBornArea(); ok {
+		return x, y
+	}
+	return s.GetRandomWalkablePos()
+}
+
+func (s *SceneSt) randomWalkableInBornArea() (uint32, uint32, bool) {
+	if s.bornArea == nil {
+		return 0, 0, false
+	}
+	minX := clampInt(int(s.bornArea.X1), 0, s.width-1)
+	maxX := clampInt(int(s.bornArea.X2), 0, s.width-1)
+	minY := clampInt(int(s.bornArea.Y1), 0, s.height-1)
+	maxY := clampInt(int(s.bornArea.Y2), 0, s.height-1)
+	if maxX < minX || maxY < minY {
+		return 0, 0, false
+	}
+	rangeX := maxX - minX + 1
+	rangeY := maxY - minY + 1
+	maxAttempts := rangeX * rangeY
+	if maxAttempts < 16 {
+		maxAttempts = 16
+	}
+	if maxAttempts > 256 {
+		maxAttempts = 256
+	}
+
+	for i := 0; i < maxAttempts; i++ {
+		x := minX + rand.Intn(rangeX)
+		y := minY + rand.Intn(rangeY)
+		if s.IsWalkable(x, y) {
+			return uint32(x), uint32(y), true
+		}
+	}
+
+	for y := minY; y <= maxY; y++ {
+		for x := minX; x <= maxX; x++ {
+			if s.IsWalkable(x, y) {
+				return uint32(x), uint32(y), true
+			}
+		}
+	}
+	return 0, 0, false
 }
 
 // AddEntity 添加实体到场景
@@ -184,15 +254,16 @@ func (s *SceneSt) GetAllEntities() []iface.IEntity {
 }
 
 // EntityMove 实体移动
+// 注意：newX, newY 是格子坐标（不是像素坐标）
 func (s *SceneSt) EntityMove(hdl uint64, newX, newY uint32) error {
 	e, ok := s.GetEntity(hdl)
 	if !ok {
 		return fmt.Errorf("entity not found: hdl=%d", hdl)
 	}
 
-	// 检查目标位置是否可行走
+	// 检查目标位置是否可行走（格子坐标）
 	if !s.IsWalkable(int(newX), int(newY)) {
-		return fmt.Errorf("position not walkable: (%f, %f)", newX, newY)
+		return fmt.Errorf("position not walkable: (%d, %d)", newX, newY)
 	}
 
 	oldPos := e.GetPosition()
@@ -207,6 +278,7 @@ func (s *SceneSt) EntityMove(hdl uint64, newX, newY uint32) error {
 }
 
 // SpawnMonster 生成怪物
+// 注意：x, y 是格子坐标（不是像素坐标）
 func (s *SceneSt) SpawnMonster(monsterId uint32, x, y uint32) (*entity.MonsterEntity, error) {
 	cfgMgr := jsonconf.GetConfigManager()
 	monsterCfg, ok := cfgMgr.GetMonsterConfig(monsterId)
@@ -328,4 +400,14 @@ func (s *SceneSt) GetWidth() int {
 // GetHeight 获取场景高度
 func (s *SceneSt) GetHeight() int {
 	return s.height
+}
+
+func clampInt(val, min, max int) int {
+	if val < min {
+		return min
+	}
+	if val > max {
+		return max
+	}
+	return val
 }

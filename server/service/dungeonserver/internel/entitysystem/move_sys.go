@@ -1,12 +1,17 @@
-// move_sys.go 统一处理 AI 自动移动与玩家客户端上报的移动校验。
 package entitysystem
 
 import (
 	"context"
+	"fmt"
 	"math"
+	"math/rand"
+	"postapocgame/server/internal/event"
+	"postapocgame/server/internal/jsonconf"
+	"postapocgame/server/internal/network"
+	"postapocgame/server/service/dungeonserver/internel/clientprotocol"
+	"postapocgame/server/service/dungeonserver/internel/devent"
 	"time"
 
-	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/argsdef"
 	"postapocgame/server/internal/attrdef"
 	"postapocgame/server/internal/protocol"
@@ -16,46 +21,54 @@ import (
 	"postapocgame/server/service/dungeonserver/internel/entityhelper"
 	"postapocgame/server/service/dungeonserver/internel/gameserverlink"
 	"postapocgame/server/service/dungeonserver/internel/iface"
+
+	"google.golang.org/protobuf/proto"
 )
+
+// move_sys.go 处理客户端移动协议和位置校验
+//
+// 移动系统只专注于移动功能，AI相关业务由调用方通过组合调用移动协议实现
 
 const (
-	autoMoveMinInterval     = 80 * time.Millisecond
-	autoMoveTolerance       = 2.0
-	defaultMaxMoveSpeed     = 600.0
-	startMoveWindowDuration = time.Second
-	minDeltaDuration        = 50 * time.Millisecond
-	positionTolerance       = 30.0
-	distanceTolerance       = 50.0
+	// defaultMaxMoveSpeed 默认最大移动速度（像素/秒）
+	defaultMaxMoveSpeed = 600.0
 )
 
-// MoveState 移动状态
-type MoveState struct {
-	LastSeq        uint32
-	LastReportTime time.Time
-	LastClientPos  argsdef.Position
-	IsMoving       bool
-}
-
-// MoveSys 实体移动系统（兼容玩家与AI）
+// MoveSys 实体移动系统
 type MoveSys struct {
 	entity iface.IEntity
 	scene  iface.IScene
 
-	// 自动移动（AI用）
-	autoTarget *argsdef.Position
-	autoSpeed  float64
-	autoMoving bool
-	autoSeq    uint32
-	lastTick   time.Time
+	// 客户端移动状态
+	lastTime       int64   // 上一次更新位置的时间（毫秒时间戳），0表示未在移动
+	lastX          int32   // 移动开始时的X坐标（像素坐标）
+	lastY          int32   // 移动开始时的Y坐标（像素坐标）
+	speed          uint32  // 移动速度（像素/秒）
+	moveLen        float64 // 移动的总距离（像素）
+	lastClientPx   int32   // 上次客户端上报的像素X坐标
+	lastClientPy   int32   // 上次客户端上报的像素Y坐标
+	lastReportTime time.Time
 
-	// 客户端移动状态（玩家用）
-	state *MoveState
+	moveData *protocol.MoveData // 移动数据，包含目标像素坐标
+}
+
+func (ms *MoveSys) logContext() string {
+	var sceneID int32
+	if ms.scene != nil {
+		sceneID = int32(ms.scene.GetSceneId())
+	}
+	var entityHdl uint64
+	if ms.entity != nil {
+		entityHdl = ms.entity.GetHdl()
+	}
+	return fmt.Sprintf("scene=%d entity=%d", sceneID, entityHdl)
 }
 
 // NewMoveSys 创建移动系统
 func NewMoveSys(entity iface.IEntity) *MoveSys {
 	return &MoveSys{
-		entity: entity,
+		entity:   entity,
+		moveData: &protocol.MoveData{},
 	}
 }
 
@@ -69,108 +82,131 @@ func (ms *MoveSys) UnbindScene(scene iface.IScene) {
 	if ms.scene == scene {
 		ms.scene = nil
 	}
-	ms.Stop()
+	ms.StopMove(false, false)
 }
 
-// RunOne 自动移动驱动（用于AI）
-func (ms *MoveSys) RunOne(now time.Time) {
-	if !ms.autoMoving || ms.scene == nil || ms.autoTarget == nil {
-		return
-	}
-	if !ms.lastTick.IsZero() && now.Sub(ms.lastTick) < autoMoveMinInterval {
-		return
-	}
-	ms.lastTick = now
-
-	current := ms.entity.GetPosition()
-	if current == nil {
-		return
-	}
-
-	dx := float64(int64(ms.autoTarget.X) - int64(current.X))
-	dy := float64(int64(ms.autoTarget.Y) - int64(current.Y))
-	dist := math.Hypot(dx, dy)
-	if dist <= autoMoveTolerance {
-		ms.completeAutoMove()
-		return
-	}
-
-	speed := ms.autoSpeed
-	if speed <= 0 {
-		speed = float64(ms.entity.GetAttrSys().GetAttrValue(attrdef.AttrMoveSpeed))
-		if speed <= 0 {
-			speed = 100
-		}
-	}
-
-	sec := autoMoveMinInterval.Seconds()
-	step := speed * sec
-	if step <= 0 {
-		step = 1
-	}
-	ratio := step / dist
-	if ratio > 1 {
-		ratio = 1
-	}
-
-	nx := float64(current.X) + dx*ratio
-	ny := float64(current.Y) + dy*ratio
-
-	newPos := &argsdef.Position{
-		X: clampToUint32(nx),
-		Y: clampToUint32(ny),
-	}
-
-	if err := ms.scene.EntityMove(ms.entity.GetHdl(), newPos.X, newPos.Y); err != nil {
-		log.Warnf("auto move failed: %v", err)
-		ms.Stop()
-		return
-	}
-
-	ms.autoSeq++
-	ms.broadcastMove(uint16(protocol.S2CProtocol_S2CEntityMove), newPos.X, newPos.Y, uint32(speed), ms.autoSeq)
-	ms.flushAOIChanges()
-
-	if distanceBetween(newPos, ms.autoTarget) <= autoMoveTolerance {
-		ms.completeAutoMove()
-	}
+// IsMoving 判断是否正在移动
+func (ms *MoveSys) IsMoving() bool {
+	return ms.lastTime != 0
 }
 
-// MoveTo 设置自动移动目标
-func (ms *MoveSys) MoveTo(pos *argsdef.Position, speed float64) {
-	if pos == nil {
-		return
+// GetMoveDest 获取移动目标坐标（像素坐标）
+func (ms *MoveSys) GetMoveDest() (int32, int32) {
+	if ms.moveData == nil {
+		return 0, 0
 	}
-	if ms.autoTarget != nil && ms.autoTarget.X == pos.X && ms.autoTarget.Y == pos.Y {
-		if speed > 0 {
-			ms.autoSpeed = speed
-		}
-		ms.autoMoving = true
-		return
-	}
-	ms.autoTarget = &argsdef.Position{X: pos.X, Y: pos.Y}
-	ms.autoSpeed = speed
-	ms.autoMoving = true
-	ms.lastTick = time.Time{}
-}
-
-// Stop 停止自动移动
-func (ms *MoveSys) Stop() {
-	ms.autoMoving = false
-	ms.autoTarget = nil
-}
-
-func (ms *MoveSys) completeAutoMove() {
-	if ms.autoTarget != nil {
-		ms.broadcastMove(uint16(protocol.S2CProtocol_S2CEntityStopMove), ms.autoTarget.X, ms.autoTarget.Y, 0, ms.autoSeq)
-		ms.flushAOIChanges()
-	}
-	ms.autoMoving = false
+	return ms.moveData.DestPx, ms.moveData.DestPy
 }
 
 // ResetState 重置移动状态
 func (ms *MoveSys) ResetState() {
-	ms.ensureStateLocked(true)
+	ms.ClearMoveData()
+}
+
+// SetLastMoveTime 设置最后移动时间
+func (ms *MoveSys) SetLastMoveTime(t int64) {
+	ms.lastTime = t
+}
+
+// MoveData 获取移动数据
+func (ms *MoveSys) MoveData() *protocol.MoveData {
+	return ms.moveData
+}
+
+// ClearMoveData 清除移动数据
+func (ms *MoveSys) ClearMoveData() {
+	if ms.moveData != nil {
+		ms.moveData.DestPx = -1
+		ms.moveData.DestPy = -1
+	}
+	ms.lastX = 0
+	ms.lastY = 0
+	ms.lastTime = 0
+	ms.moveLen = 0
+}
+
+// MovingTime 服务端时间驱动移动
+func (ms *MoveSys) MovingTime(mustStop bool) bool {
+	if !ms.IsMoving() || ms.scene == nil {
+		return false
+	}
+
+	et := ms.entity
+	if et == nil {
+		return false
+	}
+
+	if !et.CanBeAttacked() {
+		ms.StopMove(true, false)
+		return false
+	}
+
+	// 获取移动速度（像素/秒）
+	speed := ms.speed
+	if speed <= 0 {
+		speed = uint32(et.GetAttrSys().GetAttrValue(attrdef.AttrMoveSpeed))
+		if speed <= 0 {
+			speed = uint32(defaultMaxMoveSpeed)
+		}
+	}
+
+	now := servertime.Now().UnixMilli()
+	// 计算从开始移动到现在的时间差（毫秒）
+	elapsed := now - ms.lastTime
+	if elapsed < 0 {
+		elapsed = 0
+	}
+	// 计算应该移动的像素总距离：速度(像素/秒) * 时间(秒) = 距离(像素)
+	totalMoved := float64(int64(speed)*elapsed) / 1000 // 已应移动的总像素距离
+
+	stop := false
+	var newX, newY int32
+
+	if ms.moveLen > 0 && totalMoved >= ms.moveLen {
+		// 到达目标：已移动距离 >= 总距离，直接设置为目标坐标
+		newX, newY = ms.moveData.DestPx, ms.moveData.DestPy
+		stop = true
+	} else {
+		// 未到达目标：按比例计算新位置
+		// 计算移动进度比例：已移动距离 / 总距离
+		var rate float64
+		if ms.moveLen > 0 {
+			rate = totalMoved / ms.moveLen
+		}
+		// 计算目标方向向量（像素坐标差值）
+		interX := ms.moveData.DestPx - ms.lastX
+		interY := ms.moveData.DestPy - ms.lastY
+
+		// 按比例计算新位置：起始位置 + 方向向量 * 进度比例
+		newX = int32(rate*float64(interX)) + ms.lastX
+		newY = int32(rate*float64(interY)) + ms.lastY
+	}
+
+	// 转换为格子坐标
+	gridX := argsdef.PixelCoordToTileX(uint32(newX))
+	gridY := argsdef.PixelCoordToTileY(uint32(newY))
+
+	// 检查目标位置是否可行走
+	currentPos := et.GetPosition()
+	if currentPos == nil {
+		return false
+	}
+
+	if currentPos.X != gridX || currentPos.Y != gridY {
+		if !ms.scene.IsWalkable(int(gridX), int(gridY)) {
+			return false
+		}
+	}
+
+	if stop || mustStop {
+		ms.StopMove(mustStop, mustStop)
+		return ms.scene.EntityMove(et.GetHdl(), gridX, gridY) == nil
+	}
+
+	ms.lastTime = now
+	ms.lastX = newX
+	ms.lastY = newY
+	return ms.scene.EntityMove(et.GetHdl(), gridX, gridY) == nil
 }
 
 // HandleStartMove 处理客户端起步移动
@@ -178,18 +214,173 @@ func (ms *MoveSys) HandleStartMove(scene iface.IScene, req *protocol.C2SStartMov
 	if scene == nil || req == nil {
 		return nil
 	}
-	pos, speed, err := ms.handleStart(scene, req.Seq, req.FromX, req.FromY, req.ToX, req.ToY, req.Speed)
-	if err != nil {
-		ms.sendStop(req.Seq)
-		return err
+
+	// 将客户端发送的像素坐标转换为格子坐标
+	toTileX, toTileY := argsdef.PixelCoordToTile(req.ToX, req.ToY)
+	log.Infof("[MoveSys] %s startMove fromPx=(%d,%d) -> destTile=(%d,%d) speed=%d",
+		ms.logContext(), req.FromX, req.FromY, toTileX, toTileY, req.Speed)
+
+	// 处理移动开始
+	ret := ms.HandMove(scene, toTileX, toTileY, int32(req.FromX), int32(req.FromY), req.Speed)
+	if ret != 0 {
+		ms.sendStop()
+		return customerr.NewErrorByCode(int32(ret), "start move failed")
 	}
-	if err := ms.applySceneMove(scene, pos); err != nil {
-		ms.sendStop(req.Seq)
-		return err
-	}
-	ms.broadcastMove(uint16(protocol.S2CProtocol_S2CEntityMove), pos.X, pos.Y, speed, req.Seq)
-	ms.flushAOIChanges()
+
+	// 广播 S2CStartMove，携带实体hdl和move_data
+	ms.BroadcastStartMove(int32(req.FromX), int32(req.FromY))
+
 	return nil
+}
+
+// HandMove 处理客户端移动请求
+func (ms *MoveSys) HandMove(scene iface.IScene, tileX, tileY uint32, cPx, cPy int32, speed uint32) int32 {
+	if scene == nil {
+		return int32(protocol.ErrorCode_Param_Invalid)
+	}
+
+	// 检查实体是否可以移动
+	if !ms.entity.CanBeAttacked() {
+		return int32(protocol.ErrorCode_Param_Invalid)
+	}
+
+	// 检查目标位置是否可行走
+	if !scene.IsWalkable(int(tileX), int(tileY)) {
+		log.Warnf("MoveSys:handMove() sceneId:%d, Grid can not move (%d, %d)",
+			scene.GetSceneId(), tileX, tileY)
+		return int32(protocol.ErrorCode_Param_Invalid)
+	}
+
+	// 如果正在移动，先进行位置更新校验（确保客户端位置合理）
+	if ms.IsMoving() {
+		if !ms.LocationUpdate(cPx, cPy) {
+			return int32(protocol.ErrorCode_Param_Invalid)
+		}
+	}
+
+	// 获取当前位置（格子坐标）
+	currentPos := ms.entity.GetPosition()
+	if currentPos == nil {
+		return int32(protocol.ErrorCode_Internal_Error)
+	}
+
+	// 计算目标像素坐标
+	destPx, destPy := argsdef.TileCoordToPixel(tileX, tileY)
+	tPx := int32(destPx)
+	tPy := int32(destPy)
+
+	// 获取当前像素坐标
+	currPx, currPy := argsdef.TileCoordToPixel(currentPos.X, currentPos.Y)
+	px := int32(currPx)
+	py := int32(currPy)
+
+	// 计算移动距离（使用勾股定理：sqrt(dx^2 + dy^2)）
+	interX := tPx - px                                           // X方向差值
+	interY := tPy - py                                           // Y方向差值
+	moveLen := math.Sqrt(float64(interX*interX + interY*interY)) // 总距离（像素）
+
+	// 更新移动数据
+	now := servertime.Now().UnixMilli()
+	ms.SetLastMoveTime(now)
+	ms.moveData.DestPx = tPx
+	ms.moveData.DestPy = tPy
+	ms.lastX = px
+	ms.lastY = py
+	ms.lastTime = now
+	ms.moveLen = moveLen
+	ms.speed = speed
+	ms.lastClientPx = cPx
+	ms.lastClientPy = cPy
+	ms.lastReportTime = servertime.Now()
+
+	log.Infof("[MoveSys] %s planning move startTile=(%d,%d) destTile=(%d,%d) destPx=(%d,%d) distance=%.2fpx speed=%d",
+		ms.logContext(), currentPos.X, currentPos.Y, tileX, tileY, tPx, tPy, moveLen, speed)
+
+	return 0
+}
+
+// LocationUpdate 位置更新校验
+func (ms *MoveSys) LocationUpdate(cPx, cPy int32) bool {
+	if !ms.IsMoving() {
+		return false
+	}
+
+	et := ms.entity
+	if et == nil {
+		return false
+	}
+
+	scene := ms.scene
+	if scene == nil {
+		return false
+	}
+
+	// 获取当前服务端位置（像素坐标）
+	currPx, currPy := argsdef.TileCoordToPixel(et.GetPosition().X, et.GetPosition().Y)
+	px := int32(currPx)
+	py := int32(currPy)
+
+	// 如果客户端位置和服务端位置相同，直接通过
+	if cPx == px && cPy == py {
+		return true
+	}
+
+	// 获取移动速度（像素/秒）
+	speed := int32(ms.speed)
+	if speed <= 0 {
+		speed = int32(et.GetAttrSys().GetAttrValue(attrdef.AttrMoveSpeed))
+		if speed <= 0 {
+			speed = int32(defaultMaxMoveSpeed)
+		}
+	}
+
+	// 计算时间差（给与客户端50ping的容忍度）
+	milli := servertime.Now().UnixMilli()
+	// 计算从上次上报到现在的时间差，加上50ping的容忍度（500ms）
+	last := milli - ms.lastTime + 500 // 500ms = 50ping的容忍度
+	// 计算允许移动的最大像素距离：速度(像素/秒) * 时间(秒) = 距离(像素)
+	pix := int32(float64(speed) * float64(last) / 1000) // 允许移动的最大像素距离
+
+	// 转换为格子坐标进行校验
+	gridX := argsdef.PixelCoordToTileX(uint32(cPx))
+	gridY := argsdef.PixelCoordToTileY(uint32(cPy))
+
+	// 同步的点不可走，直接拉回
+	if !scene.IsWalkable(int(gridX), int(gridY)) {
+		log.Warnf("[MoveSys] %s location update rejected: Grid(%d,%d) not walkable (clientPx=%d,%d)",
+			ms.logContext(), gridX, gridY, cPx, cPy)
+		return false
+	}
+
+	// 计算客户端移动距离（像素）：本次位置 - 上次位置
+	delPx := cPx - ms.lastClientPx
+	delPy := cPy - ms.lastClientPy
+
+	// 校验移动速度：如果移动距离的平方 > 允许距离的平方，说明移动过快
+	// 使用平方比较避免开方运算（delPx^2 + delPy^2 > pix^2）
+	if delPx*delPx+delPy*delPy > pix*pix {
+		log.Warnf("[MoveSys] %s location update too fast last=%dms speed=%d (deltaPx=%d deltaPy=%d) limit=%d dest=(%d,%d) prev=(%d,%d)",
+			ms.logContext(), last, speed, delPx, delPy, pix, cPx, cPy, ms.lastClientPx, ms.lastClientPy)
+		return false
+	}
+
+	// 更新状态
+	ms.SetLastMoveTime(milli)
+	ms.lastClientPx = cPx
+	ms.lastClientPy = cPy
+
+	// 更新服务端位置
+	if ms.scene.EntityMove(et.GetHdl(), gridX, gridY) == nil {
+		// 检查是否到达目标
+		if cPx == ms.moveData.DestPx && cPy == ms.moveData.DestPy {
+			ms.StopMove(true, false)
+		}
+		log.Infof("[MoveSys] %s location update accepted -> tile=(%d,%d) clientPx=(%d,%d)",
+			ms.logContext(), gridX, gridY, cPx, cPy)
+		return true
+	}
+
+	return false
 }
 
 // HandleUpdateMove 处理客户端移动更新
@@ -197,17 +388,71 @@ func (ms *MoveSys) HandleUpdateMove(scene iface.IScene, req *protocol.C2SUpdateM
 	if scene == nil || req == nil {
 		return nil
 	}
-	pos, speed, err := ms.handleUpdate(scene, req.Seq, req.PosX, req.PosY, req.Speed)
-	if err != nil {
-		ms.sendStop(req.Seq)
-		return err
+
+	// 如果不在移动状态，直接返回
+	if !ms.IsMoving() {
+		return nil
 	}
-	if err := ms.applySceneMove(scene, pos); err != nil {
-		ms.sendStop(req.Seq)
-		return err
+
+	// 获取服务端计算的当前位置
+	currentPos := ms.entity.GetPosition()
+	if currentPos == nil {
+		return nil
 	}
-	ms.broadcastMove(uint16(protocol.S2CProtocol_S2CEntityMove), pos.X, pos.Y, speed, req.Seq)
-	ms.flushAOIChanges()
+
+	// 转换为像素坐标
+	serverPxU, serverPyU := argsdef.TileCoordToPixel(currentPos.X, currentPos.Y)
+	serverPx := int32(serverPxU)
+	serverPy := int32(serverPyU)
+
+	// 客户端上报的坐标
+	clientPx := int32(req.PosX)
+	clientPy := int32(req.PosY)
+
+	// 计算坐标误差（像素距离）
+	dx := float64(clientPx - serverPx)
+	dy := float64(clientPy - serverPy)
+	distance := math.Sqrt(dx*dx + dy*dy)
+
+	// 获取移动速度（像素/秒）
+	speed := float64(ms.speed)
+	if speed <= 0 {
+		speed = float64(ms.entity.GetAttrSys().GetAttrValue(attrdef.AttrMoveSpeed))
+		if speed <= 0 {
+			speed = defaultMaxMoveSpeed
+		}
+	}
+
+	// 支持1s的误差：允许的最大误差距离 = 速度(像素/秒) * 1秒
+	maxErrorDistance := speed * 1.0 // 1秒的误差容忍度
+
+	// 如果差距很大，结束移动（防止客户端位置异常）
+	if distance > maxErrorDistance {
+		log.Warnf("[MoveSys] %s updateMove deviation=%.2f max=%.2f, serverPx=(%d,%d) clientPx=(%d,%d)",
+			ms.logContext(), distance, maxErrorDistance, serverPx, serverPy, clientPx, clientPy)
+		// 结束移动，最终坐标为服务端当前位置（上一个点）
+		// 这样可以防止客户端位置异常导致的瞬移
+		ms.HandleEndMove(scene, &protocol.C2SEndMoveReq{
+			PosX: uint32(serverPx),
+			PosY: uint32(serverPy),
+			// Seq 字段已废弃，不再使用
+		})
+		return nil
+	}
+
+	// 否则更新客户端给过来最新的坐标
+	// 调用 LocationUpdate 进行位置校验和更新
+	if !ms.LocationUpdate(clientPx, clientPy) {
+		// 位置校验失败（移动过快、位置不可行走等），结束移动
+		// 最终坐标仍为服务端当前位置
+		ms.HandleEndMove(scene, &protocol.C2SEndMoveReq{
+			PosX: uint32(serverPx),
+			PosY: uint32(serverPy),
+			// Seq 字段已废弃，不再使用
+		})
+		return nil
+	}
+
 	return nil
 }
 
@@ -216,131 +461,177 @@ func (ms *MoveSys) HandleEndMove(scene iface.IScene, req *protocol.C2SEndMoveReq
 	if scene == nil || req == nil {
 		return nil
 	}
-	pos, err := ms.handleEnd(scene, req.Seq, req.PosX, req.PosY)
-	if err != nil {
-		ms.sendStop(req.Seq)
-		return err
-	}
-	if err := ms.applySceneMove(scene, pos); err != nil {
-		ms.sendStop(req.Seq)
-		return err
-	}
-	ms.broadcastMove(uint16(protocol.S2CProtocol_S2CEntityStopMove), pos.X, pos.Y, 0, req.Seq)
-	ms.flushAOIChanges()
+
+	tileX, tileY := argsdef.PixelCoordToTile(req.PosX, req.PosY)
+	log.Infof("[MoveSys] %s endMove reqPx=(%d,%d) -> tile=(%d,%d)", ms.logContext(), req.PosX, req.PosY, tileX, tileY)
+
+	// 停止移动
+	ms.StopMove(true, true)
+
+	// 广播 S2CEndMove，通知客户端结束移动
+	ms.BroadcastEndMove(int32(req.PosX), int32(req.PosY))
 
 	// 如果是角色实体，同步坐标到GameServer
-	ms.syncPositionToGameServer(scene, pos)
+	ms.syncPositionToGameServer(scene, &argsdef.Position{X: tileX, Y: tileY})
 
 	return nil
 }
 
-// syncPositionToGameServer 同步坐标到GameServer（仅对角色实体）
-func (ms *MoveSys) syncPositionToGameServer(scene iface.IScene, pos *argsdef.Position) {
-	if ms.entity == nil || scene == nil || pos == nil {
-		return
-	}
-
-	// 只处理角色实体
-	if ms.entity.GetEntityType() != uint32(protocol.EntityType_EtRole) {
-		return
-	}
-
-	// 类型断言为RoleEntity
-	roleEntity, ok := ms.entity.(interface {
-		GetSessionId() string
-		GetRoleId() uint64
-	})
-	if !ok {
-		return
-	}
-
-	sessionId := roleEntity.GetSessionId()
-	roleId := roleEntity.GetRoleId()
-	if sessionId == "" || roleId == 0 {
-		return
-	}
-
-	// 构造RPC请求
-	reqData, err := proto.Marshal(&protocol.D2GSyncPositionReq{
-		SessionId: sessionId,
-		RoleId:    roleId,
-		SceneId:   scene.GetSceneId(),
-		PosX:      pos.X,
-		PosY:      pos.Y,
-	})
-	if err != nil {
-		log.Errorf("marshal sync position request failed: %v", err)
-		return
-	}
-
-	// 异步调用GameServer（不等待响应）
-	err = gameserverlink.CallGameServer(context.Background(), sessionId, uint16(protocol.D2GRpcProtocol_D2GSyncPosition), reqData)
-	if err != nil {
-		log.Errorf("call gameserver sync position failed: %v", err)
-		// 不返回错误，坐标同步失败不影响移动
-	}
-}
-
-func (ms *MoveSys) applySceneMove(scene iface.IScene, pos *argsdef.Position) error {
-	if scene == nil || pos == nil {
-		return nil
-	}
-	if err := scene.EntityMove(ms.entity.GetHdl(), pos.X, pos.Y); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (ms *MoveSys) broadcastMove(protoId uint16, x, y, speed, seq uint32) {
+// BroadcastMove 广播移动
+func (ms *MoveSys) BroadcastMove(tileX, tileY, speed uint32) {
 	if ms.scene == nil {
 		return
 	}
+
+	// 转换为像素坐标
+	px, py := argsdef.TileCoordToPixel(tileX, tileY)
+
 	resp := &protocol.S2CEntityMoveReq{
 		EntityHdl: ms.entity.GetHdl(),
-		PosX:      x,
-		PosY:      y,
+		PosX:      px,
+		PosY:      py,
 		Speed:     speed,
-		Seq:       seq,
-	}
-	if protoId == uint16(protocol.S2CProtocol_S2CEntityStopMove) {
-		resp = nil
 	}
 
-	var payload proto.Message
-	if protoId == uint16(protocol.S2CProtocol_S2CEntityMove) {
-		payload = resp
-	} else {
-		payload = &protocol.S2CEntityStopMoveReq{
-			EntityHdl: ms.entity.GetHdl(),
-			PosX:      x,
-			PosY:      y,
-			Seq:       seq,
-		}
-	}
-
-	data, err := proto.Marshal(payload)
+	data, err := proto.Marshal(resp)
 	if err != nil {
 		log.Errorf("marshal move payload failed: %v", err)
 		return
 	}
+
+	// 广播给场景内所有实体
 	for _, et := range ms.scene.GetAllEntities() {
-		_ = et.SendMessage(protoId, data)
+		if err := et.SendMessage(uint16(protocol.S2CProtocol_S2CEntityMove), data); err != nil {
+			log.Warnf("broadcast move message failed, entity=%d err=%v", et.GetHdl(), err)
+		}
+	}
+
+	// 也发送给自己
+	if err := ms.entity.SendMessage(uint16(protocol.S2CProtocol_S2CEntityMove), data); err != nil {
+		log.Warnf("send move message to self failed, entity=%d err=%v", ms.entity.GetHdl(), err)
 	}
 }
 
-func (ms *MoveSys) sendStop(seq uint32) {
+// BroadcastStartMove 广播开始移动
+func (ms *MoveSys) BroadcastStartMove(posX, posY int32) {
+	if ms.scene == nil || ms.moveData == nil {
+		return
+	}
+
+	// 构造 MoveData
+	moveData := &protocol.MoveData{
+		DestPx: ms.moveData.DestPx,
+		DestPy: ms.moveData.DestPy,
+	}
+
+	resp := &protocol.S2CStartMoveReq{
+		EntityHdl: ms.entity.GetHdl(),
+		PosX:      uint32(posX),
+		PosY:      uint32(posY),
+		MoveData:  moveData,
+	}
+
+	data, err := proto.Marshal(resp)
+	if err != nil {
+		log.Errorf("marshal start move payload failed: %v", err)
+		return
+	}
+
+	// 广播给场景内所有实体
+	for _, et := range ms.scene.GetAllEntities() {
+		_ = et.SendMessage(uint16(protocol.S2CProtocol_S2CStartMove), data)
+	}
+
+	// 也发送给自己
+	_ = ms.entity.SendMessage(uint16(protocol.S2CProtocol_S2CStartMove), data)
+}
+
+// BroadcastEndMove 广播结束移动
+func (ms *MoveSys) BroadcastEndMove(posX, posY int32) {
+	if ms.scene == nil {
+		return
+	}
+
+	resp := &protocol.S2CEndMoveReq{
+		EntityHdl: ms.entity.GetHdl(),
+		PosX:      uint32(posX),
+		PosY:      uint32(posY),
+	}
+
+	data, err := proto.Marshal(resp)
+	if err != nil {
+		log.Errorf("marshal end move payload failed: %v", err)
+		return
+	}
+
+	// 广播给场景内所有实体
+	for _, et := range ms.scene.GetAllEntities() {
+		_ = et.SendMessage(uint16(protocol.S2CProtocol_S2CEndMove), data)
+	}
+
+	// 也发送给自己
+	_ = ms.entity.SendMessage(uint16(protocol.S2CProtocol_S2CEndMove), data)
+}
+
+// StopMove 停止移动
+func (ms *MoveSys) StopMove(broadcast, sendToSelf bool) {
+	if !ms.IsMoving() {
+		return
+	}
+
+	ms.ClearMoveData()
+
+	// 发送停止移动消息
 	pos := ms.entity.GetPosition()
 	if pos == nil {
 		return
 	}
+
+	px, py := argsdef.TileCoordToPixel(pos.X, pos.Y)
+	log.Infof("[MoveSys] %s stopMove finalTile=(%d,%d) finalPx=(%d,%d) broadcast=%v self=%v",
+		ms.logContext(), pos.X, pos.Y, px, py, broadcast, sendToSelf)
+	resp := &protocol.S2CEntityStopMoveReq{
+		EntityHdl: ms.entity.GetHdl(),
+		PosX:      px,
+		PosY:      py,
+		// Seq 字段已移除：客户端不使用，参考代码也没有序列号
+	}
+
+	data, err := proto.Marshal(resp)
+	if err != nil {
+		log.Errorf("marshal stop move payload failed: %v", err)
+		return
+	}
+
+	if sendToSelf {
+		_ = ms.entity.SendMessage(uint16(protocol.S2CProtocol_S2CEntityStopMove), data)
+	}
+
+	if broadcast && ms.scene != nil {
+		for _, et := range ms.scene.GetAllEntities() {
+			if et.GetHdl() != ms.entity.GetHdl() {
+				_ = et.SendMessage(uint16(protocol.S2CProtocol_S2CEntityStopMove), data)
+			}
+		}
+	}
+}
+
+// sendStop 发送停止移动消息给客户端
+func (ms *MoveSys) sendStop() {
+	pos := ms.entity.GetPosition()
+	if pos == nil {
+		return
+	}
+	px, py := argsdef.TileCoordToPixel(pos.X, pos.Y)
 	_ = ms.entity.SendProtoMessage(uint16(protocol.S2CProtocol_S2CEntityStopMove), &protocol.S2CEntityStopMoveReq{
 		EntityHdl: ms.entity.GetHdl(),
-		PosX:      pos.X,
-		PosY:      pos.Y,
-		Seq:       seq,
+		PosX:      px,
+		PosY:      py,
+		// Seq 字段已移除：客户端不使用，参考代码也没有序列号
 	})
 }
 
+// flushAOIChanges 刷新AOI变化
 func (ms *MoveSys) flushAOIChanges() {
 	if ms.entity == nil {
 		return
@@ -393,7 +684,6 @@ func (ms *MoveSys) notifyDisappear(receiver iface.IEntity, targetHdl uint64) {
 }
 
 func (ms *MoveSys) notifyDisappearByHandle(receiverHdl uint64, subjectHdl uint64) {
-	// 用于在对方是玩家时通知其看不到当前实体
 	if ms.scene == nil {
 		return
 	}
@@ -406,154 +696,286 @@ func (ms *MoveSys) notifyDisappearByHandle(receiverHdl uint64, subjectHdl uint64
 	})
 }
 
-// handleStart 处理移动开始
-func (ms *MoveSys) handleStart(scene iface.IScene, seq uint32, fromX, fromY, toX, toY, speed uint32) (*argsdef.Position, uint32, error) {
-	state := ms.ensureStateLocked(false)
-	if state == nil {
-		return nil, 0, customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "movement state not found")
+// syncPositionToGameServer 同步坐标到GameServer
+func (ms *MoveSys) syncPositionToGameServer(scene iface.IScene, pos *argsdef.Position) {
+	if ms.entity == nil || scene == nil || pos == nil {
+		return
 	}
 
-	if scene == nil {
-		return nil, 0, customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "scene not found")
+	// 只处理角色实体
+	if ms.entity.GetEntityType() != uint32(protocol.EntityType_EtRole) {
+		return
 	}
 
-	if seq == 0 || (state.LastSeq != 0 && seq <= state.LastSeq) {
-		return nil, 0, customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "seq invalid")
+	// 类型断言为RoleEntity
+	roleEntity, ok := ms.entity.(interface {
+		GetSessionId() string
+		GetRoleId() uint64
+	})
+	if !ok {
+		return
 	}
 
-	speedLimit := ms.getSpeedLimit()
-	if speed == 0 || float64(speed) > speedLimit {
-		return nil, 0, customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "speed invalid")
+	sessionId := roleEntity.GetSessionId()
+	roleId := roleEntity.GetRoleId()
+	if sessionId == "" || roleId == 0 {
+		return
 	}
 
-	fromPos := argsdef.Position{X: fromX, Y: fromY}
-	toPos := argsdef.Position{X: toX, Y: toY}
-
-	if distanceBetween(ms.entity.GetPosition(), &fromPos) > positionTolerance {
-		return nil, 0, customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "position desync")
+	// 构造RPC请求
+	reqData, err := proto.Marshal(&protocol.D2GSyncPositionReq{
+		SessionId: sessionId,
+		RoleId:    roleId,
+		SceneId:   scene.GetSceneId(),
+		PosX:      pos.X,
+		PosY:      pos.Y,
+	})
+	if err != nil {
+		log.Errorf("marshal sync position request failed: %v", err)
+		return
 	}
 
-	if !scene.IsWalkable(int(toPos.X), int(toPos.Y)) {
-		return nil, 0, customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "target not walkable")
+	// 异步调用GameServer（不等待响应）
+	err = gameserverlink.CallGameServer(context.Background(), sessionId, uint16(protocol.D2GRpcProtocol_D2GSyncPosition), reqData)
+	if err != nil {
+		log.Errorf("call gameserver sync position failed: %v", err)
+		// 不返回错误，坐标同步失败不影响移动
 	}
-
-	travelDistance := distanceBetween(&fromPos, &toPos)
-	maxAllowed := speedLimit*startMoveWindowDuration.Seconds() + distanceTolerance
-	if travelDistance > maxAllowed {
-		return nil, 0, customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "movement too fast")
-	}
-
-	state.LastSeq = seq
-	state.LastClientPos = toPos
-	state.LastReportTime = servertime.Now()
-	state.IsMoving = true
-
-	return &toPos, speed, nil
 }
 
-// handleUpdate 处理移动更新
-func (ms *MoveSys) handleUpdate(scene iface.IScene, seq, posX, posY, speed uint32) (*argsdef.Position, uint32, error) {
-	state := ms.ensureStateLocked(false)
-	if state == nil {
-		return nil, 0, customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "movement state not found")
+// 协议处理函数
+func handleStartMove(entity iface.IEntity, msg *network.ClientMessage) error {
+	var req protocol.C2SStartMoveReq
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
+		return err
 	}
 
-	if !state.IsMoving {
-		return nil, 0, customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "not moving")
+	scene, err := getSceneByEntity(entity)
+	if err != nil {
+		return err
 	}
-
-	if seq == 0 || seq <= state.LastSeq {
-		return nil, 0, customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "seq invalid")
-	}
-
-	if scene == nil {
-		return nil, 0, customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "scene not found")
-	}
-
-	speedLimit := ms.getSpeedLimit()
-	if speed == 0 || float64(speed) > speedLimit {
-		return nil, 0, customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "speed invalid")
-	}
-
-	targetPos := argsdef.Position{X: posX, Y: posY}
-
-	if !scene.IsWalkable(int(targetPos.X), int(targetPos.Y)) {
-		return nil, 0, customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "target not walkable")
-	}
-
-	delta := time.Since(state.LastReportTime)
-	if delta < minDeltaDuration {
-		delta = minDeltaDuration
-	}
-
-	travelDistance := distanceBetween(&state.LastClientPos, &targetPos)
-	maxAllowed := speedLimit*delta.Seconds() + distanceTolerance
-	if travelDistance > maxAllowed {
-		return nil, 0, customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "movement too fast")
-	}
-
-	state.LastSeq = seq
-	state.LastClientPos = targetPos
-	state.LastReportTime = servertime.Now()
-
-	return &targetPos, speed, nil
-}
-
-// handleEnd 处理移动结束
-func (ms *MoveSys) handleEnd(scene iface.IScene, seq, posX, posY uint32) (*argsdef.Position, error) {
-	state := ms.ensureStateLocked(false)
-	if state == nil {
-		return nil, customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "movement state not found")
-	}
-
-	if seq == 0 || seq < state.LastSeq {
-		return nil, customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "seq invalid")
-	}
-
-	targetPos := argsdef.Position{X: posX, Y: posY}
-	if scene == nil || !scene.IsWalkable(int(targetPos.X), int(targetPos.Y)) {
-		return nil, customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "target not walkable")
-	}
-
-	travelDistance := distanceBetween(&state.LastClientPos, &targetPos)
-	if travelDistance > distanceTolerance*2 {
-		return nil, customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "teleport detected")
-	}
-
-	state.LastSeq = seq
-	state.LastClientPos = targetPos
-	state.LastReportTime = servertime.Now()
-	state.IsMoving = false
-
-	return &targetPos, nil
-}
-
-// ensureStateLocked 确保状态存在
-func (ms *MoveSys) ensureStateLocked(force bool) *MoveState {
-	if ms.entity == nil {
+	moveSys := entity.GetMoveSys()
+	if moveSys == nil {
 		return nil
 	}
-	if ms.state == nil || force {
-		pos := ms.entity.GetPosition()
-		if pos == nil {
-			return nil
-		}
-		ms.state = &MoveState{
-			LastClientPos:  *pos,
-			LastReportTime: servertime.Now(),
-		}
-	}
-	return ms.state
+	return moveSys.HandleStartMove(scene, &req)
 }
 
-// getSpeedLimit 获取速度限制
-func (ms *MoveSys) getSpeedLimit() float64 {
-	if ms.entity == nil {
-		return defaultMaxMoveSpeed
+func handleUpdateMove(entity iface.IEntity, msg *network.ClientMessage) error {
+	var req protocol.C2SUpdateMoveReq
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
+		return err
 	}
-	val := ms.entity.GetAttrSys().GetAttrValue(attrdef.AttrMoveSpeed)
-	if val <= 0 {
-		return defaultMaxMoveSpeed
+
+	scene, err := getSceneByEntity(entity)
+	if err != nil {
+		return err
 	}
-	return float64(val)
+	moveSys := entity.GetMoveSys()
+	if moveSys == nil {
+		return nil
+	}
+	return moveSys.HandleUpdateMove(scene, &req)
+}
+
+func handleEndMove(entity iface.IEntity, msg *network.ClientMessage) error {
+	var req protocol.C2SEndMoveReq
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
+		return err
+	}
+
+	scene, err := getSceneByEntity(entity)
+	if err != nil {
+		return err
+	}
+	moveSys := entity.GetMoveSys()
+	if moveSys == nil {
+		return nil
+	}
+	return moveSys.HandleEndMove(scene, &req)
+}
+
+func handleGetNearestMonster(role iface.IEntity, msg *network.ClientMessage) error {
+	var req protocol.C2SGetNearestMonsterReq
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
+		return err
+	}
+
+	scene, err := getSceneByEntity(role)
+	if err != nil {
+		return err
+	}
+
+	// 获取角色位置
+	rolePos := role.GetPosition()
+	if rolePos == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "role position not found")
+	}
+
+	// 获取场景中所有实体
+	allEntities := scene.GetAllEntities()
+
+	// 查找最近的怪物
+	var nearestMonster iface.IEntity
+	var minDistance float64 = math.MaxFloat64
+
+	for _, e := range allEntities {
+		// 只处理怪物实体
+		if e.GetEntityType() != uint32(protocol.EntityType_EtMonster) {
+			continue
+		}
+
+		// 跳过死亡的怪物
+		if e.IsDead() {
+			continue
+		}
+
+		// 计算距离
+		monsterPos := e.GetPosition()
+		if monsterPos == nil {
+			continue
+		}
+
+		dx := float64(monsterPos.X) - float64(rolePos.X)
+		dy := float64(monsterPos.Y) - float64(rolePos.Y)
+		distance := math.Sqrt(dx*dx + dy*dy)
+
+		if distance < minDistance {
+			minDistance = distance
+			nearestMonster = e
+		}
+	}
+
+	// 构造响应
+	resp := &protocol.S2CGetNearestMonsterResultReq{
+		Success: nearestMonster != nil,
+	}
+
+	if nearestMonster != nil {
+		monsterPos := nearestMonster.GetPosition()
+		monsterEntity, ok := nearestMonster.(iface.IMonster)
+		if ok {
+			resp.MonsterHdl = nearestMonster.GetHdl()
+			resp.MonsterId = uint32(monsterEntity.GetId())
+			resp.MonsterName = monsterEntity.GetName()
+			if monsterPos != nil {
+				resp.PosX = monsterPos.X
+				resp.PosY = monsterPos.Y
+			}
+			resp.Distance = float32(minDistance)
+			resp.Message = "找到最近怪物"
+		} else {
+			resp.Success = false
+			resp.Message = "怪物实体类型错误"
+		}
+	} else {
+		resp.Message = "未找到怪物"
+	}
+
+	return role.SendProtoMessage(uint16(protocol.S2CProtocol_S2CGetNearestMonsterResult), resp)
+}
+
+func handleChangeScene(entity iface.IEntity, msg *network.ClientMessage) error {
+	var req protocol.C2SChangeSceneReq
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
+		return err
+	}
+
+	scene, err := getSceneByEntity(entity)
+	if err != nil {
+		return err
+	}
+
+	// 获取当前场景ID和副本ID
+	currentSceneId := entity.GetSceneId()
+	currentFuBenId := scene.GetFuBenId()
+	targetSceneId := req.SceneId
+
+	// 获取当前副本实例
+	fuBen := scene.GetFuBen()
+	if fuBen == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "副本不存在")
+	}
+
+	// 获取目标场景
+	targetScene := fuBen.GetScene(targetSceneId)
+	if targetScene == nil {
+		resp := &protocol.S2CChangeSceneResultReq{
+			Success: false,
+			Message: "目标场景不存在",
+			SceneId: targetSceneId,
+		}
+		return entity.SendProtoMessage(uint16(protocol.S2CProtocol_S2CChangeSceneResult), resp)
+	}
+
+	// 检查是否在同一副本内（不同副本不能跨副本场景切换）
+	if targetScene.GetFuBenId() != currentFuBenId {
+		resp := &protocol.S2CChangeSceneResultReq{
+			Success: false,
+			Message: "不能跨副本切换场景",
+			SceneId: targetSceneId,
+		}
+		return entity.SendProtoMessage(uint16(protocol.S2CProtocol_S2CChangeSceneResult), resp)
+	}
+
+	// 如果目标场景就是当前场景，直接返回成功
+	if targetSceneId == currentSceneId {
+		resp := &protocol.S2CChangeSceneResultReq{
+			Success: true,
+			Message: "切换成功",
+			SceneId: targetSceneId,
+		}
+		return entity.SendProtoMessage(uint16(protocol.S2CProtocol_S2CChangeSceneResult), resp)
+	}
+
+	// 从当前场景移除实体
+	err = scene.RemoveEntity(entity.GetHdl())
+	if err != nil {
+		log.Errorf("scene RemoveEntity %s %d failed, err:%v", entity.GetName(), entity.GetId(), err)
+	}
+
+	// 将实体添加到目标场景
+	// 从场景配置获取出生点
+	configMgr := jsonconf.GetConfigManager()
+	sceneConfig, _ := configMgr.GetSceneConfig(targetSceneId)
+	var x, y uint32
+	if sceneConfig != nil && sceneConfig.BornArea != nil {
+		// 从出生点范围随机选择
+		bornArea := sceneConfig.BornArea
+		if bornArea.X2 > bornArea.X1 && bornArea.Y2 > bornArea.Y1 {
+			x = bornArea.X1 + uint32(rand.Intn(int(bornArea.X2-bornArea.X1)))
+			y = bornArea.Y1 + uint32(rand.Intn(int(bornArea.Y2-bornArea.Y1)))
+		} else {
+			// 使用默认位置
+			x, y = 100, 100
+		}
+	} else {
+		// 使用默认位置
+		x, y = 100, 100
+	}
+	entity.SetPosition(x, y)
+	err = targetScene.AddEntity(entity)
+	if err != nil {
+		log.Errorf("scene AddEntity %s %d failed, err:%v", entity.GetName(), entity.GetId(), err)
+	}
+
+	log.Infof("Entity %d changed scene from %d to %d", entity.GetHdl(), currentSceneId, targetSceneId)
+
+	// 发送切换成功响应
+	resp := &protocol.S2CChangeSceneResultReq{
+		Success: true,
+		Message: "切换成功",
+		SceneId: targetSceneId,
+	}
+	return entity.SendProtoMessage(uint16(protocol.S2CProtocol_S2CChangeSceneResult), resp)
+}
+
+func init() {
+	devent.Subscribe(devent.OnSrvStart, func(ctx context.Context, event *event.Event) {
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SStartMove), handleStartMove)
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SUpdateMove), handleUpdateMove)
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SEndMove), handleEndMove)
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SGetNearestMonster), handleGetNearestMonster)
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SChangeScene), handleChangeScene)
+	})
 }

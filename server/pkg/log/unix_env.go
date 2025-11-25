@@ -8,7 +8,7 @@ import (
 	"syscall"
 )
 
-const DefaultLogPath = "/var/log/gzjjyz"
+const DefaultLogPath = "/var/log/postapocgame"
 
 var osChown = os.Chown
 

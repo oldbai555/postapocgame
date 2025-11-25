@@ -2,10 +2,12 @@ package entitysystem
 
 import (
 	"context"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/iface"
 )
 
@@ -179,5 +181,7 @@ func (vs *VipSys) HasPrivilege(privilegeType uint32) bool {
 func init() {
 	RegisterSystemFactory(uint32(protocol.SystemId_SysVip), func() iface.ISystem {
 		return NewVipSys()
+	})
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
 	})
 }

@@ -2,12 +2,20 @@ package entitysystem
 
 import (
 	"context"
+	"google.golang.org/protobuf/proto"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/jsonconf"
+	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/gatewaylink"
+	"postapocgame/server/service/gameserver/internel/gevent"
+	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/iface"
+	"postapocgame/server/service/gameserver/internel/manager"
+	"postapocgame/server/service/gameserver/internel/playeractor/clientprotocol"
 )
 
 const (
@@ -204,9 +212,85 @@ func (ors *OfflineRewardSys) ClaimReward(ctx context.Context) ([]*jsonconf.ItemA
 	return rewards, nil
 }
 
+// handleClaimOfflineReward 处理领取离线收益请求
+func handleClaimOfflineReward(ctx context.Context, msg *network.ClientMessage) error {
+	sessionId := ctx.Value(gshare.ContextKeySession).(string)
+	var req protocol.C2SClaimOfflineRewardReq
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
+		return err
+	}
+
+	// 获取玩家角色
+	roleMgr := manager.GetPlayerRoleManager()
+	playerRole := roleMgr.GetBySession(sessionId)
+	if playerRole == nil {
+		resp := &protocol.S2CClaimOfflineRewardResultReq{
+			Success: false,
+			Message: "玩家角色不存在",
+		}
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CClaimOfflineRewardResult), resp)
+	}
+
+	// 获取离线收益系统
+	roleCtx := playerRole.WithContext(ctx)
+	offlineRewardSys := GetOfflineRewardSys(roleCtx)
+	if offlineRewardSys == nil {
+		resp := &protocol.S2CClaimOfflineRewardResultReq{
+			Success: false,
+			Message: "离线收益系统未初始化",
+		}
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CClaimOfflineRewardResult), resp)
+	}
+
+	// 获取离线时间
+	offlineSeconds := offlineRewardSys.GetOfflineSeconds()
+
+	// 领取收益
+	rewards, err := offlineRewardSys.ClaimReward(roleCtx)
+
+	// 构造响应
+	resp := &protocol.S2CClaimOfflineRewardResultReq{
+		Success:        err == nil,
+		OfflineSeconds: offlineSeconds,
+		ClaimedTime:    servertime.Now().Unix(),
+	}
+
+	if err != nil {
+		resp.Message = err.Error()
+		resp.Success = false
+	} else {
+		resp.Message = "领取成功"
+		// 转换奖励列表
+		if rewards != nil && len(rewards) > 0 {
+			resp.Rewards = make([]*protocol.ItemAmount, 0, len(rewards))
+			for _, reward := range rewards {
+				resp.Rewards = append(resp.Rewards, &protocol.ItemAmount{
+					ItemType: reward.ItemType,
+					ItemId:   reward.ItemId,
+					Count:    reward.Count,
+					Bind:     reward.Bind,
+				})
+			}
+		}
+		// 推送背包和货币数据更新
+		pushBagData(roleCtx, sessionId)
+		pushMoneyData(roleCtx, sessionId)
+	}
+
+	// 发送响应
+	if sendErr := gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CClaimOfflineRewardResult), resp); sendErr != nil {
+		return sendErr
+	}
+
+	return err
+}
+
 // 注册系统工厂
 func init() {
 	RegisterSystemFactory(uint32(protocol.SystemId_SysOfflineReward), func() iface.ISystem {
 		return NewOfflineRewardSys()
+	})
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SClaimOfflineReward), handleClaimOfflineReward)
 	})
 }

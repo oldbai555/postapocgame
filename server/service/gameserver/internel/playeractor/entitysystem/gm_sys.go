@@ -2,12 +2,19 @@ package entitysystem
 
 import (
 	"context"
+	"google.golang.org/protobuf/proto"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/jsonconf"
+	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/gatewaylink"
+	"postapocgame/server/service/gameserver/internel/gevent"
+	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/iface"
 	"postapocgame/server/service/gameserver/internel/manager"
+	"postapocgame/server/service/gameserver/internel/playeractor/clientprotocol"
 )
 
 // GMSys 玩家级GM系统
@@ -243,8 +250,55 @@ func GrantRewardsByMail(roleId uint64, title, content string, rewards []*jsoncon
 	return nil
 }
 
+// handleGMCommand 处理GM命令
+func handleGMCommand(ctx context.Context, msg *network.ClientMessage) error {
+	sessionId := ctx.Value(gshare.ContextKeySession).(string)
+
+	// 解析GM命令请求
+	var req protocol.C2SGMCommandReq
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
+		log.Errorf("unmarshal GM command request failed: %v", err)
+		return err
+	}
+
+	// 获取玩家角色
+	roleMgr := manager.GetPlayerRoleManager()
+	playerRole := roleMgr.GetBySession(sessionId)
+	if playerRole == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "player role not found")
+	}
+
+	roleCtx := playerRole.WithContext(ctx)
+
+	// 执行GM命令
+	gmSys := GetGMSys(roleCtx)
+	if gmSys == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "gm system not ready")
+	}
+	success, message := gmSys.ExecuteCommand(roleCtx, req.GmName, req.Args)
+
+	// 发送GM命令结果
+	resp := &protocol.S2CGMCommandResultReq{
+		Success: success,
+		Message: message,
+	}
+
+	if err := gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CGMCommandResult), resp); err != nil {
+		log.Errorf("send GM command result failed: %v", err)
+		return err
+	}
+
+	log.Infof("GM command executed: RoleID=%d, GMName=%s, Success=%v, Message=%s",
+		playerRole.GetPlayerRoleId(), req.GmName, success, message)
+
+	return nil
+}
+
 func init() {
 	RegisterSystemFactory(uint32(protocol.SystemId_SysGM), func() iface.ISystem {
 		return NewGMSys()
+	})
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SGMCommand), handleGMCommand)
 	})
 }

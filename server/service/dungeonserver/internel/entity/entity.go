@@ -203,9 +203,6 @@ func (e *BaseEntity) RunOne(now time.Time) {
 	if e.stateMachine != nil {
 		e.stateMachine.Update()
 	}
-	if e.moveSys != nil {
-		e.moveSys.RunOne(now)
-	}
 }
 
 func (e *BaseEntity) GetFightSys() iface.IFightSys {
@@ -338,4 +335,11 @@ func (e *BaseEntity) broadcastDeath(killer iface.IEntity) {
 			})
 		}
 	}
+}
+
+func (e *BaseEntity) GetName() string {
+	return ""
+}
+
+func (e *BaseEntity) SetName(name string) {
 }

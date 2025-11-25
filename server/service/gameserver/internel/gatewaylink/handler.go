@@ -130,5 +130,9 @@ func (h *NetworkHandler) handleClientMsg(ctx context.Context, msg *network.Messa
 func (h *NetworkHandler) GetSession(sessionId string) iface.ISession {
 	h.sessionsMu.RLock()
 	defer h.sessionsMu.RUnlock()
-	return h.sessions[sessionId]
+	session := h.sessions[sessionId]
+	if session == nil {
+		return nil
+	}
+	return session
 }

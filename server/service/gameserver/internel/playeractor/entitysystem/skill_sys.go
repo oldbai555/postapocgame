@@ -2,12 +2,20 @@ package entitysystem
 
 import (
 	"context"
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/jsonconf"
+	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/gatewaylink"
+	"postapocgame/server/service/gameserver/internel/gevent"
+	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/iface"
+	"postapocgame/server/service/gameserver/internel/manager"
+	"postapocgame/server/service/gameserver/internel/playeractor/clientprotocol"
 )
 
 // SkillSys 技能系统
@@ -238,8 +246,106 @@ func (ss *SkillSys) GetSkillMap() map[uint32]uint32 {
 	return ss.skillData.SkillMap
 }
 
+// handleLearnSkill 处理学习技能
+func handleLearnSkill(ctx context.Context, msg *network.ClientMessage) error {
+	sessionId := ctx.Value(gshare.ContextKeySession).(string)
+	var req protocol.C2SLearnSkillReq
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
+		return err
+	}
+
+	// 获取玩家角色
+	roleMgr := manager.GetPlayerRoleManager()
+	playerRole := roleMgr.GetBySession(sessionId)
+	if playerRole == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "player role not found")
+	}
+
+	// 获取技能系统
+	skillSys := GetSkillSys(ctx)
+	if skillSys == nil {
+		resp := &protocol.S2CLearnSkillResultReq{
+			Success: false,
+			Message: "技能系统未初始化",
+			SkillId: req.SkillId,
+		}
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CLearnSkillResult), resp)
+	}
+
+	// 学习技能
+	err := skillSys.LearnSkill(ctx, req.SkillId)
+
+	// 构造响应
+	resp := &protocol.S2CLearnSkillResultReq{
+		Success: err == nil,
+		SkillId: req.SkillId,
+	}
+
+	if err != nil {
+		resp.Message = err.Error()
+	} else {
+		resp.Message = "学习成功"
+		// 触发任务事件（学习技能）
+		questSys := GetQuestSys(ctx)
+		if questSys != nil {
+			questSys.UpdateQuestProgressByType(ctx, uint32(protocol.QuestType_QuestTypeLearnSkill), 0, 1)
+		}
+	}
+
+	return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CLearnSkillResult), resp)
+}
+
+// handleUpgradeSkill 处理升级技能
+func handleUpgradeSkill(ctx context.Context, msg *network.ClientMessage) error {
+	sessionId := ctx.Value(gshare.ContextKeySession).(string)
+	var req protocol.C2SUpgradeSkillReq
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
+		return err
+	}
+
+	// 获取玩家角色
+	roleMgr := manager.GetPlayerRoleManager()
+	playerRole := roleMgr.GetBySession(sessionId)
+	if playerRole == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "player role not found")
+	}
+
+	// 获取技能系统
+	skillSys := GetSkillSys(ctx)
+	if skillSys == nil {
+		resp := &protocol.S2CUpgradeSkillResultReq{
+			Success: false,
+			Message: "技能系统未初始化",
+			SkillId: req.SkillId,
+		}
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CUpgradeSkillResult), resp)
+	}
+
+	// 升级技能
+	skillLevel, err := skillSys.UpgradeSkill(ctx, req.SkillId)
+
+	// 构造响应
+	resp := &protocol.S2CUpgradeSkillResultReq{
+		Success:    err == nil,
+		SkillId:    req.SkillId,
+		SkillLevel: skillLevel,
+	}
+
+	if err != nil {
+		resp.Message = err.Error()
+	} else {
+		resp.Message = "升级成功"
+	}
+
+	return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CUpgradeSkillResult), resp)
+}
+
 func init() {
 	RegisterSystemFactory(uint32(protocol.SystemId_SysSkill), func() iface.ISystem {
 		return NewSkillSys()
+	})
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SLearnSkill), handleLearnSkill)
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SUpgradeSkill), handleUpgradeSkill)
 	})
 }

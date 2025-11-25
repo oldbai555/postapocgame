@@ -10,9 +10,8 @@ import (
 
 var (
 	// 用于确保协议注册只执行一次
-	protocolRegistered bool
-	dungeonSrvType     uint8
-	protocolProvider   func() []uint16
+	dungeonSrvType   uint8
+	protocolProvider func() []uint16
 )
 
 // SetDungeonSrvType 设置DungeonServer类型
@@ -100,11 +99,6 @@ func UnregisterProtocolsFromGameServer(ctx context.Context, srvType uint8) error
 
 // TryRegisterProtocols 尝试注册协议到GameServer (只会执行一次)
 func TryRegisterProtocols(ctx context.Context) error {
-	// 如果已经注册过,直接返回
-	if protocolRegistered {
-		return nil
-	}
-
 	// 检查是否有可用的GameServer连接
 	_, ok := GetMessageSender().GetFirstGameServer()
 	if !ok {
@@ -131,8 +125,6 @@ func TryRegisterProtocols(ctx context.Context) error {
 		log.Errorf("register protocols to GameServer failed: %v", err)
 		return err
 	}
-
-	protocolRegistered = true
 	log.Infof("successfully registered protocols to GameServer")
 
 	return nil
@@ -140,19 +132,11 @@ func TryRegisterProtocols(ctx context.Context) error {
 
 // UnregisterProtocols 注销协议
 func UnregisterProtocols(ctx context.Context) error {
-	if !protocolRegistered {
-		return nil
-	}
-
 	log.Infof("unregistering protocols from GameServer, srvType=%d", dungeonSrvType)
-
 	if err := UnregisterProtocolsFromGameServer(ctx, dungeonSrvType); err != nil {
 		log.Errorf("unregister protocols from GameServer failed: %v", err)
 		return err
 	}
-
-	protocolRegistered = false
 	log.Infof("successfully unregistered protocols from GameServer")
-
 	return nil
 }

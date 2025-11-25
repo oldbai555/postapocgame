@@ -2,13 +2,21 @@ package entitysystem
 
 import (
 	"context"
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/jsonconf"
+	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/gatewaylink"
+	"postapocgame/server/service/gameserver/internel/gevent"
+	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/iface"
+	"postapocgame/server/service/gameserver/internel/manager"
+	"postapocgame/server/service/gameserver/internel/playeractor/clientprotocol"
 )
 
 const (
@@ -220,8 +228,77 @@ func (ius *ItemUseSys) GetCooldownRemaining(itemID uint32) int64 {
 	return 0
 }
 
+// handleUseItem 处理使用物品
+func handleUseItem(ctx context.Context, msg *network.ClientMessage) error {
+	sessionId := ctx.Value(gshare.ContextKeySession).(string)
+	var req protocol.C2SUseItemReq
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
+		return err
+	}
+
+	// 默认使用数量为1
+	if req.Count == 0 {
+		req.Count = 1
+	}
+
+	// 获取玩家角色
+	roleMgr := manager.GetPlayerRoleManager()
+	playerRole := roleMgr.GetBySession(sessionId)
+	if playerRole == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "player role not found")
+	}
+
+	// 获取物品使用系统
+	itemUseSys := GetItemUseSys(ctx)
+	if itemUseSys == nil {
+		resp := &protocol.S2CUseItemResultReq{
+			Success: false,
+			Message: "物品使用系统未初始化",
+			ItemId:  req.ItemId,
+		}
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CUseItemResult), resp)
+	}
+
+	// 使用物品
+	err := itemUseSys.UseItem(ctx, req.ItemId, req.Count)
+
+	// 构造响应
+	resp := &protocol.S2CUseItemResultReq{
+		Success:        err == nil,
+		ItemId:         req.ItemId,
+		RemainingCount: 0,
+	}
+
+	if err != nil {
+		resp.Message = err.Error()
+		resp.Success = false
+	} else {
+		resp.Message = "使用成功"
+		// 获取剩余数量
+		bagSys := GetBagSys(ctx)
+		if bagSys != nil {
+			item := bagSys.GetItem(req.ItemId)
+			if item != nil {
+				resp.RemainingCount = item.Count
+			}
+		}
+		// 推送背包数据更新
+		pushBagData(ctx, sessionId)
+	}
+
+	// 发送响应
+	if sendErr := gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CUseItemResult), resp); sendErr != nil {
+		return sendErr
+	}
+
+	return err
+}
+
 func init() {
 	RegisterSystemFactory(uint32(protocol.SystemId_SysItemUse), func() iface.ISystem {
 		return NewItemUseSys()
+	})
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SUseItem), handleUseItem)
 	})
 }

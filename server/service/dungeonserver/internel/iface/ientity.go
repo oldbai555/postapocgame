@@ -16,6 +16,8 @@ import (
 type IEntity interface {
 	GetHdl() uint64
 	GetId() uint64
+	GetName() string
+	SetName(name string)
 	GetEntityType() uint32
 	GetPosition() *argsdef.Position
 	SetPosition(x, y uint32)

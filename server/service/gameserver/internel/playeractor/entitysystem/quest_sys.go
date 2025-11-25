@@ -2,12 +2,20 @@ package entitysystem
 
 import (
 	"context"
+	"google.golang.org/protobuf/proto"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/jsonconf"
+	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/gatewaylink"
+	"postapocgame/server/service/gameserver/internel/gevent"
+	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/iface"
+	"postapocgame/server/service/gameserver/internel/manager"
+	"postapocgame/server/service/gameserver/internel/playeractor/clientprotocol"
 	"time"
 )
 
@@ -601,9 +609,55 @@ func isSameWeek(a, b time.Time) bool {
 	return y1 == y2 && w1 == w2
 }
 
+// handleTalkToNPC 处理NPC对话
+func handleTalkToNPC(ctx context.Context, msg *network.ClientMessage) error {
+	sessionId := ctx.Value(gshare.ContextKeySession).(string)
+	var req protocol.C2STalkToNPCReq
+	if err := proto.Unmarshal(msg.Data, &req); err != nil {
+		return err
+	}
+
+	// 获取玩家角色
+	roleMgr := manager.GetPlayerRoleManager()
+	playerRole := roleMgr.GetBySession(sessionId)
+	if playerRole == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "player role not found")
+	}
+
+	// 获取NPC配置
+	configMgr := jsonconf.GetConfigManager()
+	npcConfig := configMgr.GetNPCSceneConfig(req.NpcId)
+	if npcConfig == nil {
+		resp := &protocol.S2CTalkToNPCResultReq{
+			Success: false,
+			Message: "NPC不存在",
+			NpcId:   req.NpcId,
+		}
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CTalkToNPCResult), resp)
+	}
+
+	// 触发任务事件（和NPC对话）
+	questSys := GetQuestSys(ctx)
+	if questSys != nil {
+		questSys.UpdateQuestProgressByType(ctx, uint32(protocol.QuestType_QuestTypeTalkToNPC), req.NpcId, 1)
+	}
+
+	// 发送对话结果
+	resp := &protocol.S2CTalkToNPCResultReq{
+		Success: true,
+		Message: "对话成功",
+		NpcId:   req.NpcId,
+	}
+
+	return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CTalkToNPCResult), resp)
+}
+
 // 注册系统工厂
 func init() {
 	RegisterSystemFactory(uint32(protocol.SystemId_SysQuest), func() iface.ISystem {
 		return NewQuestSys()
+	})
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2STalkToNPC), handleTalkToNPC)
 	})
 }
