@@ -254,7 +254,7 @@ func (das *DailyActivitySys) syncMoneyBalance(ctx context.Context) error {
 	if delta == 0 {
 		return nil
 	}
-	return moneySys.UpdateBalanceTx(ctx, uint32(protocol.MoneyType_MoneyTypeActivePoint), delta, nil)
+	return moneySys.UpdateBalanceTx(ctx, uint32(protocol.MoneyType_MoneyTypeActivePoint), delta)
 }
 
 func init() {

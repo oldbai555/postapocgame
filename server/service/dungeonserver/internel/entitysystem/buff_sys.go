@@ -2,11 +2,14 @@ package entitysystem
 
 import (
 	"fmt"
+	"postapocgame/server/internal/argsdef"
+	icalc "postapocgame/server/internal/attrcalc"
+	"postapocgame/server/internal/attrdef"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
-	"postapocgame/server/service/dungeonserver/internel/buff"
+	dungeonattrcalc "postapocgame/server/service/dungeonserver/internel/entitysystem/attrcalc"
 	"postapocgame/server/service/dungeonserver/internel/iface"
 	"time"
 )
@@ -14,7 +17,7 @@ import (
 // BuffSys 负责管理实体身上的 Buff/DOT，并驱动其生命周期与效果。
 type BuffSys struct {
 	owner iface.IEntity
-	buffs map[uint32]*buff.BData
+	buffs map[uint32]*argsdef.BData
 	dots  map[uint32][]*dotRuntime
 }
 
@@ -28,7 +31,7 @@ type dotRuntime struct {
 func NewBuffSystem(owner iface.IEntity) *BuffSys {
 	return &BuffSys{
 		owner: owner,
-		buffs: make(map[uint32]*buff.BData),
+		buffs: make(map[uint32]*argsdef.BData),
 		dots:  make(map[uint32][]*dotRuntime),
 	}
 }
@@ -57,7 +60,7 @@ func (bs *BuffSys) AddBuff(buffId uint32, caster iface.IEntity) error {
 		casterId = caster.GetHdl()
 	}
 
-	buffInstance := &buff.BData{
+	buffInstance := &argsdef.BData{
 		BuffId:     buffId,
 		BuffName:   buffInfo.Name,
 		BuffType:   buffInfo.Type,
@@ -67,11 +70,16 @@ func (bs *BuffSys) AddBuff(buffId uint32, caster iface.IEntity) error {
 		StartTime:  now,
 		EndTime:    now.Add(time.Duration(buffInfo.Duration) * time.Millisecond),
 		CasterId:   casterId,
-		Effects:    buffInfo.Effects,
 	}
 
 	bs.buffs[buffId] = buffInstance
 	bs.applyEffects(buffInstance, buffInfo, now, true)
+
+	// 触发 Buff 属性重算
+	if bs.owner != nil && bs.owner.GetAttrSys() != nil {
+		bs.owner.GetAttrSys().ResetSysAttr(uint32(protocol.SaAttrSys_SaBuff))
+	}
+
 	return nil
 }
 
@@ -82,6 +90,12 @@ func (bs *BuffSys) RemoveBuff(buffId uint32) error {
 	}
 	bs.cleanupBuff(buffId)
 	delete(bs.buffs, buffId)
+
+	// 触发 Buff 属性重算
+	if bs.owner != nil && bs.owner.GetAttrSys() != nil {
+		bs.owner.GetAttrSys().ResetSysAttr(uint32(protocol.SaAttrSys_SaBuff))
+	}
+
 	return nil
 }
 
@@ -95,8 +109,13 @@ func (bs *BuffSys) ClearAllBuffs() {
 	for buffId := range bs.buffs {
 		bs.cleanupBuff(buffId)
 	}
-	bs.buffs = make(map[uint32]*buff.BData)
+	bs.buffs = make(map[uint32]*argsdef.BData)
 	bs.dots = make(map[uint32][]*dotRuntime)
+
+	// 触发 Buff 属性重算
+	if bs.owner != nil && bs.owner.GetAttrSys() != nil {
+		bs.owner.GetAttrSys().ResetSysAttr(uint32(protocol.SaAttrSys_SaBuff))
+	}
 }
 
 func (bs *BuffSys) RunOne(now time.Time) {
@@ -109,7 +128,7 @@ func (bs *BuffSys) RunOne(now time.Time) {
 	bs.tickDots(now)
 }
 
-func (bs *BuffSys) applyEffects(instance *buff.BData, cfg *jsonconf.BuffConfig, now time.Time, fresh bool) {
+func (bs *BuffSys) applyEffects(instance *argsdef.BData, cfg *jsonconf.BuffConfig, now time.Time, fresh bool) {
 	if instance == nil || cfg == nil {
 		return
 	}
@@ -183,14 +202,74 @@ func (bs *BuffSys) tickDots(now time.Time) {
 }
 
 func (bs *BuffSys) cleanupBuff(buffId uint32) {
-	instance, ok := bs.buffs[buffId]
+	buffConfig, ok := jsonconf.GetConfigManager().GetBuffConfig(buffId)
 	if !ok {
 		return
 	}
-	for _, effect := range instance.Effects {
+	for _, effect := range buffConfig.Effects {
 		if effect.StateId != 0 && bs.owner != nil {
 			bs.owner.RemoveExtraState(effect.StateId)
 		}
 	}
 	delete(bs.dots, buffId)
+}
+
+// GetBuffSys 获取 Buff 系统（用于属性计算器）
+func GetBuffSys(owner iface.IEntity) iface.IBuffSys {
+	if owner == nil {
+		return nil
+	}
+	return owner.GetBuffSys()
+}
+
+// buffAttrCalc Buff 属性计算
+func buffAttrCalc(owner iface.IEntity, calc *icalc.FightAttrCalc) {
+	// 使用类型断言获取具体的 BuffSys 实例
+	buffSys, ok := owner.GetBuffSys().(*BuffSys)
+	if !ok || buffSys == nil {
+		return
+	}
+
+	// 遍历所有 Buff，汇总属性加成
+	for _, buffInstance := range buffSys.buffs {
+		if buffInstance == nil {
+			continue
+		}
+		buffConfig, ok := jsonconf.GetConfigManager().GetBuffConfig(buffInstance.BuffId)
+		if !ok {
+			continue
+		}
+
+		// 遍历 Buff 的所有效果
+		for _, effect := range buffConfig.Effects {
+			// 只处理属性类型的效果
+			if effect.EffectType != jsonconf.BuffEffectTypeAttr {
+				continue
+			}
+
+			attrType := attrdef.AttrType(effect.AttrType)
+			if attrType == 0 {
+				continue
+			}
+
+			// 计算属性值（考虑叠加层数）
+			value := int64(effect.Value) * int64(buffInstance.StackCount)
+
+			// 根据加成类型计算
+			if effect.AddType == 2 {
+				// 百分比加成：需要基于基础值计算，这里先简单累加
+				// 注意：百分比加成应该在 ResetProperty 中通过 ApplyPercentages 处理
+				// 这里先按固定值处理，后续可以扩展
+				calc.AddValue(attrType, attrdef.AttrValue(value))
+			} else {
+				// 固定值加成
+				calc.AddValue(attrType, attrdef.AttrValue(value))
+			}
+		}
+	}
+}
+
+func init() {
+	// 注册 Buff 属性计算器
+	dungeonattrcalc.RegIncAttrCalcFn(uint32(protocol.SaAttrSys_SaBuff), buffAttrCalc)
 }

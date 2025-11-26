@@ -91,13 +91,19 @@ func (g *GatewayServer) Stop(ctx context.Context) error {
 	// 停止TCP服务器
 	if g.tcpServer != nil {
 		log.Infof("Stopping TCP server...")
-		g.tcpServer.Stop(ctx)
+		err := g.tcpServer.Stop(ctx)
+		if err != nil {
+			log.Errorf("Error closing game server connector: %v", err)
+		}
 	}
 
 	// 停止WebSocket服务器
 	if g.wsServer != nil {
 		log.Infof("Stopping WebSocket server...")
-		g.wsServer.Stop(ctx)
+		err := g.wsServer.Stop(ctx)
+		if err != nil {
+			log.Errorf("Error closing websocket server: %v", err)
+		}
 	}
 
 	// 停止会话管理器
@@ -106,7 +112,10 @@ func (g *GatewayServer) Stop(ctx context.Context) error {
 
 	// 关闭GameServer连接
 	log.Infof("Closing game server connector...")
-	g.gsConnector.Close()
+	err := g.gsConnector.Close()
+	if err != nil {
+		log.Errorf("Error closing game server connector: %v", err)
+	}
 
 	// 等待所有协程退出
 	done := make(chan struct{})

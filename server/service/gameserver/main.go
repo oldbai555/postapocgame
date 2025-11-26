@@ -11,7 +11,6 @@ import (
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
-	"postapocgame/server/service/gameserver/internel/config"
 	"postapocgame/server/service/gameserver/internel/dungeonserverlink"
 	"postapocgame/server/service/gameserver/internel/engine"
 	"postapocgame/server/service/gameserver/internel/gevent"
@@ -43,7 +42,7 @@ func main() {
 
 	// 初始化错误码映射
 	protocol.InitErrorCodes()
-	serverConfig, err := config.LoadServerConfig("")
+	serverConfig, err := engine.LoadServerConfig("")
 	if err != nil {
 		log.Fatalf("err:%v", err)
 	}
@@ -93,7 +92,7 @@ func main() {
 	gevent.Publish(context.Background(), event.NewEvent(gevent.OnSrvStart))
 
 	// 连接DungeonServer
-	dungeonserverlink.StartDungeonClient(ctx, serverConfig)
+	dungeonserverlink.StartDungeonClient(ctx, serverConfig.DungeonServerAddrMap)
 
 	// 等待退出信号
 	sigChan := make(chan os.Signal, 1)

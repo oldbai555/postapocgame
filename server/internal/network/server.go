@@ -109,19 +109,25 @@ func (s *TCPServer) Start(ctx context.Context) error {
 }
 
 // Stop 停止服务器
-func (s *TCPServer) Stop(ctx context.Context) error {
+func (s *TCPServer) Stop(_ context.Context) error {
 	s.closeOnce.Do(func() {
 		s.stopping.Store(true)
 		close(s.stopChan)
 
 		if s.listener != nil {
-			s.listener.Close()
+			err := s.listener.Close()
+			if err != nil {
+				log.Errorf("close listener failed: %v", err)
+			}
 		}
 
 		// 并发关闭所有连接
 		s.connections.Range(func(key, value any) bool {
 			if conn, ok := value.(IConnection); ok {
-				conn.Close()
+				err := conn.Close()
+				if err != nil {
+					log.Errorf("close connection failed: %v", err)
+				}
 			}
 			return true
 		})
@@ -167,14 +173,20 @@ func (s *TCPServer) acceptLoop(ctx context.Context) {
 		// 检查IP白名单
 		if !s.isIPAllowed(conn.RemoteAddr()) {
 			log.Warnf("🚫 connection rejected (IP not allowed): %s", remote)
-			conn.Close()
+			err := conn.Close()
+			if err != nil {
+				log.Errorf("close connection failed: %v", err)
+			}
 			continue
 		}
 
 		// 检查连接数限制
 		if s.maxConnections > 0 && uint32(s.connCount.Load()) >= s.maxConnections {
 			log.Warnf("🚫 max connections reached, reject: %s", remote)
-			conn.Close()
+			err := conn.Close()
+			if err != nil {
+				log.Errorf("close connection failed: %v", err)
+			}
 			continue
 		}
 
@@ -206,7 +218,10 @@ func (s *TCPServer) handleConnection(ctx context.Context, tcpConn IConnection, r
 			if s.onDisconnected != nil {
 				s.onDisconnected(tcpConn)
 			}
-			tcpConn.Close()
+			err := tcpConn.Close()
+			if err != nil {
+				log.Errorf("close connection failed: %v", err)
+			}
 			s.connections.Delete(rawConn)
 			s.connCount.Add(-1)
 			log.Infof("❌ connection closed: %s (remaining=%d)", rawConn.RemoteAddr().String(), s.connCount.Load())

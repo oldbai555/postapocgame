@@ -24,6 +24,7 @@ enum MoneyType {
     MoneyTypeExp = 1;        // 经验
     MoneyTypeGoldCoin = 2;  // 金币
     MoneyTypeActivePoint = 3; // 活跃点
+    MoneyTypeVipExp = 4;// vip经验
 }
 
 // 装备槽位枚举

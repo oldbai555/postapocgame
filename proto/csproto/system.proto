@@ -14,29 +14,25 @@ enum SystemId {
     SysLevel = 1;// 等级系统
     SysBag = 2;// 背包系统
     SysMoney = 3;// 货币系统
-    SysOfflineMsg = 4;// 离线消息系统
-    SysGM = 5;// GM系统
-    SysSkill = 6;// 技能系统
-    SysAttr = 7;// 属性系统
-    SysEquip = 8;// 装备系统
-    SysVip = 9;// VIP系统
-    SysQuest = 10;// 任务系统
-    SysMail = 11;// 邮件系统
-    SysShop = 12;// 个人商城系统
-    SysDungeon = 13;// 副本系统
-    SysItemUse = 14;// 物品使用系统
-    SysOfflineReward = 15;// 离线收益系统
-    SysAntiCheat = 16;// 防作弊系统
-    SysDailyActivity = 17;// 日常活跃系统
-    SysAchievement = 18;// 成就系统
-    SysNewbie = 19;// 新手保护系统
-    SysFriend = 20;// 好友系统
-    SysGuild = 21;// 公会系统
-    SysAuction = 22;// 拍卖行系统
-    SysChat = 23;// 聊天系统
-    SysRank = 24;// 排行榜系统
+    SysGM = 4;// GM系统
+    SysSkill = 5;// 技能系统
+    SysAttr = 6;// 属性系统
+    SysEquip = 7;// 装备系统
+    SysVip = 8;// VIP系统
+    SysQuest = 9;// 任务系统
+    SysMail = 10;// 邮件系统
+    SysShop = 11;// 个人商城系统
+    SysFuBen = 12;// 副本系统
+    SysItemUse = 13;// 物品使用系统
+    SysDailyActivity = 14;// 日常活跃系统
+    SysFriend = 15;// 好友系统
+    SysGuild = 16;// 公会系统
+    SysAuction = 17;// 拍卖行系统
+    SysChat = 18;// 聊天系统
+    SysRank = 19;// 排行榜系统
+    SysMessage = 20;// 玩家消息系统
 
-    SysIdMax = 25;// 最大系统ID 手动递增
+    SysIdMax = 21;// 最大系统ID 手动递增
 }
 
 // 任务系统

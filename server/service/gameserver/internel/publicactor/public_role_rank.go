@@ -2,6 +2,7 @@ package publicactor
 
 import (
 	"context"
+
 	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/protocol"
@@ -15,17 +16,33 @@ import (
 
 // UpdateRankSnapshot 更新排行榜快照
 func (pr *PublicRole) UpdateRankSnapshot(roleId uint64, snapshot *protocol.PlayerRankSnapshot) {
-	pr.rankSnapshotMap.Store(roleId, snapshot)
+	if snapshot == nil {
+		return
+	}
+	if snapshot.RoleId == 0 {
+		snapshot.RoleId = roleId
+	}
+	pr.ensureOfflineDataManager()
+	if err := pr.offlineDataMgr.UpdateProto(roleId, protocol.OfflineDataType_OfflineDataTypeRankSnapshot, snapshot, snapshot.UpdatedAt, 1); err != nil {
+		log.Errorf("Failed to update rank snapshot offline data role=%d: %v", roleId, err)
+	}
 }
 
 // GetRankSnapshot 获取排行榜快照
 func (pr *PublicRole) GetRankSnapshot(roleId uint64) (*protocol.PlayerRankSnapshot, bool) {
-	value, ok := pr.rankSnapshotMap.Load(roleId)
+	if pr.offlineDataMgr == nil {
+		return nil, false
+	}
+	snapshot := &protocol.PlayerRankSnapshot{}
+	ok, err := pr.offlineDataMgr.GetProto(roleId, protocol.OfflineDataType_OfflineDataTypeRankSnapshot, snapshot)
+	if err != nil {
+		log.Warnf("Failed to load rank snapshot role=%d: %v", roleId, err)
+		return nil, false
+	}
 	if !ok {
 		return nil, false
 	}
-	snapshot, ok := value.(*protocol.PlayerRankSnapshot)
-	return snapshot, ok
+	return snapshot, true
 }
 
 // UpdateRankValue 更新排行榜数值

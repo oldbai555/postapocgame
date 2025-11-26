@@ -8,12 +8,14 @@ package entity
 
 import (
 	"math/rand"
+	icalc "postapocgame/server/internal/attrcalc"
 	"postapocgame/server/internal/attrdef"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/dungeonserver/internel/entitymgr"
 	"postapocgame/server/service/dungeonserver/internel/entitysystem"
+	dungeonattrcalc "postapocgame/server/service/dungeonserver/internel/entitysystem/attrcalc"
 	"postapocgame/server/service/dungeonserver/internel/iface"
 	"time"
 )
@@ -36,9 +38,31 @@ func NewMonsterEntity(cfg *jsonconf.MonsterConfig) *MonsterEntity {
 		name:       cfg.Name,
 	}
 
+	entity.SetName(cfg.Name)
 	entity.initAttributes(cfg)
 	entity.initSkills(cfg.SkillIds)
 	entity.aiSys = entitysystem.NewAISys(entity, cfg)
+	entity.GetAttrSys().SetAttrValue(attrdef.AttrLevel, attrdef.AttrValue(cfg.Level))
+
+	// 计算并应用怪物属性（通过属性计算器）
+	entity.ResetProperty()
+
+	// 设置初始HP/MP为最大值
+	if entity.GetAttrSys().GetAttrValue(attrdef.AttrHP) == 0 {
+		maxHP := entity.GetAttrSys().GetAttrValue(attrdef.AttrMaxHP)
+		if maxHP > 0 {
+			entity.GetAttrSys().SetAttrValue(attrdef.AttrHP, maxHP)
+		}
+	}
+	if entity.GetAttrSys().GetAttrValue(attrdef.AttrMP) == 0 {
+		maxMP := entity.GetAttrSys().GetAttrValue(attrdef.AttrMaxMP)
+		if maxMP > 0 {
+			entity.GetAttrSys().SetAttrValue(attrdef.AttrMP, maxMP)
+		}
+	}
+
+	// 标记属性系统初始化完成（允许广播属性）
+	entity.GetAttrSys().SetInitFinish()
 
 	return entity
 }
@@ -89,6 +113,17 @@ func (m *MonsterEntity) RunOne(now time.Time) {
 	}
 }
 
+// ResetProperty 重置怪物属性（重新计算基础属性并触发属性汇总）
+func (m *MonsterEntity) ResetProperty() {
+	if m.GetAttrSys() == nil {
+		return
+	}
+	// 1. 重新计算怪物基础属性
+	m.GetAttrSys().ResetSysAttr(uint32(protocol.SaAttrSys_MonsterBaseProperty))
+	// 2. 触发属性汇总、转换、百分比加成和广播
+	m.GetAttrSys().ResetProperty()
+}
+
 func (m *MonsterEntity) initAttributes(cfg *jsonconf.MonsterConfig) {
 	attr := m.GetAttrSys()
 
@@ -101,48 +136,8 @@ func (m *MonsterEntity) initAttributes(cfg *jsonconf.MonsterConfig) {
 	// 设置等级
 	attr.SetAttrValue(attrdef.AttrLevel, attrdef.AttrValue(cfg.Level))
 
-	// 怪物配置中的属性值会覆盖等级属性（怪物特定属性优先）
-	if cfg.HP > 0 {
-		attr.SetAttrValue(attrdef.AttrMaxHP, attrdef.AttrValue(cfg.HP))
-		attr.SetAttrValue(attrdef.AttrHP, attrdef.AttrValue(cfg.HP))
-	}
-	if cfg.MP > 0 {
-		attr.SetAttrValue(attrdef.AttrMaxMP, attrdef.AttrValue(cfg.MP))
-		attr.SetAttrValue(attrdef.AttrMP, attrdef.AttrValue(cfg.MP))
-	}
-	if cfg.Attack > 0 {
-		attr.SetAttrValue(attrdef.AttrAttack, attrdef.AttrValue(cfg.Attack))
-	}
-	if cfg.Defense > 0 {
-		attr.SetAttrValue(attrdef.AttrDefense, attrdef.AttrValue(cfg.Defense))
-	}
-
-	// 移动速度：如果配置中有则使用配置值，否则使用等级属性或默认值
-	moveSpeed := cfg.Speed
-	if moveSpeed == 0 {
-		// 如果等级属性中有移动速度，使用等级属性的值
-		moveSpeedValue := attr.GetAttrValue(attrdef.AttrMoveSpeed)
-		if moveSpeedValue > 0 {
-			moveSpeed = uint32(moveSpeedValue)
-		} else {
-			moveSpeed = 20 // 默认值
-		}
-	}
-	attr.SetAttrValue(attrdef.AttrMoveSpeed, attrdef.AttrValue(moveSpeed))
-
-	// 如果配置中没有设置HP/MP的当前值，则设置为最大值
-	if attr.GetAttrValue(attrdef.AttrHP) == 0 {
-		maxHP := attr.GetAttrValue(attrdef.AttrMaxHP)
-		if maxHP > 0 {
-			attr.SetAttrValue(attrdef.AttrHP, maxHP)
-		}
-	}
-	if attr.GetAttrValue(attrdef.AttrMP) == 0 {
-		maxMP := attr.GetAttrValue(attrdef.AttrMaxMP)
-		if maxMP > 0 {
-			attr.SetAttrValue(attrdef.AttrMP, maxMP)
-		}
-	}
+	// 注意：怪物基础属性现在通过属性计算器计算（monsterBaseProperty）
+	// 这里只设置一些必要的初始值，具体属性由 ResetSysAttr 触发计算
 }
 
 func (m *MonsterEntity) initSkills(skillIds []uint32) {
@@ -215,4 +210,43 @@ func (m *MonsterEntity) generateDrops(killer iface.IEntity) {
 
 		log.Infof("Monster %d dropped item %d x%d at (%d, %d)", m.GetHdl(), drop.ItemId, count, x, y)
 	}
+}
+
+// monsterBaseProperty 怪物基础属性计算
+func monsterBaseProperty(owner iface.IEntity, calc *icalc.FightAttrCalc) {
+	monster, ok := owner.(*MonsterEntity)
+	if !ok {
+		return
+	}
+
+	cfg := monster.monsterCfg
+	if cfg == nil {
+		return
+	}
+
+	// 从怪物配置表读取基础属性
+	if cfg.HP > 0 {
+		calc.AddValue(attrdef.AttrMaxHP, attrdef.AttrValue(cfg.HP))
+	}
+	if cfg.MP > 0 {
+		calc.AddValue(attrdef.AttrMaxMP, attrdef.AttrValue(cfg.MP))
+	}
+	if cfg.Attack > 0 {
+		calc.AddValue(attrdef.AttrAttack, attrdef.AttrValue(cfg.Attack))
+	}
+	if cfg.Defense > 0 {
+		calc.AddValue(attrdef.AttrDefense, attrdef.AttrValue(cfg.Defense))
+	}
+
+	// 移动速度：如果配置中有则使用配置值，否则使用默认值
+	moveSpeed := cfg.Speed
+	if moveSpeed == 0 {
+		moveSpeed = 20 // 默认值
+	}
+	calc.AddValue(attrdef.AttrMoveSpeed, attrdef.AttrValue(moveSpeed))
+}
+
+func init() {
+	// 注册怪物基础属性计算器
+	dungeonattrcalc.RegIncAttrCalcFn(uint32(protocol.SaAttrSys_MonsterBaseProperty), monsterBaseProperty)
 }

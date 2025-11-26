@@ -17,12 +17,15 @@ enum SaAttrSys {
     SaAttrSysNil = 0;
     SaLevel = 1;  // 等级系统
     SaEquip = 2;  // 装备系统
+    SaBuff = 3;   // Buff系统（战斗服本地）
+    MonsterBaseProperty = 100; // 怪物基础属性（战斗服本地）
     // 后续可扩展其他系统
 }
 
 // 属性同步数据（单个系统的属性数据）
 message SyncAttrData {
     map<uint32, AttrVec> attr_data = 1; // key: SaAttrSys枚举值, value: 该系统的属性列表
+    AttrVec add_rate_attr = 2; // 汇总的加成属性（百分比、额外加成等）
 }
 
 // 属性列表（用于属性同步）

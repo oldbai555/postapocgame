@@ -48,11 +48,20 @@ const (
 	AttrMPRegen AttrType = 51 // 魔法回复
 
 	// 其他战斗属性
-	AttrMoveSpeed      AttrType = 60 // 移动速度
-	AttrAttackSpeed    AttrType = 61 // 攻击速度
-	AttrCoolDownReduce AttrType = 62 // 冷却缩减 (万分比)
-	AttrLifeSteal      AttrType = 63 // 生命偷取 (万分比)
-	AttrManaSteal      AttrType = 64 // 法力偷取 (万分比)
+	AttrMoveSpeed       AttrType = 60 // 移动速度
+	AttrAttackSpeed     AttrType = 61 // 攻击速度
+	AttrCoolDownReduce  AttrType = 62 // 冷却缩减 (万分比)
+	AttrLifeSteal       AttrType = 63 // 生命偷取 (万分比)
+	AttrManaSteal       AttrType = 64 // 法力偷取 (万分比)
+	AttrAttackPhysical  AttrType = 70 // 物理攻击
+	AttrAttackMagic     AttrType = 71 // 魔法攻击
+	AttrDefensePhysical AttrType = 72 // 物理防御
+	AttrDefenseMagic    AttrType = 73 // 魔法防御
+	AttrMaxHPAddRate    AttrType = 80 // 最大生命加成(万分比)
+	AttrAttackAddRate   AttrType = 81 // 攻击加成(万分比)
+	AttrDefenseAddRate  AttrType = 82 // 防御加成(万分比)
+	AttrSpeedAddRate    AttrType = 83 // 速度加成(万分比)
+	AttrSpeedSubRate    AttrType = 84 // 速度衰减(万分比)
 
 	CombatAttrBegin AttrType = 1   // 战斗属性起始
 	CombatAttrEnd   AttrType = 999 // 战斗属性结束
@@ -104,21 +113,30 @@ func IsExtraAttr(attrType AttrType) bool {
 // GetAttrName 获取属性名称
 func GetAttrName(attrType AttrType) string {
 	names := map[AttrType]string{
-		AttrHP:         "生命值",
-		AttrMaxHP:      "最大生命值",
-		AttrMP:         "魔法值",
-		AttrMaxMP:      "最大魔法值",
-		AttrAttack:     "攻击力",
-		AttrDefense:    "防御力",
-		AttrSpeed:      "速度",
-		AttrCritRate:   "暴击率",
-		AttrCritDamage: "暴击伤害",
-		AttrDodgeRate:  "闪避率",
-		AttrHitRate:    "命中率",
-		AttrLevel:      "等级",
-		AttrExp:        "经验值",
-		AttrGold:       "金币",
-		AttrDiamond:    "钻石",
+		AttrHP:              "生命值",
+		AttrMaxHP:           "最大生命值",
+		AttrMP:              "魔法值",
+		AttrMaxMP:           "最大魔法值",
+		AttrAttack:          "攻击力",
+		AttrDefense:         "防御力",
+		AttrSpeed:           "速度",
+		AttrCritRate:        "暴击率",
+		AttrCritDamage:      "暴击伤害",
+		AttrDodgeRate:       "闪避率",
+		AttrHitRate:         "命中率",
+		AttrLevel:           "等级",
+		AttrExp:             "经验值",
+		AttrGold:            "金币",
+		AttrDiamond:         "钻石",
+		AttrAttackPhysical:  "物理攻击",
+		AttrAttackMagic:     "魔法攻击",
+		AttrDefensePhysical: "物理防御",
+		AttrDefenseMagic:    "魔法防御",
+		AttrMaxHPAddRate:    "生命加成(%)",
+		AttrAttackAddRate:   "攻击加成(%)",
+		AttrDefenseAddRate:  "防御加成(%)",
+		AttrSpeedAddRate:    "速度加成(%)",
+		AttrSpeedSubRate:    "速度衰减(%)",
 		// ... 可以继续添加
 	}
 

@@ -13,7 +13,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/service/gameserver/internel/config"
 	"postapocgame/server/service/gameserver/internel/gatewaylink"
 )
 
@@ -143,16 +142,14 @@ func (h *DungeonMessageHandler) handleClientMessage(msg *network.Message) error 
 
 // DungeonClient DungeonServer客户端
 type DungeonClient struct {
-	config    *config.ServerConfig
 	connPools map[uint8]network.ITCPClient
 	mu        sync.RWMutex
 
 	codec *network.Codec
 }
 
-func NewDungeonClient(config *config.ServerConfig) *DungeonClient {
+func NewDungeonClient() *DungeonClient {
 	return &DungeonClient{
-		config:    config,
 		connPools: make(map[uint8]network.ITCPClient),
 		codec:     network.DefaultCodec(),
 	}
@@ -213,7 +210,7 @@ func (dc *DungeonClient) Connect(ctx context.Context, srvType uint8, addr string
 }
 
 // AsyncCall 异步调用DungeonServer
-func (dc *DungeonClient) AsyncCall(ctx context.Context, srvType uint8, sessionId string, msgId uint16, data []byte) error {
+func (dc *DungeonClient) AsyncCall(_ context.Context, srvType uint8, sessionId string, msgId uint16, data []byte) error {
 	client, err := dc.getClient(srvType)
 	if err != nil {
 		return err

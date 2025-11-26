@@ -2,6 +2,8 @@ package entitysystem
 
 import (
 	"context"
+	icalc "postapocgame/server/internal/attrcalc"
+	"postapocgame/server/internal/attrdef"
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
@@ -258,6 +260,50 @@ func init() {
 	attrcalc.Register(uint32(protocol.SaAttrSys_SaLevel), func(ctx context.Context) attrcalc.Calculator {
 		return GetLevelSys(ctx)
 	})
+	attrcalc.RegisterAddRate(uint32(protocol.SaAttrSys_SaLevel), func(ctx context.Context) attrcalc.AddRateCalculator {
+		return &levelAddRateCalculator{}
+	})
 	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
 	})
+}
+
+type levelAddRateCalculator struct {
+	levelSys *LevelSys
+}
+
+func (c *levelAddRateCalculator) CalculateAddRate(ctx context.Context, _ *icalc.FightAttrCalc) []*protocol.AttrSt {
+	if c.levelSys == nil {
+		c.levelSys = GetLevelSys(ctx)
+	}
+	if c.levelSys == nil {
+		return nil
+	}
+	level := c.levelSys.GetLevel()
+	if level == 0 {
+		return nil
+	}
+	cfg := jsonconf.GetConfigManager().GetAttrAddRateConfig()
+	results := make([]*protocol.AttrSt, 0, 2)
+	if cfg.Level.HPRegenPerLevel > 0 {
+		regenHP := int64(level) * cfg.Level.HPRegenPerLevel
+		if regenHP > 0 {
+			results = append(results, &protocol.AttrSt{
+				Type:  uint32(attrdef.AttrHPRegen),
+				Value: regenHP,
+			})
+		}
+	}
+	if cfg.Level.MPRegenPerLevel > 0 {
+		regenMP := int64(level) * cfg.Level.MPRegenPerLevel
+		if regenMP > 0 {
+			results = append(results, &protocol.AttrSt{
+				Type:  uint32(attrdef.AttrMPRegen),
+				Value: regenMP,
+			})
+		}
+	}
+	if len(results) == 0 {
+		return nil
+	}
+	return results
 }

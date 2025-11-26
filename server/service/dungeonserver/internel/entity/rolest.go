@@ -27,13 +27,15 @@ import (
 	"postapocgame/server/service/dungeonserver/internel/iface"
 )
 
+type attrSyncApplier interface {
+	ApplySyncData(*protocol.SyncAttrData)
+}
+
 // RoleEntity 角色实体
 type RoleEntity struct {
 	*BaseEntity
 	sessionId string
 	roleInfo  *protocol.PlayerSimpleData
-	// 保存属性数据：key为SaAttrSys枚举值，value为该系统的属性列表
-	attrDataMap map[uint32]*protocol.AttrVec
 	// 死亡相关
 	dieTime time.Time // 死亡时间（用于延迟复活）
 }
@@ -41,30 +43,38 @@ type RoleEntity struct {
 // NewRoleEntity 创建角色实体
 func NewRoleEntity(sessionId string, roleInfo *protocol.PlayerSimpleData, syncAttrData *protocol.SyncAttrData, skillMap map[uint32]uint32) *RoleEntity {
 	entity := &RoleEntity{
-		BaseEntity:  NewBaseEntity(roleInfo.RoleId, uint32(protocol.EntityType_EtRole)),
-		sessionId:   sessionId,
-		roleInfo:    roleInfo,
-		attrDataMap: make(map[uint32]*protocol.AttrVec),
+		BaseEntity: NewBaseEntity(roleInfo.RoleId, uint32(protocol.EntityType_EtRole)),
+		sessionId:  sessionId,
+		roleInfo:   roleInfo,
 	}
 
-	attrSys := entity.GetAttrSys()
+	entity.GetAttrSys().SetAttrValue(attrdef.AttrLevel, attrdef.AttrValue(roleInfo.Level))
+	entity.initAttrSys(syncAttrData)
 
+	// 初始化技能
+	entity.initSkills(skillMap)
+	entity.SetName(roleInfo.RoleName)
+
+	// 标记属性系统初始化完成（允许广播属性）
+	entity.GetAttrSys().SetInitFinish()
+
+	return entity
+}
+
+func (r *RoleEntity) initAttrSys(syncAttrData *protocol.SyncAttrData) {
+	attrSys := r.GetAttrSys()
 	// 如果有传入的属性数据，使用传入的属性数据初始化
-	if syncAttrData != nil && syncAttrData.AttrData != nil {
-		// 保存属性数据
-		for saAttrSysId, attrVec := range syncAttrData.AttrData {
-			entity.attrDataMap[saAttrSysId] = attrVec
+	if syncAttrData != nil {
+		if applier, ok := attrSys.(attrSyncApplier); ok {
+			applier.ApplySyncData(syncAttrData)
 		}
-
-		// 应用所有系统的属性
-		entity.applyAllAttrs()
 	} else {
 		// 如果没有传入属性数据，使用等级配置表初始化（兼容旧逻辑）
-		levelAttrs := jsonconf.GetConfigManager().GetLevelAttrs(roleInfo.Level)
+		level := attrSys.GetAttrValue(attrdef.AttrLevel)
+		levelAttrs := jsonconf.GetConfigManager().GetLevelAttrs(uint32(level))
 		for attrType, attrValue := range levelAttrs {
-			attrSys.SetAttrValue(attrdef.AttrType(attrType), attrdef.AttrValue(attrValue))
+			attrSys.SetAttrValue(attrType, attrdef.AttrValue(attrValue))
 		}
-		attrSys.SetAttrValue(attrdef.AttrLevel, attrdef.AttrValue(roleInfo.Level))
 	}
 
 	// 如果配置中没有设置HP/MP的当前值，则设置为最大值
@@ -80,121 +90,40 @@ func NewRoleEntity(sessionId string, roleInfo *protocol.PlayerSimpleData, syncAt
 			attrSys.SetAttrValue(attrdef.AttrMP, maxMP)
 		}
 	}
-
-	// 初始化技能
-	entity.initSkills(skillMap)
-
-	return entity
-}
-
-// applyAllAttrs 应用所有系统的属性
-func (r *RoleEntity) applyAllAttrs() {
-	attrSys := r.GetAttrSys()
-
-	// 遍历所有系统的属性数据，累加属性值
-	for _, attrVec := range r.attrDataMap {
-		if attrVec == nil || attrVec.Attrs == nil {
-			continue
-		}
-		for _, attr := range attrVec.Attrs {
-			if attr == nil {
-				continue
-			}
-			// 累加属性值（多个系统可能提供相同的属性）
-			currentValue := attrSys.GetAttrValue(attrdef.AttrType(attr.Type))
-			attrSys.SetAttrValue(attrdef.AttrType(attr.Type), currentValue+attrdef.AttrValue(attr.Value))
-		}
-	}
 }
 
 // UpdateAttrs 更新属性（对比差异，增加和减少属性）
 func (r *RoleEntity) UpdateAttrs(newSyncData *protocol.SyncAttrData) {
-	if newSyncData == nil || newSyncData.AttrData == nil {
+	if newSyncData == nil {
 		return
 	}
 
-	attrSys := r.GetAttrSys()
-
-	// 对比每个系统的属性差异
-	for saAttrSysId, newAttrVec := range newSyncData.AttrData {
-		oldAttrVec := r.attrDataMap[saAttrSysId]
-
-		// 构建旧属性map（用于快速查找）
-		oldAttrMap := make(map[uint32]int64)
-		if oldAttrVec != nil && oldAttrVec.Attrs != nil {
-			for _, attr := range oldAttrVec.Attrs {
-				if attr != nil {
-					oldAttrMap[attr.Type] = attr.Value
-				}
-			}
-		}
-
-		// 构建新属性map
-		newAttrMap := make(map[uint32]int64)
-		if newAttrVec != nil && newAttrVec.Attrs != nil {
-			for _, attr := range newAttrVec.Attrs {
-				if attr != nil {
-					newAttrMap[attr.Type] = attr.Value
-				}
-			}
-		}
-
-		// 计算差异：需要减少的属性（旧有但新没有，或新值小于旧值）
-		for attrType, oldValue := range oldAttrMap {
-			newValue, exists := newAttrMap[attrType]
-			if !exists {
-				// 旧有但新没有，需要减少
-				currentValue := attrSys.GetAttrValue(attrdef.AttrType(attrType))
-				attrSys.SetAttrValue(attrdef.AttrType(attrType), currentValue-attrdef.AttrValue(oldValue))
-			} else if newValue < oldValue {
-				// 新值小于旧值，需要减少差值
-				delta := oldValue - newValue
-				currentValue := attrSys.GetAttrValue(attrdef.AttrType(attrType))
-				attrSys.SetAttrValue(attrdef.AttrType(attrType), currentValue-attrdef.AttrValue(delta))
-			}
-		}
-
-		// 计算差异：需要增加的属性（新有但旧没有，或新值大于旧值）
-		for attrType, newValue := range newAttrMap {
-			oldValue, exists := oldAttrMap[attrType]
-			if !exists {
-				// 新有但旧没有，需要增加
-				currentValue := attrSys.GetAttrValue(attrdef.AttrType(attrType))
-				attrSys.SetAttrValue(attrdef.AttrType(attrType), currentValue+attrdef.AttrValue(newValue))
-			} else if newValue > oldValue {
-				// 新值大于旧值，需要增加差值
-				delta := newValue - oldValue
-				currentValue := attrSys.GetAttrValue(attrdef.AttrType(attrType))
-				attrSys.SetAttrValue(attrdef.AttrType(attrType), currentValue+attrdef.AttrValue(delta))
-			}
-		}
-
-		// 更新保存的属性数据
-		r.attrDataMap[saAttrSysId] = newAttrVec
+	if applier, ok := r.GetAttrSys().(attrSyncApplier); ok {
+		applier.ApplySyncData(newSyncData)
 	}
+}
+
+func (r *RoleEntity) GetJobId() uint32 {
+	if r.roleInfo == nil {
+		return 0
+	}
+	return r.roleInfo.Job
 }
 
 func (r *RoleEntity) GetSessionId() string {
 	return r.sessionId
 }
 
-func (r *RoleEntity) GetName() string {
-	if r.roleInfo == nil {
-		return ""
-	}
-	return r.roleInfo.RoleName
-}
-
 func (r *RoleEntity) initSkills(skillMap map[uint32]uint32) {
-	if skillMap != nil && len(skillMap) > 0 {
-		// 使用传入的技能列表初始化
-		for skillId, level := range skillMap {
-			r.GetFightSys().LearnSkill(skillId, level)
+	if skillMap == nil {
+		return
+	}
+	// 使用传入的技能列表初始化
+	for skillId, level := range skillMap {
+		err := r.GetFightSys().LearnSkill(skillId, level)
+		if err != nil {
+			log.Errorf("init skill %d %d failed: %v", skillId, level, err)
 		}
-	} else {
-		// 如果没有传入技能列表，使用默认技能（兼容旧逻辑）
-		r.GetFightSys().LearnSkill(1001, 1)
-		r.GetFightSys().LearnSkill(1002, 1)
 	}
 }
 
@@ -257,14 +186,6 @@ func (r *RoleEntity) UpdateHpMp(hpDelta int64, mpDelta int64) {
 		}
 		attrSys.SetAttrValue(attrdef.AttrMP, newMP)
 	}
-}
-
-// GetRoleId 获取角色ID
-func (r *RoleEntity) GetRoleId() uint64 {
-	if r.roleInfo == nil {
-		return 0
-	}
-	return r.roleInfo.RoleId
 }
 
 // RunOne 每帧更新（重写BaseEntity的方法）

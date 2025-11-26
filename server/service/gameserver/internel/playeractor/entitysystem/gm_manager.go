@@ -52,7 +52,7 @@ func (gm *GMManager) GetCommand(name string) (*GMCommandInfo, bool) {
 }
 
 // ExecuteCommand 执行GM命令
-func (gm *GMManager) ExecuteCommand(ctx context.Context, playerRole iface.IPlayerRole, gmName string, args []string) (bool, string) {
+func (gm *GMManager) ExecuteCommand(_ context.Context, playerRole iface.IPlayerRole, gmName string, args []string) (bool, string) {
 	cmdInfo, ok := gm.GetCommand(gmName)
 	if !ok {
 		return false, fmt.Sprintf("GM命令不存在: %s", gmName)

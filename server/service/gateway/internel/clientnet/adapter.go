@@ -7,29 +7,12 @@
 package clientnet
 
 import (
-	"context"
 	"net"
 	"postapocgame/server/internal/network"
 )
 
 type ConnectionAdapter struct {
 	conn network.IConnection
-}
-
-func (ca *ConnectionAdapter) Read(ctx context.Context) ([]byte, error) {
-	msg, err := ca.conn.ReceiveMessage(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return msg.Payload, nil
-}
-
-func (ca *ConnectionAdapter) Write(data []byte) error {
-	message := network.GetMessage()
-	message.Type = network.MsgTypeClient
-	message.Payload = data
-	defer network.PutMessage(message)
-	return ca.conn.SendMessage(message)
 }
 
 func (ca *ConnectionAdapter) Close() error {

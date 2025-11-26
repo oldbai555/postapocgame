@@ -32,7 +32,7 @@ func NewClientHandler(gsConnector IGameServerConnector, sessionMgr *SessionManag
 }
 
 // HandleMessage 处理消息（实现IMessageHandler接口）
-func (h *ClientHandler) HandleMessage(ctx context.Context, conn network.IConnection, msg *network.Message) error {
+func (h *ClientHandler) HandleMessage(_ context.Context, conn network.IConnection, msg *network.Message) error {
 	// 只处理转发消息
 	if msg.Type != network.MsgTypeClient {
 		log.Warnf("Unexpected message type: %d", msg.Type)

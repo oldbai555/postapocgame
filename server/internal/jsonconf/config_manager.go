@@ -45,6 +45,7 @@ type ConfigManager struct {
 	equipSetConfigs            map[uint32]*EquipSetConfig
 	bagConfigs                 map[uint32]*BagConfig // key: bagType
 	sensitiveWordConfig        *SensitiveWordConfig
+	attrConfig                 *AttrConfig
 }
 
 var (
@@ -255,6 +256,9 @@ func (cm *ConfigManager) LoadAllConfigs() error {
 		log.Warnf("load sensitive word config failed: %v", err)
 		// 不返回错误，使用默认配置
 	}
+
+	// 加载属性相关配置
+	cm.loadAttrConfigs()
 
 	log.Infof("All configs loaded successfully")
 	return nil

@@ -235,7 +235,7 @@ func handleJoinGuild(ctx context.Context, msg *network.ClientMessage) error {
 }
 
 // handleLeaveGuild 处理离开公会
-func handleLeaveGuild(ctx context.Context, msg *network.ClientMessage) error {
+func handleLeaveGuild(ctx context.Context, _ *network.ClientMessage) error {
 	sessionId := ctx.Value(gshare.ContextKeySession).(string)
 	playerRole, err := GetIPlayerRoleByContext(ctx)
 	if err != nil {
@@ -293,7 +293,7 @@ func handleLeaveGuild(ctx context.Context, msg *network.ClientMessage) error {
 }
 
 // handleQueryGuildInfo 处理查询公会信息
-func handleQueryGuildInfo(ctx context.Context, msg *network.ClientMessage) error {
+func handleQueryGuildInfo(ctx context.Context, _ *network.ClientMessage) error {
 	sessionId := ctx.Value(gshare.ContextKeySession).(string)
 	_, err := GetIPlayerRoleByContext(ctx)
 	if err != nil {

@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/service/dungeonserver/internel/config"
 	"postapocgame/server/service/dungeonserver/internel/gameserverlink"
 )
 
 // DungeonServer DungeonServer实现
 type DungeonServer struct {
-	config         *config.ServerConfig
+	config         *ServerConfig
 	tcpServer      network.ITCPServer
 	networkHandler *gameserverlink.NetworkHandler
 
@@ -19,7 +18,7 @@ type DungeonServer struct {
 }
 
 // NewDungeonServer 创建DungeonServer
-func NewDungeonServer(config *config.ServerConfig) *DungeonServer {
+func NewDungeonServer(config *ServerConfig) *DungeonServer {
 	ds := &DungeonServer{
 		config:   config,
 		stopChan: make(chan struct{}),

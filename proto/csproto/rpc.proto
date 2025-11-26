@@ -55,6 +55,7 @@ enum D2GRpcProtocol{
     D2GEnterDungeonSuccess = 4;// 进入副本成功通知
     D2GAddItem = 5;// 添加物品（拾取掉落物）
     D2GSyncPosition = 6;// 同步坐标到GameServer
+    D2GSyncAttrs = 7;// Dungeon属性回传
 }
 
 // 协议注册信息
@@ -152,6 +153,20 @@ message D2GSyncPositionResp {
     string error_msg = 2;// 错误信息
 }
 
+// Dungeon -> GameServer 属性同步
+message D2GSyncAttrsReq {
+    string session_id = 1;// 会话ID
+    uint64 role_id = 2;// 角色ID
+    SyncAttrData sync_data = 3;// 属性数据
+}
+
+// 玩家Actor离线消息投递
+message AddActorMessageMsg {
+    uint64 role_id = 1;// 目标角色ID
+    int32 msg_type = 2;// 消息类型
+    bytes msg_data = 3;// 序列化后的消息体
+}
+
 // ========== PublicActor <-> PlayerActor 内部消息 ==========
 
 // PublicActor 内部消息ID（用于 GameServer 内部路由）
@@ -195,6 +210,7 @@ enum PublicActorMsgId {
     PublicActorMsgIdAuctionQuery = 23;
 
     PublicActorMsgRunOne = 24;
+    PublicActorMsgIdUpdateOfflineData = 25; // 离线数据更新
 }
 
 // 在线状态管理
@@ -279,6 +295,15 @@ message QueryRankRespMsg {
     RankData rank_data = 1;
     int64 requester_rank = 2; // 请求者的排名（-1表示未上榜）
     int64 requester_value = 3; // 请求者的数值
+}
+
+// 离线数据更新
+message UpdateOfflineDataMsg {
+    uint64 role_id = 1;
+    OfflineDataType data_type = 2;
+    bytes payload = 3;    // 序列化后的具体数据
+    uint32 version = 4;   // 数据版本（预留，默认1）
+    int64 updated_at = 5; // 数据更新时间
 }
 
 // 公会系统

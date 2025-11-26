@@ -2,7 +2,6 @@ package clientnet
 
 import (
 	"context"
-	"errors"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/internal/servertime"
@@ -13,10 +12,6 @@ import (
 	"time"
 
 	"postapocgame/server/pkg/customerr"
-)
-
-var (
-	ErrMaxSessionReached = errors.New("max sessions reached")
 )
 
 // SessionManager 会话管理器

@@ -4,14 +4,12 @@ import (
 	"context"
 	"sync"
 
-	"postapocgame/server/internal/protocol"
+	sharedcalc "postapocgame/server/internal/attrcalc"
 	"postapocgame/server/pkg/log"
 )
 
-// Calculator 属性计算器接口
-type Calculator interface {
-	CalculateAttrs(ctx context.Context) []*protocol.AttrSt
-}
+// Calculator 属性计算器接口（统一定义于 server/internal/attrcalc）
+type Calculator = sharedcalc.SysAttrCalculator
 
 // Provider 提供当前上下文的属性计算器
 type Provider func(ctx context.Context) Calculator

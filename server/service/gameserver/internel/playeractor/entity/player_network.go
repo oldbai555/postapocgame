@@ -165,11 +165,11 @@ func handleLogin(ctx context.Context, msg *network.ClientMessage) error {
 	})
 }
 
-func handleVerify(ctx context.Context, msg *network.ClientMessage) error {
+func handleVerify(_ context.Context, _ *network.ClientMessage) error {
 	return nil
 }
 
-func handleQueryRoles(ctx context.Context, msg *network.ClientMessage) error {
+func handleQueryRoles(ctx context.Context, _ *network.ClientMessage) error {
 	sessionId := ctx.Value(gshare.ContextKeySession).(string)
 	logInfo(ctx, "handleQueryRoles: SessionId=%s", sessionId)
 
@@ -266,7 +266,7 @@ func handleEnterGame(ctx context.Context, msg *network.ClientMessage) error {
 	return nil
 }
 
-func handleReconnect(ctx context.Context, msg *network.ClientMessage) error {
+func handleReconnect(_ context.Context, _ *network.ClientMessage) error {
 	return nil
 }
 
@@ -389,6 +389,7 @@ func enterGame(sessionId string, roleInfo *protocol.PlayerSimpleData) error {
 			syncAttrData = &protocol.SyncAttrData{
 				AttrData: allAttrs,
 			}
+			attrSys.PushSyncDataToClient(roleCtx, syncAttrData)
 		}
 	}
 
@@ -543,6 +544,31 @@ func handleDoNetWorkMsg(message actor.IActorMessage) {
 	log.Debugf("successfully forwarded protocol %d to DungeonServer: srvType=%d", cliMsg.MsgId, targetSrvType)
 }
 
+func handlePlayerMessageMsg(message actor.IActorMessage) {
+	ctx := message.GetContext()
+	var msg protocol.AddActorMessageMsg
+	if err := proto.Unmarshal(message.GetData(), &msg); err != nil {
+		logError(ctx, "handlePlayerMessageMsg: unmarshal failed: %v", err)
+		return
+	}
+
+	playerRole := manager.GetPlayerRole(msg.RoleId)
+	if playerRole == nil {
+		if err := database.SavePlayerActorMessage(msg.RoleId, msg.MsgType, msg.MsgData); err != nil {
+			logError(ctx, "handlePlayerMessageMsg: fallback save failed: %v", err)
+		}
+		return
+	}
+
+	roleCtx := playerRole.WithContext(ctx)
+	if err := entitysystem.DispatchPlayerMessage(playerRole, msg.MsgType, msg.MsgData); err != nil {
+		logError(roleCtx, "handlePlayerMessageMsg: dispatch failed: %v", err)
+		if err := database.SavePlayerActorMessage(msg.RoleId, msg.MsgType, msg.MsgData); err != nil {
+			logError(roleCtx, "handlePlayerMessageMsg: fallback save failed: %v", err)
+		}
+	}
+}
+
 func handleRunOneMsg(message actor.IActorMessage) {
 	sessionId := message.GetContext().Value(gshare.ContextKeySession).(string)
 	session := gatewaylink.GetSession(sessionId)
@@ -605,7 +631,7 @@ func handleQueryRank(ctx context.Context, msg *network.ClientMessage) error {
 }
 
 // handleRegisterProtocols 处理DungeonServer注册协议的RPC请求
-func handleRegisterProtocols(ctx context.Context, sessionId string, data []byte) error {
+func handleRegisterProtocols(_ context.Context, _ string, data []byte) error {
 	var req protocol.D2GRegisterProtocolsReq
 	if err := proto.Unmarshal(data, &req); err != nil {
 		log.Errorf("unmarshal register protocols request failed: %v", err)
@@ -621,10 +647,10 @@ func handleRegisterProtocols(ctx context.Context, sessionId string, data []byte)
 		IsCommon bool
 	}, len(req.Protocols))
 
-	for i, proto := range req.Protocols {
-		protocols[i].ProtoId = uint16(proto.ProtoId)
-		protocols[i].IsCommon = proto.IsCommon
-		log.Debugf("  - protoId=%d, isCommon=%v", proto.ProtoId, proto.IsCommon)
+	for i, protocolInfo := range req.Protocols {
+		protocols[i].ProtoId = uint16(protocolInfo.ProtoId)
+		protocols[i].IsCommon = protocolInfo.IsCommon
+		log.Debugf("  - protoId=%d, isCommon=%v", protocolInfo.ProtoId, protocolInfo.IsCommon)
 	}
 
 	// 注册到协议管理器
@@ -638,7 +664,7 @@ func handleRegisterProtocols(ctx context.Context, sessionId string, data []byte)
 }
 
 // handleUnregisterProtocols 处理DungeonServer注销协议的RPC请求
-func handleUnregisterProtocols(ctx context.Context, sessionId string, data []byte) error {
+func handleUnregisterProtocols(_ context.Context, _ string, data []byte) error {
 	var req protocol.D2GUnregisterProtocolsReq
 	if err := proto.Unmarshal(data, &req); err != nil {
 		log.Errorf("unmarshal unregister protocols request failed: %v", err)
@@ -659,7 +685,7 @@ func handleUnregisterProtocols(ctx context.Context, sessionId string, data []byt
 }
 
 // handleSyncPosition 处理坐标同步的RPC请求
-func handleSyncPosition(ctx context.Context, sessionId string, data []byte) error {
+func handleSyncPosition(_ context.Context, _ string, data []byte) error {
 	var req protocol.D2GSyncPositionReq
 	if err := proto.Unmarshal(data, &req); err != nil {
 		log.Errorf("unmarshal sync position request failed: %v", err)
@@ -684,10 +710,32 @@ func handleSyncPosition(ctx context.Context, sessionId string, data []byte) erro
 	return nil
 }
 
+// handleDungeonSyncAttrs 处理副本属性回传
+func handleDungeonSyncAttrs(_ context.Context, _ string, data []byte) error {
+	var req protocol.D2GSyncAttrsReq
+	if err := proto.Unmarshal(data, &req); err != nil {
+		log.Errorf("unmarshal dungeon sync attrs failed: %v", err)
+		return customerr.Wrap(err)
+	}
+	playerRole := manager.GetPlayerRole(req.RoleId)
+	if playerRole == nil {
+		log.Warnf("player role not found for dungeon sync attrs: RoleId=%d", req.RoleId)
+		return nil
+	}
+	attrSys := entitysystem.GetAttrSys(playerRole.WithContext(nil))
+	if attrSys == nil {
+		log.Warnf("attr sys not found for RoleId=%d", req.RoleId)
+		return nil
+	}
+	attrSys.ApplyDungeonSyncData(req.SyncData)
+	return nil
+}
+
 func init() {
 	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
 		gshare.RegisterHandler(gshare.DoNetWorkMsg, handleDoNetWorkMsg)
 		gshare.RegisterHandler(gshare.DoRunOneMsg, handleRunOneMsg)
+		gshare.RegisterHandler(gshare.PlayerMessageMsg, handlePlayerMessageMsg)
 
 		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SRegister), handleRegister)
 		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SLogin), handleLogin)
@@ -702,6 +750,7 @@ func init() {
 		dungeonserverlink.RegisterRPCHandler(uint16(protocol.D2GRpcProtocol_D2GRegisterProtocols), handleRegisterProtocols)
 		dungeonserverlink.RegisterRPCHandler(uint16(protocol.D2GRpcProtocol_D2GUnregisterProtocols), handleUnregisterProtocols)
 		dungeonserverlink.RegisterRPCHandler(uint16(protocol.D2GRpcProtocol_D2GSyncPosition), handleSyncPosition)
+		dungeonserverlink.RegisterRPCHandler(uint16(protocol.D2GRpcProtocol_D2GSyncAttrs), handleDungeonSyncAttrs)
 
 	})
 }

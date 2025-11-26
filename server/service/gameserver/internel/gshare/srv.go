@@ -31,10 +31,6 @@ func SetOpenSrvTime(openTimeSec int64) {
 	openSrvTimeSec = openTimeSec
 }
 
-func GetOpenSrvUnix() int64 {
-	return openSrvTimeSec
-}
-
 // GetOpenSrvDay 返回开服第几天（从1开始），若未设置开服时间返回0
 func GetOpenSrvDay() int64 {
 	if openSrvTimeSec <= 0 {

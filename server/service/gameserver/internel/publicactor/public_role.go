@@ -1,6 +1,10 @@
 package publicactor
 
-import "sync"
+import (
+	"sync"
+
+	"postapocgame/server/service/gameserver/internel/publicactor/offlinedata"
+)
 
 // PublicRole 公共角色（管理全局数据）
 type PublicRole struct {
@@ -9,9 +13,6 @@ type PublicRole struct {
 
 	// 排行榜数据：rankType -> RankData
 	rankDataMap sync.Map // map[protocol.RankType]*protocol.RankData
-
-	// 排行榜快照：roleId -> PlayerRankSnapshot
-	rankSnapshotMap sync.Map // map[uint64]*protocol.PlayerRankSnapshot
 
 	// 公会数据：guildId -> GuildData
 	guildMap sync.Map // map[uint64]*protocol.GuildData
@@ -35,6 +36,10 @@ type PublicRole struct {
 
 	// 上次清理离线消息的时间（毫秒）
 	lastCleanOfflineMessagesTime int64
+
+	// OfflineData 管理器
+	offlineDataMgr           *offlinedata.Manager
+	lastOfflineDataFlushTime int64
 }
 
 // NewPublicRole 创建公共角色
@@ -42,11 +47,11 @@ func NewPublicRole() *PublicRole {
 	return &PublicRole{
 		onlineMap:           sync.Map{},
 		rankDataMap:         sync.Map{},
-		rankSnapshotMap:     sync.Map{},
 		guildMap:            sync.Map{},
 		auctionMap:          sync.Map{},
 		nextGuildId:         1,
 		nextAuctionId:       1,
 		guildApplicationMap: sync.Map{},
+		offlineDataMgr:      offlinedata.NewManager(),
 	}
 }

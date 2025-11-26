@@ -89,6 +89,8 @@ func (pr *PublicRole) RunOne(ctx context.Context) {
 		}
 		pr.lastCleanOfflineMessagesTime = now
 	}
+
+	pr.flushOfflineDataIfNeeded(ctx, now)
 }
 
 // ===== 拍卖行相关 handler 注册（无闭包捕获 PublicRole） =====

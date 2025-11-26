@@ -56,6 +56,9 @@ func (h *PublicHandler) LoadData() {
 		}
 		log.Infof("Loaded %d auction items from database", len(auctionItems))
 	}
+
+	// 加载离线数据
+	h.publicRole.LoadOfflineData(context.Background())
 }
 
 // PublicHandler 公共消息处理器

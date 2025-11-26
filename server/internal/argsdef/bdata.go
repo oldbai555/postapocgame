@@ -4,10 +4,9 @@
  * @Desc:
 **/
 
-package buff
+package argsdef
 
 import (
-	"postapocgame/server/internal/jsonconf"
 	"time"
 )
 
@@ -21,7 +20,4 @@ type BData struct {
 	StartTime  time.Time
 	EndTime    time.Time
 	CasterId   uint64 // 施法者Id
-
-	// Buff效果
-	Effects []jsonconf.BuffEffect
 }

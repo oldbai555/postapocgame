@@ -140,7 +140,10 @@ func (pr *PlayerRole) OnLogin() error {
 	registerData, err := proto.Marshal(registerMsg)
 	if err == nil {
 		actorMsg := actor.NewBaseMessage(pr.WithContext(nil), uint16(protocol.PublicActorMsgId_PublicActorMsgIdRegisterOnline), registerData)
-		gshare.SendPublicMessageAsync("global", actorMsg)
+		err := gshare.SendPublicMessageAsync("global", actorMsg)
+		if err != nil {
+			log.Errorf("register online failed: %v", err)
+		}
 	}
 
 	// 发布玩家登录事件
@@ -213,7 +216,31 @@ func (pr *PlayerRole) UpdateRankSnapshot(ctx context.Context) {
 	snapshotData, err := proto.Marshal(updateSnapshotMsg)
 	if err == nil {
 		actorMsg := actor.NewBaseMessage(pr.WithContext(ctx), uint16(protocol.PublicActorMsgId_PublicActorMsgIdUpdateRankSnapshot), snapshotData)
-		gshare.SendPublicMessageAsync("global", actorMsg)
+		err := gshare.SendPublicMessageAsync("global", actorMsg)
+		if err != nil {
+			log.Errorf("send update rank snapshot message failed: %v", err)
+		}
+	}
+
+	// 将快照写入离线数据
+	if snapshotBytes, err := proto.Marshal(snapshot); err == nil {
+		updateOfflineDataMsg := &protocol.UpdateOfflineDataMsg{
+			RoleId:    roleId,
+			DataType:  protocol.OfflineDataType_OfflineDataTypeRankSnapshot,
+			Payload:   snapshotBytes,
+			Version:   1,
+			UpdatedAt: snapshot.UpdatedAt,
+		}
+		if offlineDataMsg, err := proto.Marshal(updateOfflineDataMsg); err == nil {
+			actorMsg := actor.NewBaseMessage(pr.WithContext(ctx), uint16(protocol.PublicActorMsgId_PublicActorMsgIdUpdateOfflineData), offlineDataMsg)
+			if err := gshare.SendPublicMessageAsync("global", actorMsg); err != nil {
+				log.Errorf("send update offline data message failed: %v", err)
+			}
+		} else {
+			log.Errorf("marshal update offline data msg failed: %v", err)
+		}
+	} else {
+		log.Errorf("marshal rank snapshot failed: %v", err)
 	}
 
 	// 更新等级排行榜数值
@@ -225,7 +252,10 @@ func (pr *PlayerRole) UpdateRankSnapshot(ctx context.Context) {
 	levelValueData, err := proto.Marshal(updateLevelValueMsg)
 	if err == nil {
 		actorMsg := actor.NewBaseMessage(pr.WithContext(ctx), uint16(protocol.PublicActorMsgId_PublicActorMsgIdUpdateRankValue), levelValueData)
-		gshare.SendPublicMessageAsync("global", actorMsg)
+		err := gshare.SendPublicMessageAsync("global", actorMsg)
+		if err != nil {
+			log.Errorf("send update rank value message failed: %v", err)
+		}
 	}
 
 	// 更新战力排行榜数值
@@ -237,7 +267,10 @@ func (pr *PlayerRole) UpdateRankSnapshot(ctx context.Context) {
 	combatPowerValueData, err := proto.Marshal(updateCombatPowerValueMsg)
 	if err == nil {
 		actorMsg := actor.NewBaseMessage(pr.WithContext(ctx), uint16(protocol.PublicActorMsgId_PublicActorMsgIdUpdateRankValue), combatPowerValueData)
-		gshare.SendPublicMessageAsync("global", actorMsg)
+		err := gshare.SendPublicMessageAsync("global", actorMsg)
+		if err != nil {
+			log.Errorf("send update rank value message failed: %v", err)
+		}
 	}
 
 	log.Debugf("Updated rank snapshot for role %d: level=%d, combat_power=%d", roleId, level, combatPower)
@@ -257,7 +290,10 @@ func (pr *PlayerRole) OnLogout() error {
 	unregisterData, err := proto.Marshal(unregisterMsg)
 	if err == nil {
 		actorMsg := actor.NewBaseMessage(pr.WithContext(nil), uint16(protocol.PublicActorMsgId_PublicActorMsgIdUnregisterOnline), unregisterData)
-		gshare.SendPublicMessageAsync("global", actorMsg)
+		err := gshare.SendPublicMessageAsync("global", actorMsg)
+		if err != nil {
+			log.Errorf("send unregister online message failed: %v", err)
+		}
 	}
 
 	// 保存BinaryData到数据库
@@ -284,6 +320,9 @@ func (pr *PlayerRole) OnReconnect(newSessionId string) error {
 
 	// 发布玩家重连事件
 	pr.Publish(gevent.OnPlayerReconnect)
+	if attrSys := entitysystem.GetAttrSys(pr.WithContext(nil)); attrSys != nil {
+		attrSys.PushFullAttrData(pr.WithContext(nil))
+	}
 
 	var resp protocol.S2CReconnectSuccessReq
 	resp.ReconnectKey = pr.ReconnectKey

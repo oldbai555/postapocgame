@@ -70,7 +70,7 @@ func (rs *RecycleSys) RecycleItem(ctx context.Context, itemID uint32, count uint
 			continue
 		}
 		// 奖励数量 = 配置数量 * 回收数量
-		totalCount := int64(award.Count) * int64(count)
+		totalCount := award.Count * int64(count)
 		// 用于GrantRewards的jsonconf格式
 		jsonconfAwards = append(jsonconfAwards, &jsonconf.ItemAmount{
 			ItemType: award.ItemType,

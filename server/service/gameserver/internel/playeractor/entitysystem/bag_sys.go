@@ -20,9 +20,9 @@ import (
 )
 
 const (
-	// 默认背包类型（主背包）
+	// DefaultBagType 默认背包类型（主背包）
 	DefaultBagType uint32 = 1
-	// 默认背包容量（如果配置不存在时使用）
+	// DefaultBagSize 默认背包容量（如果配置不存在时使用）
 	DefaultBagSize uint32 = 100
 )
 

@@ -22,5 +22,6 @@ func init() {
 		RegisterRankHandlers(facade)
 		RegisterGuildHandlers(facade)
 		RegisterAuctionHandlers(facade)
+		RegisterOfflineDataHandlers(facade)
 	})
 }

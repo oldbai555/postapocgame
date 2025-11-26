@@ -11,7 +11,6 @@ import (
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
-	"postapocgame/server/service/dungeonserver/internel/config"
 	"postapocgame/server/service/dungeonserver/internel/devent"
 	"postapocgame/server/service/dungeonserver/internel/dshare"
 	"postapocgame/server/service/dungeonserver/internel/dungeonactor"
@@ -32,7 +31,7 @@ func main() {
 
 	// 初始化错误码映射
 	protocol.InitErrorCodes()
-	serverConfig, err := config.LoadServerConfig("")
+	serverConfig, err := engine.LoadServerConfig("")
 	if err != nil {
 		log.Fatalf("err:%v", err)
 	}

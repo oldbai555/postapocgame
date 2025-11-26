@@ -12,8 +12,6 @@ import (
 	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/iface"
 	"postapocgame/server/service/gameserver/internel/playeractor/clientprotocol"
-
-	"gorm.io/gorm"
 )
 
 const (
@@ -107,6 +105,13 @@ func (ms *MoneySys) AddMoney(ctx context.Context, moneyID uint32, amount int64) 
 			return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "level system not ready")
 		}
 		return levelSys.AddExp(ctx, uint64(amount))
+	case uint32(protocol.MoneyType_MoneyTypeVipExp):
+		// vip经验由VIP系统处理
+		levelSys := GetVipSys(ctx)
+		if levelSys == nil {
+			return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "vip system not ready")
+		}
+		return levelSys.AddVipExp(ctx, uint32(amount))
 	case uint32(protocol.MoneyType_MoneyTypeActivePoint):
 		activitySys := GetDailyActivitySys(ctx)
 		if activitySys == nil {
@@ -153,11 +158,11 @@ func (ms *MoneySys) CostMoney(ctx context.Context, moneyID uint32, amount int64)
 }
 
 func (ms *MoneySys) updateBalance(ctx context.Context, moneyID uint32, delta int64) error {
-	return ms.UpdateBalanceTx(ctx, moneyID, delta, nil)
+	return ms.UpdateBalanceTx(ctx, moneyID, delta)
 }
 
-// UpdateBalanceTx 更新余额（tx参数已废弃，保留以兼容接口）
-func (ms *MoneySys) UpdateBalanceTx(ctx context.Context, moneyID uint32, delta int64, tx *gorm.DB) error {
+// UpdateBalanceTx 更新余额
+func (ms *MoneySys) UpdateBalanceTx(ctx context.Context, moneyID uint32, delta int64) error {
 	_, err := GetIPlayerRoleByContext(ctx)
 	if err != nil {
 		return err

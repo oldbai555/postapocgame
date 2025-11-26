@@ -4,6 +4,8 @@ import (
 	"context"
 	"google.golang.org/protobuf/proto"
 	"math"
+	icalc "postapocgame/server/internal/attrcalc"
+	"postapocgame/server/internal/attrdef"
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/network"
@@ -19,17 +21,17 @@ import (
 )
 
 const (
-	// 万分比基数（10000 = 100%）
+	// PerTenThousandBase 万分比基数（10000 = 100%）
 	PerTenThousandBase int64 = 10000
-	// 强化等级每级增加的倍率（万分比：1000 = 10%）
+	// UpgradePerLevelMultiplier 强化等级每级增加的倍率（万分比：1000 = 10%）
 	UpgradePerLevelMultiplier int64 = 1000
-	// 精炼等级每级增加的倍率（万分比：500 = 5%）
+	// RefinePerLevelMultiplier 精炼等级每级增加的倍率（万分比：500 = 5%）
 	RefinePerLevelMultiplier int64 = 500
-	// 星级每星增加的倍率（万分比：1000 = 10%）
+	// StarPerLevelMultiplier 星级每星增加的倍率（万分比：1000 = 10%）
 	StarPerLevelMultiplier int64 = 1000
-	// 品质每级增加的倍率（万分比：1000 = 10%）
+	// QualityPerLevelMultiplier 品质每级增加的倍率（万分比：1000 = 10%）
 	QualityPerLevelMultiplier int64 = 1000
-	// 阶级每级增加的倍率（万分比：1000 = 10%）
+	// TierPerLevelMultiplier 阶级每级增加的倍率（万分比：1000 = 10%）
 	TierPerLevelMultiplier int64 = 1000
 )
 
@@ -204,8 +206,8 @@ func (es *EquipSys) EquipItem(ctx context.Context, itemID uint32, slot uint32) e
 	return nil
 }
 
-// UnequipItem 卸载装备
-func (es *EquipSys) UnequipItem(ctx context.Context, slot uint32) error {
+// UnEquipItem 卸载装备
+func (es *EquipSys) UnEquipItem(ctx context.Context, slot uint32) error {
 	playerRole, err := GetIPlayerRoleByContext(ctx)
 	if err != nil {
 		return customerr.Wrap(err)
@@ -245,7 +247,7 @@ func (es *EquipSys) UnequipItem(ctx context.Context, slot uint32) error {
 		"slot": slot,
 	})
 
-	log.Infof("UnequipItem: Slot=%d, ItemID=%d", slot, equip.ItemId)
+	log.Infof("UnEquipItem: Slot=%d, ItemID=%d", slot, equip.ItemId)
 	return nil
 }
 
@@ -568,7 +570,7 @@ func (es *EquipSys) calculateSetEffects() map[uint32]int64 {
 }
 
 // CalculateAttrs 计算装备系统的属性（实现IAttrCalculator接口）
-func (es *EquipSys) CalculateAttrs(ctx context.Context) []*protocol.AttrSt {
+func (es *EquipSys) CalculateAttrs(_ context.Context) []*protocol.AttrSt {
 	// 使用已有的CalculateEquipAttrs方法
 	attrs := es.CalculateEquipAttrs()
 	if len(attrs) == 0 {
@@ -758,7 +760,47 @@ func init() {
 	attrcalc.Register(uint32(protocol.SaAttrSys_SaEquip), func(ctx context.Context) attrcalc.Calculator {
 		return GetEquipSys(ctx)
 	})
+	attrcalc.RegisterAddRate(uint32(protocol.SaAttrSys_SaEquip), func(ctx context.Context) attrcalc.AddRateCalculator {
+		return &equipAddRateCalculator{}
+	})
 	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
 		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SEquipItem), handleEquipItem)
 	})
+}
+
+type equipAddRateCalculator struct {
+	equipSys *EquipSys
+}
+
+func (c *equipAddRateCalculator) CalculateAddRate(ctx context.Context, _ *icalc.FightAttrCalc) []*protocol.AttrSt {
+	if c.equipSys == nil {
+		c.equipSys = GetEquipSys(ctx)
+	}
+	if c.equipSys == nil || c.equipSys.equipData == nil {
+		return nil
+	}
+	cfg := jsonconf.GetConfigManager().GetAttrAddRateConfig()
+	if cfg.Equip.DamageAddPerRefine == 0 {
+		return nil
+	}
+	var totalRefine int64
+	for _, equip := range c.equipSys.equipData.Equips {
+		if equip == nil {
+			continue
+		}
+		totalRefine += int64(equip.RefineLevel)
+	}
+	if totalRefine == 0 {
+		return nil
+	}
+	damageAdd := totalRefine * cfg.Equip.DamageAddPerRefine
+	if damageAdd == 0 {
+		return nil
+	}
+	return []*protocol.AttrSt{
+		{
+			Type:  uint32(attrdef.AttrDamageAdd),
+			Value: damageAdd,
+		},
+	}
 }

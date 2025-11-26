@@ -149,4 +149,139 @@ server/example/
 - 若重构过程中需要新增公共工具，请优先考虑 `server/internal` 或 `server/pkg` 是否已有对应能力，避免重复造轮子。  
 - 未列出的业务（例如社交、公会）如需接入，请沿用“系统化 + 文档同步”的流程更新本方案。
 
+---
+
+## 9. 关键代码与运行流程
+
+### 9.1 核心代码清单（按职责划分）
+
+1. `server/example/cmd/example/main.go`  
+   - CLI 入口；初始化日志、加载 `server/output/config`、创建 `client.Manager` 并启动 `AdventurePanel`。  
+2. `server/example/internal/client/core.go`  
+   - 调试客户端内核：连接 Gateway、序列化 Proto、维护角色/场景状态、转发 AOI/战斗/背包事件、暴露 `MoveRunner()`。  
+3. `server/example/internal/client/flow.go`  
+   - 协议等待器注册表；所有命令通过 `flow.Waiter` 等待 `S2C*` 响应，避免阻塞主协程。  
+4. `server/example/internal/client/move_runner.go`  
+   - 自动寻路与移动重放：直线优先 + A* 寻路、分段发送 `C2SStart/Update/EndMove`、同步校验与自动重试；支持回调链。  
+5. `server/example/internal/panel/adventure_panel.go` + `internal/panel/actions.go`  
+   - 文字冒险 UI、菜单逻辑与命令解析；数字快捷键（如“4 自动寻路到坐标”）和命令行 `move-to` 共享同一实现。  
+6. `server/example/internal/systems/*`  
+   - 业务系统集合：`account.go`（账号/角色）、`scene.go`（状态与 AOI）、`move.go`（调用 `MoveRunner`）、`combat.go`、`inventory.go`、`gm.go`、`dungeon.go`、`script.go`。  
+7. `server/example/internal/systems/set.go`  
+   - 系统注册入口：在 `AdventurePanel.connect` 时一次性创建所有系统，并提供 `p.systems.<Domain>` 访问。  
+
+> 新增命令/系统时务必把关键代码入口补充到本清单，保持与主进度文档第 8 章一致。
+
+### 9.2 “自动寻路到坐标”（菜单选项 4 / 命令 `move-to`）执行流程
+
+1. **面板输入**  
+   - 玩家在进入场景后，选择菜单数字 `4`（`actionMoveToPrompt`）或输入命令 `move-to <x> <y>`（`actions.go`）。  
+2. **校验与参数获取**  
+   - `AdventurePanel` 调用 `requireScene()` 确认账号已登录且角色在场景内，然后从输入读取目标格子坐标。  
+3. **调用移动系统**  
+   - 面板把坐标传给 `systems.Move.MoveTo(ctx, tileX, tileY, callbacks)`，该系统只是轻量封装，直接转发到 `client.MoveRunner`.  
+4. **MoveRunner 准备**  
+   - `MoveRunner.MoveTo` 取消正在进行的移动、记录最新目标，并调 `run()`：  
+     - 通过 `core.CurrentSceneMap()` 取 `jsonconf.GameMap`，校验目标可行走。  
+     - 读取当前格子，若可以直线到达则生成两点路径，否则使用 A*（`makePath → findPath`）求最短路径。  
+5. **分段发送移动协议**  
+   - `executePath` 遍历路径节点，对每一段调用 `core.sendMoveChunk`：  
+     - 发送 `C2SStartMove`（像素坐标 + 速度）→ 周期性发送 `C2SUpdateMove`（逐格像素点）→ 结束时发 `C2SEndMove`。  
+     - 本地位置信息通过 `core.updateLocalPosition` 及时刷新，便于后续路径计算。  
+6. **等待服务端确认**  
+   - `waitForServerPos` 在超时时间内监听 `S2CEntityMove/S2CEntityStopMove`（`core.OnEntityMove` 更新位置），直到角色位置与目标格子进入容差区间；若超时则认定“与服务器不同步”。  
+7. **容错与重试**  
+   - 遇到 `ErrMoveOutOfSync`、`ErrMoveBlocked` 等错误时，`MoveRunner` 最多重建路径并重试 2 次；若仍失败则触发 `MoveCallbacks.OnAbort` 并在面板日志输出原因。  
+8. **完成与回调**  
+   - 当到达目标格子，`MoveRunner` 触发 `MoveCallbacks.OnArrived`（若有）并向面板写入“🚶 自动寻路至 (x,y)”日志；脚本系统可在回调中串接下一条行为。  
+
+该流程与 `server/service/dungeonserver` 的移动协议保持一致，可稳定复现客户端移动链路；若用户中断（`Ctrl+C`/输入其他命令）或 `move-resume`，会通过 `cancelFn`/`lastTarget` 控制器继续或停止本次寻路。
+
+### 9.3 server/example 代码概览（系统划分）
+
+- **入口与生命周期**：`cmd/example/main.go` 初始化日志/配置 → 创建 `client.Manager` → 启动 `AdventurePanel`。  
+- **客户端核心 (`internal/client`)**：`core.go` 管理连接、协议发送、角色状态、AOI 缓存与 Flow Waiter；`handler.go`/`manager.go` 负责多客户端托管；`move_runner.go` 复刻 Start/Update/End 移动链路。  
+- **面板 (`internal/panel`)**：`adventure_panel.go` 绘制 UI、菜单与状态栏，`actions.go` 解析命令（register/login/move/move-to/...），所有命令最终调用下层 `systems`。  
+- **系统集合 (`internal/systems`)**：  
+  - `account.go`：账号注册/登录、角色列表、进入游戏（依赖 Flow Waiter）。  
+  - `scene.go`：查询角色状态、AOI 观察。  
+  - `move.go`：轻量封装 `MoveRunner` 的 `MoveBy/MoveTo/Resume`。  
+  - `combat.go`：普通攻击与等待 `S2CSkillDamageResult`。  
+  - `inventory.go`：`bag/use-item/pickup` 协议。  
+  - `dungeon.go`：`enter-dungeon` 流程。  
+  - `gm.go`：`gm <name> [args...]` 命令与结果展示。  
+  - `script.go`：录制/回放、Demo 巡逻脚本；`set.go` 统一注册系统实例。  
+- **脚本与回调**：`systems/script.go`、`client/move_runner.go` 的 `MoveCallbacks` 支持链式动作，可在自动移动完成后继续执行拾取/攻击/副本等步骤。
+
+### 9.4 新增命令开发流程
+
+> 适用于在 AdventurePanel 中添加一条新命令或菜单项；若命令涉及多阶段交付，请先把拆分写入主文档第 6 章“待实现 / 待完善功能”，完成后移至第 4 章并标记 ✅。
+
+1. **梳理需求并登记文档**  
+   - 在 `docs/服务端开发进度文档.md` 的“待实现 / 待完善功能”记录命令目标、依赖系统、验收标准；若是调试客户端专属能力，同步 `docs/golang客户端待开发文档.md`。  
+2. **确认所属系统**  
+   - 检查 `internal/systems` 是否已有对应业务模块；如果没有，按 9.5 的流程先新增系统。  
+3. **实现系统方法**  
+   - 在对应 `systems/<domain>.go` 中新增公共方法，内部调用 `client.Core` 的协议封装（`SendClientProto`、`flow.Waiter`、`MoveRunner` 等），并返回明确的错误/结果。  
+4. **注册面板命令**  
+   - 在 `internal/panel/actions.go` 中增加命令解析与帮助文案；若希望通过菜单快捷键调用，更新 `AdventurePanel.currentMenuOptions()` 并添加 `actionXXX`。  
+5. **脚本/录制兼容**  
+   - 若命令需要脚本化或自动回放，更新 `systems/script.go` 的命令映射或 Demo，确保录制文件可复现。  
+6. **联调与文档同步**  
+   - 启动三服 + example，验证命令；完成后在主文档“已完成功能/关键代码位置/注意事项”中补充条目并以 ✅ 标记，说明命令入口与依赖系统。
+
+### 9.5 新增系统开发流程
+
+1. **需求拆分与文档记录**  
+   - 在 `docs/服务端开发进度文档.md` 第 6 章登记系统目标、阶段划分、前置依赖与验收方式；若系统属于调试客户端，也在本方案与 `docs/golang客户端待开发文档.md` 中同步。  
+2. **创建系统骨架**  
+   - 在 `internal/systems` 下新建 `<name>.go`，按照现有模板定义 `type <Name>System struct { core *client.Core ... }` 及 `New<Name>System`；只允许通过 Core 访问网络/时间/Actor。  
+3. **接入 Systems Set**  
+   - 修改 `internal/systems/set.go`：将新系统实例化并挂载到 `Set` 结构，供面板统一访问。  
+4. **实现协议与状态**  
+   - 在系统内部使用 `core.SendClientProto`、`core.Flow()` 等落地协议调用与响应处理；需要移动/脚本支持的复用 `MoveRunner` 与 `MoveCallbacks`。  
+5. **暴露命令与脚本 API**  
+   - 在 `panel/actions.go` 注册对应命令/菜单；如需脚本化，扩展 `systems/script.go` 的调度与录制。  
+6. **测试与文档同步**  
+   - 自测全链路后，将系统入口路径加入本文件 9.1 的关键代码清单，并在主文档第 4/6/8 章同步状态（完成项前写“✅”）。
+
+### 9.6 FlowRegistry（`server/example/internal/client/flow.go`）使用说明
+
+调试客户端大量命令需要等待特定 `S2C` 回包（注册、登录、进入游戏、背包更新、GM 结果等）。为避免在业务代码中手动管理 channel，本项目在 `flow.go` 定义了 `flowRegistry`，提供“发送请求 → 等待响应”的统一模式：
+
+1. **注册 Waiter**  
+   - `flowRegistry` 包含多个 `waiter[T]` 字段（泛型结构，内部是带缓冲的 channel）。  
+   - 在 `client.NewCore` 中通过 `newFlowRegistry()` 初始化，确保每个 `Core` 独立持有一套 Waiter。
+2. **发送请求前获取 Waiter**  
+   - 业务系统（如 `systems.Account.Register`）在发送 `C2SRegister` 之前，不需要额外创建 channel，只需调用 `c.flow.register.Wait(timeout)` 等方法等待结果。  
+   - 若命令需要流式读取（例如 AOI 实体更新），可以直接使用 `c.flow.aoi.Chan()` 非阻塞读取。
+3. **协议回调中 Deliver**  
+   - `client/core.go` 的 `OnRegisterResult`、`OnLoginResult`、`OnBagData` 等方法在收到 `S2C` 后调用对应 `waiter.Deliver(resp)`。`Deliver` 使用非阻塞写入：如果 channel 为空则写入成功；如果 channel 已有消息且没有人在等待，新消息会被丢弃（避免阻塞网络线程，但不会覆盖旧消息）。  
+4. **等待响应**  
+   - `waiter.Wait(timeout)` 使用 `servertime.Now()` + `time.Timer` 实现超时机制，调用方只需处理 `(resp, err)`。  
+   - 典型用法：
+
+```70:110:server/example/internal/client/core.go
+func (c *Core) RegisterAccount(username, password string) error {
+    ...
+    if err := c.sendProtoMessage(...); err != nil {
+        return err
+    }
+    resp, err := c.flow.register.Wait(defaultClientTimeout)
+    if err != nil {
+        return err
+    }
+    if !resp.Success {
+        return fmt.Errorf("register failed: %s", resp.Message)
+    }
+    return nil
+}
+```
+
+5. **并行场景**  
+   - 每个 Waiter 是独立的 channel，允许多个协议并行等待（例如同时等待 `bagData` 与 `gmResult`）；同一 Waiter 的 channel 容量为 1，如果已有消息且没有人在等待，新消息会被丢弃（适合“请求 → 单次响应”场景，需及时调用 `Wait` 获取结果）。  
+   - 对于需要连续事件的场景（如 AOI），使用 `waiter.Chan()` 并结合 select 或非阻塞读获取最新实体快照。
+
+通过 FlowRegistry，将所有协议交互的并发、超时和回调逻辑集中管理，使 `systems/*` 和 `panel/actions.go` 的流程保持简洁，同时复用统一的时间源与错误处理。
+
 

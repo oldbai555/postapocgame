@@ -78,3 +78,92 @@ func (calc *CombatAttrCalc) GetAll() map[attrdef.AttrType]attrdef.AttrValue {
 	})
 	return result
 }
+
+// FightAttrCalc 高级战斗属性计算器（支持拷贝、合并、相减等操作）
+type FightAttrCalc struct {
+	values [CombatAttrCount]attrdef.AttrValue
+}
+
+// NewFightAttrCalc 创建 FightAttrCalc
+func NewFightAttrCalc() *FightAttrCalc {
+	return &FightAttrCalc{}
+}
+
+// Reset 清空所有属性
+func (calc *FightAttrCalc) Reset() {
+	copy(calc.values[:], ZeroCombatAttrs[:])
+}
+
+// Copy 拷贝另一份属性
+func (calc *FightAttrCalc) Copy(src *FightAttrCalc) {
+	if src == nil {
+		calc.Reset()
+		return
+	}
+	copy(calc.values[:], src.values[:])
+}
+
+// Clone 复制出新的计算器
+func (calc *FightAttrCalc) Clone() *FightAttrCalc {
+	clone := NewFightAttrCalc()
+	clone.Copy(calc)
+	return clone
+}
+
+// SetValue 设置属性值
+func (calc *FightAttrCalc) SetValue(attrType attrdef.AttrType, value attrdef.AttrValue) bool {
+	if !attrdef.IsCombatAttr(attrType) {
+		return false
+	}
+	idx := attrType - attrdef.CombatAttrBegin
+	changed := calc.values[idx] != value
+	calc.values[idx] = value
+	return changed
+}
+
+// GetValue 获取属性值
+func (calc *FightAttrCalc) GetValue(attrType attrdef.AttrType) attrdef.AttrValue {
+	if !attrdef.IsCombatAttr(attrType) {
+		return 0
+	}
+	return calc.values[attrType-attrdef.CombatAttrBegin]
+}
+
+// AddValue 属性值累加
+func (calc *FightAttrCalc) AddValue(attrType attrdef.AttrType, delta attrdef.AttrValue) {
+	if !attrdef.IsCombatAttr(attrType) {
+		return
+	}
+	idx := attrType - attrdef.CombatAttrBegin
+	calc.values[idx] += delta
+}
+
+// AddCalc 按属性累加另一份属性
+func (calc *FightAttrCalc) AddCalc(other *FightAttrCalc) {
+	if other == nil {
+		return
+	}
+	for i, v := range other.values {
+		calc.values[i] += v
+	}
+}
+
+// SubCalc 按属性扣减另一份属性
+func (calc *FightAttrCalc) SubCalc(other *FightAttrCalc) {
+	if other == nil {
+		return
+	}
+	for i, v := range other.values {
+		calc.values[i] -= v
+	}
+}
+
+// DoRange 遍历所有属性
+func (calc *FightAttrCalc) DoRange(cb func(attrType attrdef.AttrType, value attrdef.AttrValue)) {
+	for idx, v := range calc.values {
+		if v == 0 {
+			continue
+		}
+		cb(attrdef.AttrType(idx)+attrdef.CombatAttrBegin, v)
+	}
+}

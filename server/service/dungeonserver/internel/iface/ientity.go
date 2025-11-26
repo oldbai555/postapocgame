@@ -9,6 +9,7 @@ package iface
 import (
 	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/argsdef"
+	"postapocgame/server/internal/protocol"
 	"time"
 )
 
@@ -27,6 +28,7 @@ type IEntity interface {
 	SetFuBenId(fuBenId uint32)
 	GetLevel() uint32
 	GetStateFlags() uint64
+	BuildProtoEntitySt() *protocol.EntitySt
 
 	SendMessage(protoId uint16, data []byte) error
 	SendProtoMessage(protoId uint16, v proto.Message) error

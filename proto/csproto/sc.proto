@@ -14,6 +14,7 @@ import "player.proto";
 import "system.proto";
 import "skill_def.proto";
 import "social_def.proto";
+import "attr_def.proto";
 
 enum S2CProtocol{
     S2CError = 0;// 错误消息
@@ -119,7 +120,10 @@ message S2CMoneyDataReq {
     SiMoneyData money_data = 1;
 }
 
-message S2CAttrDataReq {}
+message S2CAttrDataReq {
+    SyncAttrData attr_data = 1;
+    map<uint32, int64> sys_power_map = 2;
+}
 
 message S2CMailListReq {
     repeated MailSt mail_list = 1;

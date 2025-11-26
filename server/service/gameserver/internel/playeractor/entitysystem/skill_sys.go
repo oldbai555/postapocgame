@@ -288,7 +288,10 @@ func handleLearnSkill(ctx context.Context, msg *network.ClientMessage) error {
 		// 触发任务事件（学习技能）
 		questSys := GetQuestSys(ctx)
 		if questSys != nil {
-			questSys.UpdateQuestProgressByType(ctx, uint32(protocol.QuestType_QuestTypeLearnSkill), 0, 1)
+			err := questSys.UpdateQuestProgressByType(ctx, uint32(protocol.QuestType_QuestTypeLearnSkill), 0, 1)
+			if err != nil {
+				log.Errorf("update quest progress failed: %v", err)
+			}
 		}
 	}
 

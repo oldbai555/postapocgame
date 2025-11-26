@@ -12,6 +12,8 @@ import (
 
 // IAttrSys 属性系统接口
 type IAttrSys interface {
+	// ResetSysAttr 重置指定系统的属性（通过注册管理器计算）
+	ResetSysAttr(sysId uint32)
 	// GetAttrValue 获取属性值
 	GetAttrValue(attrType attrdef.AttrType) attrdef.AttrValue
 
@@ -41,4 +43,16 @@ type IAttrSys interface {
 
 	// BatchAddAttrs 批量增加属性
 	BatchAddAttrs(attrs map[attrdef.AttrType]attrdef.AttrValue)
+
+	// ResetProperty 重新计算战斗属性并广播（触发属性汇总、转换、百分比加成）
+	ResetProperty()
+
+	// SetInitFinish 标记初始化完成（初始化完成前不广播属性）
+	SetInitFinish()
+
+	// RunOne 每帧更新（由实体 RunOne 调用）
+	RunOne()
+
+	// CheckAndSyncProp 检查并同步非战斗属性的变化
+	CheckAndSyncProp()
 }

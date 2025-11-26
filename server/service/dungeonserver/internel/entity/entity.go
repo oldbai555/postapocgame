@@ -1,11 +1,11 @@
 package entity
 
 import (
+	"fmt"
 	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/argsdef"
 	"postapocgame/server/internal/attrdef"
 	"postapocgame/server/internal/protocol"
-	"postapocgame/server/service/dungeonserver/internel/entityhelper"
 	"postapocgame/server/service/dungeonserver/internel/entitymgr"
 	"postapocgame/server/service/dungeonserver/internel/entitysystem"
 	"postapocgame/server/service/dungeonserver/internel/iface"
@@ -31,6 +31,8 @@ type BaseEntity struct {
 
 	// 状态标记
 	stateFlags uint64
+
+	name string
 }
 
 const (
@@ -52,7 +54,7 @@ func NewBaseEntity(Id uint64, entityType uint32) *BaseEntity {
 	entity.fightSys = entitysystem.NewFightSys()
 	entity.fightSys.SetEntity(entity) // 设置实体引用
 	entity.buffSys = entitysystem.NewBuffSystem(entity)
-	entity.attrSys = entitysystem.NewAttrSys()
+	entity.attrSys = entitysystem.NewAttrSys(entity)
 	entity.aoiSys = entitysystem.NewAOISys(entity)
 	entity.stateMachine = entitysystem.NewStateMachine(entity) // 创建状态机
 	entity.moveSys = entitysystem.NewMoveSys(entity)
@@ -194,6 +196,9 @@ func (e *BaseEntity) RemoveExtraState(stateId uint32) {
 }
 
 func (e *BaseEntity) RunOne(now time.Time) {
+	if e.attrSys != nil {
+		e.attrSys.RunOne()
+	}
 	if e.buffSys != nil {
 		e.buffSys.RunOne(now)
 	}
@@ -292,7 +297,7 @@ func (e *BaseEntity) broadcastHpChange() {
 	}
 
 	// 构建实体快照（包含最新的HP等属性）
-	entitySt := entityhelper.BuildEntitySnapshot(e)
+	entitySt := e.BuildProtoEntitySt()
 	if entitySt == nil {
 		return
 	}
@@ -309,7 +314,7 @@ func (e *BaseEntity) broadcastHpChange() {
 }
 
 // broadcastDeath 广播死亡消息给视野内的玩家
-func (e *BaseEntity) broadcastDeath(killer iface.IEntity) {
+func (e *BaseEntity) broadcastDeath(_ iface.IEntity) {
 	if e.aoiSys == nil {
 		return
 	}
@@ -321,7 +326,7 @@ func (e *BaseEntity) broadcastDeath(killer iface.IEntity) {
 	}
 
 	// 构建实体快照（包含死亡状态）
-	entitySt := entityhelper.BuildEntitySnapshot(e)
+	entitySt := e.BuildProtoEntitySt()
 	if entitySt == nil {
 		return
 	}
@@ -338,8 +343,51 @@ func (e *BaseEntity) broadcastDeath(killer iface.IEntity) {
 }
 
 func (e *BaseEntity) GetName() string {
-	return ""
+	if e.name == "" {
+		return fmt.Sprintf("Entity[%d][%d]", e.GetEntityType(), e.GetId())
+	}
+	return e.name
 }
 
 func (e *BaseEntity) SetName(name string) {
+	e.name = name
+}
+
+func (e *BaseEntity) buildAttrMap() map[uint32]int64 {
+	attrSys := e.GetAttrSys()
+	if attrSys == nil {
+		return nil
+	}
+	attrTypes := []attrdef.AttrType{
+		attrdef.AttrHP,
+		attrdef.AttrMaxHP,
+		attrdef.AttrMP,
+		attrdef.AttrMaxMP,
+	}
+	attrs := make(map[uint32]int64, len(attrTypes))
+	for _, attrType := range attrTypes {
+		value := attrSys.GetAttrValue(attrType)
+		attrs[attrType] = value
+	}
+	return attrs
+}
+
+func (e *BaseEntity) BuildProtoEntitySt() *protocol.EntitySt {
+	pos := e.GetPosition()
+	if pos == nil {
+		pos = &argsdef.Position{}
+	}
+	return &protocol.EntitySt{
+		Hdl:        e.GetHdl(),
+		Id:         e.GetId(),
+		Et:         e.GetEntityType(),
+		PosX:       pos.X,
+		PosY:       pos.Y,
+		SceneId:    e.GetSceneId(),
+		FbId:       e.GetFuBenId(),
+		Level:      e.GetLevel(),
+		ShowName:   e.GetName(),
+		Attrs:      e.buildAttrMap(),
+		StateFlags: e.GetStateFlags(),
+	}
 }

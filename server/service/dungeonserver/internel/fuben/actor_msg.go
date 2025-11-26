@@ -20,7 +20,6 @@ import (
 	"postapocgame/server/service/dungeonserver/internel/drpcprotocol"
 	"postapocgame/server/service/dungeonserver/internel/dshare"
 	"postapocgame/server/service/dungeonserver/internel/entity"
-	"postapocgame/server/service/dungeonserver/internel/entityhelper"
 	"postapocgame/server/service/dungeonserver/internel/entitymgr"
 	"postapocgame/server/service/dungeonserver/internel/gameserverlink"
 	"postapocgame/server/service/dungeonserver/internel/iface"
@@ -189,19 +188,7 @@ func handleG2DEnterDungeon(msg actor.IActorMessage) error {
 	}
 
 	resp := &protocol.S2CEnterSceneReq{
-		EntityData: &protocol.EntitySt{
-			Hdl:        roleEntity.GetHdl(),
-			Id:         roleEntity.Id,
-			Et:         roleEntity.GetEntityType(),
-			PosX:       spawnX,
-			PosY:       spawnY,
-			SceneId:    scene.GetSceneId(),
-			FbId:       fb.GetFbId(),
-			Level:      roleEntity.GetLevel(),
-			ShowName:   req.SimpleData.RoleName,
-			Attrs:      entityhelper.BuildAttrMap(roleEntity),
-			StateFlags: roleEntity.GetStateFlags(),
-		},
+		EntityData: roleEntity.BuildProtoEntitySt(),
 	}
 	if err := roleEntity.SendProtoMessage(uint16(protocol.S2CProtocol_S2CEnterScene), resp); err != nil {
 		log.Errorf("send enter scene failed: %v", err)

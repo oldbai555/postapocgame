@@ -43,7 +43,7 @@ func NewChatSys() iface.ISystem {
 	}
 }
 
-func (cs *ChatSys) OnInit(ctx context.Context) {
+func (cs *ChatSys) OnInit(_ context.Context) {
 	// do nothing
 }
 
@@ -153,24 +153,9 @@ func handleChatWorld(ctx context.Context, msg *network.ClientMessage) error {
 		})
 	}
 
-	// 频率限制（使用防作弊系统）
-	antiCheatSys := GetAntiCheatSys(ctx)
-	if antiCheatSys != nil {
-		if !antiCheatSys.CheckOperationFrequency("chat_world") {
-			return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
-				Code: -1,
-				Msg:  "发言过于频繁，请稍后再试",
-			})
-		}
-	}
-
 	// 内容过滤
 	filteredContent := filterChatContent(content)
 	if filteredContent != content {
-		// 包含敏感词，记录可疑行为
-		if antiCheatSys != nil {
-			antiCheatSys.RecordSuspiciousBehavior("chat_content_filtered")
-		}
 		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
 			Code: -1,
 			Msg:  "聊天内容包含敏感词，请重新输入",
@@ -261,24 +246,9 @@ func handleChatPrivate(ctx context.Context, msg *network.ClientMessage) error {
 		})
 	}
 
-	// 频率限制（使用防作弊系统）
-	antiCheatSys := GetAntiCheatSys(ctx)
-	if antiCheatSys != nil {
-		if !antiCheatSys.CheckOperationFrequency("chat_private") {
-			return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
-				Code: -1,
-				Msg:  "发言过于频繁，请稍后再试",
-			})
-		}
-	}
-
 	// 内容过滤
 	filteredContent := filterChatContent(content)
 	if filteredContent != content {
-		// 包含敏感词，记录可疑行为
-		if antiCheatSys != nil {
-			antiCheatSys.RecordSuspiciousBehavior("chat_content_filtered")
-		}
 		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
 			Code: -1,
 			Msg:  "聊天内容包含敏感词，请重新输入",

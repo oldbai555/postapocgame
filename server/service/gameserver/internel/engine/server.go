@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/service/gameserver/internel/config"
 	"postapocgame/server/service/gameserver/internel/gatewaylink"
 	"sync"
 )
 
 // GameServer GameServer实现
 type GameServer struct {
-	config    *config.ServerConfig
+	config    *ServerConfig
 	tcpServer network.ITCPServer
 
 	stopChan chan struct{}
@@ -20,7 +19,7 @@ type GameServer struct {
 }
 
 // NewGameServer 创建GameServer
-func NewGameServer(config *config.ServerConfig) *GameServer {
+func NewGameServer(config *ServerConfig) *GameServer {
 	return &GameServer{
 		config:   config,
 		stopChan: make(chan struct{}),
@@ -63,6 +62,6 @@ func (gs *GameServer) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (gs *GameServer) GetConfig() *config.ServerConfig {
+func (gs *GameServer) GetConfig() *ServerConfig {
 	return gs.config
 }

@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	// 默认物品使用冷却时间（秒）
+	// DefaultItemUseCooldownSeconds 默认物品使用冷却时间（秒）
 	DefaultItemUseCooldownSeconds int64 = 5
 )
 

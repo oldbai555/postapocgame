@@ -6,6 +6,8 @@ func AutoMigrate() error {
 		&Account{},
 		&Player{},
 		&OfflineMessage{},
+		&OfflineData{},
+		&PlayerActorMessage{},
 		&Guild{},
 		&AuctionItem{},
 		&Blacklist{},

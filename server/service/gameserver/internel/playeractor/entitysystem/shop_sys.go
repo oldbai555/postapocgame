@@ -16,8 +16,6 @@ import (
 	"postapocgame/server/service/gameserver/internel/playeractor/clientprotocol"
 )
 
-const shopDefaultMoneyID uint32 = 1
-
 // ShopSys 个人商城系统
 type ShopSys struct {
 	*BaseSystem
@@ -119,7 +117,7 @@ func (ss *ShopSys) buildRewardList(cfg *jsonconf.ItemConfig, count uint32) []*js
 	// 如果没有商城配置，返回默认奖励（物品本身）
 	return []*jsonconf.ItemAmount{
 		{
-			ItemType: uint32(cfg.Type),
+			ItemType: cfg.Type,
 			ItemId:   cfg.ItemId,
 			Count:    int64(count),
 			Bind:     1,

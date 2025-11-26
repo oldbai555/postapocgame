@@ -79,7 +79,7 @@ func (pr *PlayerRole) ApplyConsume(ctx context.Context, items []*jsonconf.ItemAm
 			currentAmount := moneySys.GetAmount(item.ItemId)
 			rollbacks = append(rollbacks, rollbackInfo{moneyID: item.ItemId, amount: currentAmount})
 			// 使用系统方法更新余额
-			if err := moneySys.UpdateBalanceTx(ctx, item.ItemId, -int64(item.Count), nil); err != nil {
+			if err := moneySys.UpdateBalanceTx(ctx, item.ItemId, -item.Count); err != nil {
 				// 回滚已操作的内存状态
 				for _, rb := range rollbacks {
 					if rb.moneyID > 0 && moneySys != nil {

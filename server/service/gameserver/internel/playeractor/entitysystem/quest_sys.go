@@ -212,54 +212,6 @@ func (qs *QuestSys) AcceptQuest(ctx context.Context, questId uint32) error {
 	return nil
 }
 
-// UpdateQuestProgress 更新任务进度（按目标索引）
-func (qs *QuestSys) UpdateQuestProgress(ctx context.Context, questId uint32, targetIndex uint32, progress uint32) error {
-	playerRole, err := GetIPlayerRoleByContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	// 获取任务
-	quest, _ := qs.getQuestWithType(questId)
-	if quest == nil {
-		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "quest not found: %d (role=%d)", questId, playerRole.GetPlayerRoleId())
-	}
-
-	// 检查任务配置
-	questConfig, ok := jsonconf.GetConfigManager().GetQuestConfig(questId)
-	if !ok {
-		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "quest config not found: %d (role=%d)", questId, playerRole.GetPlayerRoleId())
-	}
-
-	// 检查目标索引
-	if int(targetIndex) >= len(questConfig.Targets) {
-		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "invalid target index: %d (role=%d)", targetIndex, playerRole.GetPlayerRoleId())
-	}
-
-	// 更新进度（不能超过目标数量）
-	target := questConfig.Targets[targetIndex]
-	if progress > target.Count {
-		progress = target.Count
-	}
-
-	// 确保Progress数组足够大
-	for int(targetIndex) >= len(quest.Progress) {
-		quest.Progress = append(quest.Progress, 0)
-	}
-
-	quest.Progress[targetIndex] = progress
-
-	log.Infof("Quest progress updated: RoleID=%d, QuestID=%d, TargetIndex=%d, Progress=%d/%d",
-		playerRole.GetPlayerRoleId(), questId, targetIndex, progress, target.Count)
-
-	// 检查任务是否完成
-	if qs.isQuestCompleted(questId) {
-		log.Infof("Quest completed: RoleID=%d, QuestID=%d", playerRole.GetPlayerRoleId(), questId)
-	}
-
-	return nil
-}
-
 // UpdateQuestProgressByType 根据任务类型更新进度（自动匹配符合条件的任务目标）
 // questType: 任务类型（1=和NPC对话，2=学习技能，3=击杀怪物）
 // targetId: 目标ID（对于type=1，传入npcId；对于type=2和3，可以传入0表示任意）
@@ -532,7 +484,7 @@ func (qs *QuestSys) refreshQuestType(ctx context.Context, questType uint32) {
 		if levelSys != nil && cfg.Level > level {
 			continue
 		}
-		bucket.Quests = append(bucket.Quests, qs.newQuestDataFromConfig(cfg, now))
+		bucket.Quests = append(bucket.Quests, qs.newQuestDataFromConfig(cfg))
 	}
 
 	if qs.questData.LastResetMap == nil {
@@ -558,7 +510,7 @@ func (qs *QuestSys) refreshQuestType(ctx context.Context, questType uint32) {
 	log.Infof("Quest type refreshed: RoleID=%d, Type=%d, Count=%d", playerRole.GetPlayerRoleId(), questType, len(bucket.Quests))
 }
 
-func (qs *QuestSys) newQuestDataFromConfig(cfg *jsonconf.QuestConfig, now int64) *protocol.QuestData {
+func (qs *QuestSys) newQuestDataFromConfig(cfg *jsonconf.QuestConfig) *protocol.QuestData {
 	progress := make([]uint32, len(cfg.Targets))
 	for i := range progress {
 		progress[i] = 0

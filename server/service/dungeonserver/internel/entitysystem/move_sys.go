@@ -18,7 +18,6 @@ import (
 	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/service/dungeonserver/internel/entityhelper"
 	"postapocgame/server/service/dungeonserver/internel/gameserverlink"
 	"postapocgame/server/service/dungeonserver/internel/iface"
 
@@ -662,7 +661,7 @@ func (ms *MoveSys) notifyAppear(receiver iface.IEntity, subject iface.IEntity) {
 	if receiver.GetEntityType() != uint32(protocol.EntityType_EtRole) {
 		return
 	}
-	entitySt := entityhelper.BuildEntitySnapshot(subject)
+	entitySt := subject.BuildProtoEntitySt()
 	if entitySt == nil {
 		return
 	}

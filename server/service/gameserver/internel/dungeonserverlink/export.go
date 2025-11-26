@@ -5,16 +5,14 @@ import (
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/service/gameserver/internel/config"
 )
 
 var dungeonRPC *DungeonClient
 
-func StartDungeonClient(ctx context.Context, config *config.ServerConfig) {
-	dungeonRPC = NewDungeonClient(config)
-
+func StartDungeonClient(ctx context.Context, dungeonServerAddrMap map[uint8]string) {
+	dungeonRPC = NewDungeonClient()
 	// 连接到DungeonServer
-	for srvType, addr := range config.DungeonServerAddrMap {
+	for srvType, addr := range dungeonServerAddrMap {
 		if err := dungeonRPC.Connect(ctx, srvType, addr); err != nil {
 			log.Errorf("connect to dungeon service failed: srvType=%d, addr=%s, err=%v", srvType, addr, err)
 		}

@@ -20,38 +20,38 @@ import (
 	"time"
 )
 
-// FubenSys 副本系统
-type FubenSys struct {
+// FuBenSys 副本系统
+type FuBenSys struct {
 	*BaseSystem
 	dungeonData *protocol.SiDungeonData
 }
 
-// NewFubenSys 创建副本系统
-func NewFubenSys() *FubenSys {
-	return &FubenSys{
-		BaseSystem: NewBaseSystem(uint32(protocol.SystemId_SysDungeon)),
+// NewFuBenSys 创建副本系统
+func NewFuBenSys() *FuBenSys {
+	return &FuBenSys{
+		BaseSystem: NewBaseSystem(uint32(protocol.SystemId_SysFuBen)),
 	}
 }
 
-func GetFubenSys(ctx context.Context) *FubenSys {
+func GetFuBenSys(ctx context.Context) *FuBenSys {
 	playerRole, err := GetIPlayerRoleByContext(ctx)
 	if err != nil {
 		log.Errorf("get player role error:%v", err)
 		return nil
 	}
-	system := playerRole.GetSystem(uint32(protocol.SystemId_SysDungeon))
+	system := playerRole.GetSystem(uint32(protocol.SystemId_SysFuBen))
 	if system == nil {
 		return nil
 	}
-	fubenSys, ok := system.(*FubenSys)
-	if !ok || !fubenSys.IsOpened() {
+	FuBenSys, ok := system.(*FuBenSys)
+	if !ok || !FuBenSys.IsOpened() {
 		return nil
 	}
-	return fubenSys
+	return FuBenSys
 }
 
 // OnInit 初始化时从PlayerRoleBinaryData加载副本数据
-func (fs *FubenSys) OnInit(ctx context.Context) {
+func (fs *FuBenSys) OnInit(ctx context.Context) {
 	playerRole, err := GetIPlayerRoleByContext(ctx)
 	if err != nil {
 		log.Errorf("fuben sys OnInit get role err:%v", err)
@@ -78,11 +78,11 @@ func (fs *FubenSys) OnInit(ctx context.Context) {
 		fs.dungeonData.Records = make([]*protocol.DungeonRecord, 0)
 	}
 
-	log.Infof("FubenSys initialized: RecordCount=%d", len(fs.dungeonData.Records))
+	log.Infof("FuBenSys initialized: RecordCount=%d", len(fs.dungeonData.Records))
 }
 
 // GetDungeonRecord 获取副本记录
-func (fs *FubenSys) GetDungeonRecord(dungeonID uint32, difficulty uint32) *protocol.DungeonRecord {
+func (fs *FuBenSys) GetDungeonRecord(dungeonID uint32, difficulty uint32) *protocol.DungeonRecord {
 	if fs.dungeonData == nil || fs.dungeonData.Records == nil {
 		return nil
 	}
@@ -95,7 +95,7 @@ func (fs *FubenSys) GetDungeonRecord(dungeonID uint32, difficulty uint32) *proto
 }
 
 // GetOrCreateDungeonRecord 获取或创建副本记录
-func (fs *FubenSys) GetOrCreateDungeonRecord(dungeonID uint32, difficulty uint32) *protocol.DungeonRecord {
+func (fs *FuBenSys) GetOrCreateDungeonRecord(dungeonID uint32, difficulty uint32) *protocol.DungeonRecord {
 	if fs.dungeonData == nil {
 		return nil
 	}
@@ -124,7 +124,7 @@ func (fs *FubenSys) GetOrCreateDungeonRecord(dungeonID uint32, difficulty uint32
 }
 
 // CheckDungeonCD 检查副本CD（冷却时间）
-func (fs *FubenSys) CheckDungeonCD(dungeonID uint32, difficulty uint32, cdMinutes uint32) (bool, time.Duration) {
+func (fs *FuBenSys) CheckDungeonCD(dungeonID uint32, difficulty uint32, cdMinutes uint32) (bool, time.Duration) {
 	record := fs.GetDungeonRecord(dungeonID, difficulty)
 	if record == nil {
 		// 没有记录，可以进入
@@ -146,7 +146,7 @@ func (fs *FubenSys) CheckDungeonCD(dungeonID uint32, difficulty uint32, cdMinute
 }
 
 // EnterDungeon 进入副本（更新进入时间和次数）
-func (fs *FubenSys) EnterDungeon(dungeonID uint32, difficulty uint32) error {
+func (fs *FuBenSys) EnterDungeon(dungeonID uint32, difficulty uint32) error {
 	if fs.dungeonData == nil {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "dungeon data not initialized")
 	}
@@ -172,12 +172,12 @@ func (fs *FubenSys) EnterDungeon(dungeonID uint32, difficulty uint32) error {
 }
 
 // GetDungeonData 获取副本数据（用于协议）
-func (fs *FubenSys) GetDungeonData() *protocol.SiDungeonData {
+func (fs *FuBenSys) GetDungeonData() *protocol.SiDungeonData {
 	return fs.dungeonData
 }
 
 // GetAllRecords 获取所有副本记录
-func (fs *FubenSys) GetAllRecords() []*protocol.DungeonRecord {
+func (fs *FuBenSys) GetAllRecords() []*protocol.DungeonRecord {
 	if fs.dungeonData == nil || fs.dungeonData.Records == nil {
 		return make([]*protocol.DungeonRecord, 0)
 	}
@@ -245,8 +245,8 @@ func handleEnterDungeon(ctx context.Context, msg *network.ClientMessage) error {
 
 	// 获取副本系统
 	roleCtx := playerRole.WithContext(ctx)
-	fubenSys := GetFubenSys(roleCtx)
-	if fubenSys == nil {
+	FuBenSys := GetFuBenSys(roleCtx)
+	if FuBenSys == nil {
 		resp := &protocol.S2CEnterDungeonResultReq{
 			Success:   false,
 			Message:   "副本系统未初始化",
@@ -256,7 +256,7 @@ func handleEnterDungeon(ctx context.Context, msg *network.ClientMessage) error {
 	}
 
 	// 检查每日进入次数
-	record := fubenSys.GetDungeonRecord(req.DungeonId, req.Difficulty)
+	record := FuBenSys.GetDungeonRecord(req.DungeonId, req.Difficulty)
 	if record != nil {
 		now := servertime.Now()
 		lastResetTime := time.Unix(record.ResetTime, 0)
@@ -303,7 +303,7 @@ func handleEnterDungeon(ctx context.Context, msg *network.ClientMessage) error {
 	}
 
 	// 更新进入记录
-	if err := fubenSys.EnterDungeon(req.DungeonId, req.Difficulty); err != nil {
+	if err := FuBenSys.EnterDungeon(req.DungeonId, req.Difficulty); err != nil {
 		log.Errorf("EnterDungeon failed: %v", err)
 		resp := &protocol.S2CEnterDungeonResultReq{
 			Success:   false,
@@ -388,7 +388,7 @@ func handleEnterDungeon(ctx context.Context, msg *network.ClientMessage) error {
 }
 
 // handleSettleDungeon 处理副本结算的RPC请求
-func handleSettleDungeon(ctx context.Context, sessionId string, data []byte) error {
+func handleSettleDungeon(ctx context.Context, _ string, data []byte) error {
 	var req protocol.D2GSettleDungeonReq
 	if err := proto.Unmarshal(data, &req); err != nil {
 		log.Errorf("unmarshal settle dungeon request failed: %v", err)
@@ -413,9 +413,9 @@ func handleSettleDungeon(ctx context.Context, sessionId string, data []byte) err
 
 	// 更新副本记录
 	roleCtx := playerRole.WithContext(ctx)
-	fubenSys := GetFubenSys(roleCtx)
-	if fubenSys != nil {
-		if err := fubenSys.EnterDungeon(req.DungeonId, req.Difficulty); err != nil {
+	FuBenSys := GetFuBenSys(roleCtx)
+	if FuBenSys != nil {
+		if err := FuBenSys.EnterDungeon(req.DungeonId, req.Difficulty); err != nil {
 			log.Errorf("EnterDungeon failed: %v", err)
 			// 不返回错误，继续发放奖励
 		}
@@ -468,7 +468,7 @@ func handleSettleDungeon(ctx context.Context, sessionId string, data []byte) err
 }
 
 // handleEnterDungeonSuccess 处理进入副本成功通知
-func handleEnterDungeonSuccess(ctx context.Context, sessionId string, data []byte) error {
+func handleEnterDungeonSuccess(_ context.Context, _ string, data []byte) error {
 	var req protocol.D2GEnterDungeonSuccessReq
 	if err := proto.Unmarshal(data, &req); err != nil {
 		log.Errorf("unmarshal enter dungeon success request failed: %v", err)
@@ -482,8 +482,8 @@ func handleEnterDungeonSuccess(ctx context.Context, sessionId string, data []byt
 
 // 注册系统工厂
 func init() {
-	RegisterSystemFactory(uint32(protocol.SystemId_SysDungeon), func() iface.ISystem {
-		return NewFubenSys()
+	RegisterSystemFactory(uint32(protocol.SystemId_SysFuBen), func() iface.ISystem {
+		return NewFuBenSys()
 	})
 	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
 		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SEnterDungeon), handleEnterDungeon)
