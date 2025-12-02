@@ -1,0 +1,22 @@
+package controller
+
+import (
+	"context"
+	"postapocgame/server/internal/event"
+	"postapocgame/server/internal/protocol"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/clientprotocol"
+	gevent2 "postapocgame/server/service/gameserver/internel/infrastructure/gevent"
+)
+
+func init() {
+	gevent2.Subscribe(gevent2.OnSrvStart, func(ctx context.Context, _ *event.Event) {
+		friendController := NewFriendController()
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SAddFriend), friendController.HandleAddFriend)
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SRespondFriendReq), friendController.HandleRespondFriendReq)
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SQueryFriendList), friendController.HandleQueryFriendList)
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SRemoveFriend), friendController.HandleRemoveFriend)
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SAddToBlacklist), friendController.HandleAddToBlacklist)
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SRemoveFromBlacklist), friendController.HandleRemoveFromBlacklist)
+		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SQueryBlacklist), friendController.HandleQueryBlacklist)
+	})
+}

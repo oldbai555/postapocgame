@@ -11,13 +11,13 @@ import (
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
-	"postapocgame/server/service/gameserver/internel/dungeonserverlink"
-	"postapocgame/server/service/gameserver/internel/engine"
-	"postapocgame/server/service/gameserver/internel/gevent"
-	"postapocgame/server/service/gameserver/internel/gshare"
-	"postapocgame/server/service/gameserver/internel/manager"
-	"postapocgame/server/service/gameserver/internel/playeractor"
-	"postapocgame/server/service/gameserver/internel/publicactor"
+	engine2 "postapocgame/server/service/gameserver/internel/app/engine"
+	"postapocgame/server/service/gameserver/internel/app/manager"
+	"postapocgame/server/service/gameserver/internel/app/playeractor"
+	"postapocgame/server/service/gameserver/internel/app/publicactor"
+	"postapocgame/server/service/gameserver/internel/core/gshare"
+	"postapocgame/server/service/gameserver/internel/infrastructure/dungeonserverlink"
+	gevent2 "postapocgame/server/service/gameserver/internel/infrastructure/gevent"
 	"syscall"
 	"time"
 )
@@ -42,7 +42,7 @@ func main() {
 
 	// 初始化错误码映射
 	protocol.InitErrorCodes()
-	serverConfig, err := engine.LoadServerConfig("")
+	serverConfig, err := engine2.LoadServerConfig("")
 	if err != nil {
 		log.Fatalf("err:%v", err)
 	}
@@ -57,7 +57,7 @@ func main() {
 	gshare.SetOpenSrvTime(serverInfo.ServerOpenTimeAt)
 
 	// 创建GameServer
-	gs := engine.NewGameServer(serverConfig)
+	gs := engine2.NewGameServer(serverConfig)
 
 	// 玩家消息处理
 	playerRoleActor := playeractor.NewPlayerRoleActor(actor.ModePerKey)
@@ -89,7 +89,7 @@ func main() {
 		log.Fatalf("Start GameServer failed: %v", err)
 	}
 
-	gevent.Publish(context.Background(), event.NewEvent(gevent.OnSrvStart))
+	gevent2.Publish(context.Background(), event.NewEvent(gevent2.OnSrvStart))
 
 	// 连接DungeonServer
 	dungeonserverlink.StartDungeonClient(ctx, serverConfig.DungeonServerAddrMap)

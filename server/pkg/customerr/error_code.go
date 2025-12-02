@@ -65,6 +65,11 @@ func (e *CustomErr) Error() string {
 	return fmt.Sprintf("[Err-%d:%s][%s] %s", e.Code, e.Tag, e.Caller, e.Message)
 }
 
+// NewError 是 NewErrorByCode 的语法糖，使用默认错误码
+func NewError(format string, args ...interface{}) error {
+	return NewErrorByCode(defaultErrorCode, format, args...)
+}
+
 // NewErrorByCode 创建带定位的错误，自动采集1级Caller
 func NewErrorByCode(code int32, format string, args ...interface{}) error {
 	tag := GetErrorTag(code)
