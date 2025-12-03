@@ -10,6 +10,14 @@ import (
 )
 
 // RecycleSystemAdapter 回收系统适配器
+//
+// 生命周期职责：
+// - 暂未实现生命周期方法（回收系统以单例形式暴露，不依赖 Actor 生命周期）
+//
+// 业务逻辑：所有业务逻辑（回收物品校验、奖励计算）均在 UseCase 层实现
+// 状态管理：以单例形式管理，通过 sync.Once 确保只初始化一次
+//
+// ⚠️ 防退化机制：禁止在 SystemAdapter 中编写业务规则逻辑，只允许调用 UseCase 与管理生命周期
 type RecycleSystemAdapter struct {
 	recycleItemUseCase *recycleusecase.RecycleItemUseCase
 }

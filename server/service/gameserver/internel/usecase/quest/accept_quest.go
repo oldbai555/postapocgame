@@ -11,10 +11,7 @@ import (
 )
 
 const (
-	questCategoryMain   = uint32(protocol.QuestCategory_QuestCategoryMain)
-	questCategoryBranch = uint32(protocol.QuestCategory_QuestCategoryBranch)
-	questCategoryDaily  = uint32(protocol.QuestCategory_QuestCategoryDaily)
-	questCategoryWeekly = uint32(protocol.QuestCategory_QuestCategoryWeekly)
+// questCategoryMain, questCategoryBranch, questCategoryDaily, questCategoryWeekly 已在 init_quest_data.go 中定义
 )
 
 // AcceptQuestUseCase 接受任务用例

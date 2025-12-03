@@ -18,10 +18,7 @@ func init() {
 		// 按业务模块拆分注册，避免在一个函数里堆所有 handler
 		RegisterOnlineHandlers(facade)
 		RegisterChatHandlers(facade)
-		RegisterFriendHandlers(facade)
 		RegisterRankHandlers(facade)
-		RegisterGuildHandlers(facade)
-		RegisterAuctionHandlers(facade)
 		RegisterOfflineDataHandlers(facade)
 	})
 }

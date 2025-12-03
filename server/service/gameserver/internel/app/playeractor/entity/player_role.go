@@ -11,7 +11,7 @@ import (
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
-	attrsystem "postapocgame/server/service/gameserver/internel/adapter/system"
+	"postapocgame/server/service/gameserver/internel/adapter/system"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/entitysystem"
 	"postapocgame/server/service/gameserver/internel/core/gshare"
 	"postapocgame/server/service/gameserver/internel/core/iface"
@@ -45,6 +45,9 @@ type PlayerRole struct {
 	_1sChecker   *tool.TimeChecker
 	_5minChecker *tool.TimeChecker
 	timeCursor   timeCursorMark
+
+	// 属性计算工具类（从 AttrSystemAdapter 重构而来）
+	attrCalculator *AttrCalculator
 }
 
 type timeCursorMark struct {
@@ -68,6 +71,9 @@ func NewPlayerRole(sessionId string, roleInfo *protocol.PlayerSimpleData) *Playe
 	}
 	// 创建系统管理器
 	pr.sysMgr = entitysystem.NewSysMgr()
+
+	// 创建属性计算工具类
+	pr.attrCalculator = NewAttrCalculator(pr)
 
 	// 订阅升级事件，自动更新排行榜（订阅到玩家自己的事件总线）
 	pr.eventBus.Subscribe(gevent2.OnPlayerLevelUp, 3, func(evCtx context.Context, ev *event.Event) {
@@ -112,6 +118,11 @@ func NewPlayerRole(sessionId string, roleInfo *protocol.PlayerSimpleData) *Playe
 	if err != nil {
 		log.Errorf("sys mgr on init failed, err:%v", err)
 		return nil
+	}
+
+	// 初始化属性计算工具类
+	if pr.attrCalculator != nil {
+		pr.attrCalculator.Init(pr.WithContext(nil))
 	}
 
 	pr._1sChecker = tool.NewTimeChecker(time.Second)
@@ -168,7 +179,7 @@ func (pr *PlayerRole) UpdateRankSnapshot(ctx context.Context) {
 	roleInfo := pr.SimpleData
 
 	// 获取等级
-	levelSys := attrsystem.GetLevelSys(ctx)
+	levelSys := system.GetLevelSys(ctx)
 	var level uint32
 	if levelSys != nil {
 		if lvl, err := levelSys.GetLevel(ctx); err == nil {
@@ -180,12 +191,11 @@ func (pr *PlayerRole) UpdateRankSnapshot(ctx context.Context) {
 		level = roleInfo.Level
 	}
 
-	// 计算战力（简化版：从属性系统获取）
+	// 计算战力（简化版：从属性计算工具类获取）
 	var combatPower int64
-	attrSys := attrsystem.GetAttrSys(ctx)
-	if attrSys != nil {
+	if pr.attrCalculator != nil {
 		// 计算所有属性
-		allAttrs := attrSys.CalculateAllAttrs(ctx)
+		allAttrs := pr.attrCalculator.CalculateAllAttrs(ctx)
 		// 简化计算：将所有属性值相加作为战力（实际应该根据配置计算）
 		for _, attrVec := range allAttrs {
 			if attrVec != nil && attrVec.Attrs != nil {
@@ -314,8 +324,8 @@ func (pr *PlayerRole) OnReconnect(newSessionId string) error {
 
 	// 发布玩家重连事件
 	pr.Publish(gevent2.OnPlayerReconnect)
-	if attrSys := attrsystem.GetAttrSys(pr.WithContext(nil)); attrSys != nil {
-		attrSys.PushFullAttrData(pr.WithContext(nil))
+	if pr.attrCalculator != nil {
+		pr.attrCalculator.PushFullAttrData(pr.WithContext(nil))
 	}
 
 	var resp protocol.S2CReconnectSuccessReq
@@ -455,6 +465,11 @@ func (pr *PlayerRole) GetSysMgr() iface.ISystemMgr {
 	return pr.sysMgr
 }
 
+// GetAttrCalculator 获取属性计算工具类（实现 IPlayerRole 接口）
+func (pr *PlayerRole) GetAttrCalculator() interface{} {
+	return pr.attrCalculator
+}
+
 // CallDungeonServer 异步调用DungeonServer的RPC方法（用于解耦，避免循环依赖）
 func (pr *PlayerRole) CallDungeonServer(ctx context.Context, msgId uint16, data []byte) error {
 	srvType := pr.GetDungeonSrvType()
@@ -483,8 +498,8 @@ func (pr *PlayerRole) RunOne() {
 
 	if pr._1sChecker.CheckAndSet(true) {
 		pr.timeSync()
-		if attrSys := attrsystem.GetAttrSys(ctx); attrSys != nil {
-			attrSys.RunOne(ctx)
+		if pr.attrCalculator != nil {
+			pr.attrCalculator.RunOne(ctx)
 		}
 	}
 

@@ -13,5 +13,5 @@ func init() {
 		return NewQuestSystemAdapter()
 	})
 
-	// 每日/每周刷新由 DailyActivity 或时间事件统一驱动，这里暂不直接订阅 gevent
+	// 每日/每周刷新由时间事件统一驱动，这里暂不直接订阅 gevent
 }

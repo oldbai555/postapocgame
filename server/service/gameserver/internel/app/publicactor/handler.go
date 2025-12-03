@@ -3,9 +3,7 @@ package publicactor
 import (
 	"context"
 	"postapocgame/server/internal/actor"
-	"postapocgame/server/internal/database"
 	"postapocgame/server/internal/protocol"
-	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/core/gshare"
 )
 
@@ -25,38 +23,8 @@ func NewPublicHandler() *PublicHandler {
 	return handler
 }
 
-// LoadData 从数据库加载公会和拍卖行数据
+// LoadData 从数据库加载数据
 func (h *PublicHandler) LoadData() {
-	// 加载公会数据
-	guilds, err := database.GetAllGuilds()
-	if err != nil {
-		log.Warnf("Failed to load guilds from database: %v", err)
-	} else {
-		for _, guild := range guilds {
-			h.publicRole.SetGuild(guild.GuildId, guild)
-			// 更新nextGuildId
-			if guild.GuildId >= h.publicRole.nextGuildId {
-				h.publicRole.nextGuildId = guild.GuildId + 1
-			}
-		}
-		log.Infof("Loaded %d guilds from database", len(guilds))
-	}
-
-	// 加载拍卖行数据
-	auctionItems, err := database.GetAllAuctionItems()
-	if err != nil {
-		log.Warnf("Failed to load auction items from database: %v", err)
-	} else {
-		for _, item := range auctionItems {
-			h.publicRole.SetAuctionItem(item.AuctionId, item)
-			// 更新nextAuctionId
-			if item.AuctionId >= h.publicRole.nextAuctionId {
-				h.publicRole.nextAuctionId = item.AuctionId + 1
-			}
-		}
-		log.Infof("Loaded %d auction items from database", len(auctionItems))
-	}
-
 	// 加载离线数据
 	h.publicRole.LoadOfflineData(context.Background())
 }

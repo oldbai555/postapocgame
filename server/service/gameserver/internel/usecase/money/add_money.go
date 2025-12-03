@@ -14,9 +14,7 @@ type AddMoneyUseCase struct {
 	playerRepo     repository.PlayerRepository
 	eventPublisher interfaces.EventPublisher
 	// 依赖其他系统（暂时通过接口定义，后续重构时注入）
-	levelUseCase    interfaces.MoneyUseCase // 用于处理经验
-	vipUseCase      interfaces.MoneyUseCase // 用于处理VIP经验（待实现）
-	activityUseCase interfaces.MoneyUseCase // 用于处理活跃点（待实现）
+	levelUseCase interfaces.MoneyUseCase // 用于处理经验
 }
 
 // NewAddMoneyUseCase 创建添加货币用例
@@ -33,12 +31,8 @@ func NewAddMoneyUseCase(
 // SetDependencies 设置依赖（可选，用于后续系统重构后注入）
 func (uc *AddMoneyUseCase) SetDependencies(
 	levelUseCase interfaces.MoneyUseCase,
-	vipUseCase interfaces.MoneyUseCase,
-	activityUseCase interfaces.MoneyUseCase,
 ) {
 	uc.levelUseCase = levelUseCase
-	uc.vipUseCase = vipUseCase
-	uc.activityUseCase = activityUseCase
 }
 
 // Execute 执行添加货币用例
@@ -60,20 +54,6 @@ func (uc *AddMoneyUseCase) Execute(ctx context.Context, roleID uint64, moneyID u
 		// 旧方式：通过 GetLevelSys 获取（向后兼容）
 		// 注意：这里违反了 Clean Architecture 原则，等 LevelSys 完全重构后移除
 		return uc.updateExpLegacy(ctx, roleID, amount)
-	case uint32(protocol.MoneyType_MoneyTypeVipExp):
-		// VIP经验由VIP系统处理
-		if uc.vipUseCase != nil {
-			return uc.vipUseCase.UpdateExp(ctx, roleID, amount)
-		}
-		// 旧方式：通过 GetVipSys 获取（向后兼容）
-		return uc.updateVipExpLegacy(ctx, roleID, amount)
-	case uint32(protocol.MoneyType_MoneyTypeActivePoint):
-		// 活跃点由活跃度系统处理
-		if uc.activityUseCase != nil {
-			return uc.activityUseCase.UpdateExp(ctx, roleID, amount)
-		}
-		// 旧方式：通过 GetDailyActivitySys 获取（向后兼容）
-		return uc.updateActivePointLegacy(ctx, roleID, amount)
 	default:
 		// 普通货币由货币系统处理
 		return uc.updateBalance(ctx, roleID, moneyID, amount)
@@ -151,23 +131,5 @@ func (uc *AddMoneyUseCase) updateExpLegacy(ctx context.Context, roleID uint64, a
 	}
 	expMoneyID := uint32(protocol.MoneyType_MoneyTypeExp)
 	binaryData.MoneyData.MoneyMap[expMoneyID] = binaryData.LevelData.Exp
-	return nil
-}
-
-// updateVipExpLegacy 更新VIP经验值（旧方式，向后兼容）
-func (uc *AddMoneyUseCase) updateVipExpLegacy(ctx context.Context, roleID uint64, amount int64) error {
-	// 暂时不处理，等 VipSys 重构后实现
-	_ = ctx
-	_ = roleID
-	_ = amount
-	return nil
-}
-
-// updateActivePointLegacy 更新活跃点（旧方式，向后兼容）
-func (uc *AddMoneyUseCase) updateActivePointLegacy(ctx context.Context, roleID uint64, amount int64) error {
-	// 暂时不处理，等 DailyActivitySys 重构后实现
-	_ = ctx
-	_ = roleID
-	_ = amount
 	return nil
 }

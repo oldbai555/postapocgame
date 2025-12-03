@@ -58,6 +58,9 @@ type IPlayerRole interface {
 	OnNewWeek(ctx context.Context)
 	OnNewMonth(ctx context.Context)
 	OnNewYear(ctx context.Context)
+
+	// GetAttrCalculator 获取属性计算工具类（返回 interface{} 以避免循环依赖）
+	GetAttrCalculator() interface{}
 }
 
 type IPlayerEvent interface {

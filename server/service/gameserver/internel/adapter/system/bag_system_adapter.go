@@ -2,9 +2,7 @@ package system
 
 import (
 	"context"
-	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
-	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	adaptercontext "postapocgame/server/service/gameserver/internel/adapter/context"
 	"postapocgame/server/service/gameserver/internel/core/iface"
@@ -13,11 +11,22 @@ import (
 )
 
 // BagSystemAdapter 背包系统适配器
+//
+// 生命周期职责：
+// - OnInit: 初始化 BagData 结构（如果不存在），重建辅助索引 itemIndex
+// - 其他生命周期: 暂未使用
+//
+// 业务逻辑：所有业务逻辑（添加物品、移除物品、堆叠规则、容量检查）均在 UseCase 层实现
+// 状态管理：维护 itemIndex 辅助索引，用于快速查找物品（数据源仍为 BagData.Items）
+//
+// ⚠️ 防退化机制：禁止在 SystemAdapter 中编写业务规则逻辑，只允许调用 UseCase 与管理生命周期
 type BagSystemAdapter struct {
 	*BaseSystemAdapter
-	addItemUseCase    *bag.AddItemUseCase
-	removeItemUseCase *bag.RemoveItemUseCase
-	hasItemUseCase    *bag.HasItemUseCase
+	addItemUseCase      *bag.AddItemUseCase
+	removeItemUseCase   *bag.RemoveItemUseCase
+	addItemTxUseCase    *bag.AddItemTxUseCase
+	removeItemTxUseCase *bag.RemoveItemTxUseCase
+	hasItemUseCase      *bag.HasItemUseCase // TODO(adapter-phaseA-A2): 纯校验型逻辑后续可统一通过 BagUseCase 接口暴露，SystemAdapter 只做路由
 	// 辅助索引：itemID -> []*ItemSt（用于快速查找，但不作为数据源）
 	// 注意：这个索引只用于查找优化，数据源仍然是bagData.Items
 	itemIndex map[uint32][]*protocol.ItemSt
@@ -27,11 +36,13 @@ type BagSystemAdapter struct {
 func NewBagSystemAdapter() *BagSystemAdapter {
 	container := di.GetContainer()
 	return &BagSystemAdapter{
-		BaseSystemAdapter: NewBaseSystemAdapter(uint32(protocol.SystemId_SysBag)),
-		addItemUseCase:    bag.NewAddItemUseCase(container.PlayerGateway(), container.EventPublisher(), container.ConfigGateway()),
-		removeItemUseCase: bag.NewRemoveItemUseCase(container.PlayerGateway(), container.EventPublisher()),
-		hasItemUseCase:    bag.NewHasItemUseCase(container.PlayerGateway()),
-		itemIndex:         make(map[uint32][]*protocol.ItemSt),
+		BaseSystemAdapter:   NewBaseSystemAdapter(uint32(protocol.SystemId_SysBag)),
+		addItemUseCase:      bag.NewAddItemUseCase(container.PlayerGateway(), container.EventPublisher(), container.ConfigGateway()),
+		removeItemUseCase:   bag.NewRemoveItemUseCase(container.PlayerGateway(), container.EventPublisher()),
+		addItemTxUseCase:    bag.NewAddItemTxUseCase(container.PlayerGateway(), container.ConfigGateway()),
+		removeItemTxUseCase: bag.NewRemoveItemTxUseCase(container.PlayerGateway()),
+		hasItemUseCase:      bag.NewHasItemUseCase(container.PlayerGateway()),
+		itemIndex:           make(map[uint32][]*protocol.ItemSt),
 	}
 }
 
@@ -223,42 +234,15 @@ func (a *BagSystemAdapter) RemoveItemTx(ctx context.Context, itemID uint32, coun
 	if err != nil {
 		return err
 	}
-	binaryData, err := di.GetContainer().PlayerGateway().GetBinaryData(ctx, roleID)
+	err = a.removeItemTxUseCase.Execute(ctx, roleID, itemID, count)
 	if err != nil {
 		return err
 	}
-	if binaryData.BagData == nil || binaryData.BagData.Items == nil {
-		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "item not enough")
+	// 重建辅助索引（UseCase 只操作内存数据，索引维护由适配层负责）
+	binaryData, err := di.GetContainer().PlayerGateway().GetBinaryData(ctx, roleID)
+	if err == nil && binaryData != nil && binaryData.BagData != nil {
+		a.rebuildIndex(binaryData.BagData)
 	}
-
-	remaining := count
-	itemsToRemove := make([]int, 0)
-	for i, v := range binaryData.BagData.Items {
-		if v == nil || v.ItemId != itemID {
-			continue
-		}
-		if v.Count > remaining {
-			v.Count -= remaining
-			remaining = 0
-			break
-		}
-		remaining -= v.Count
-		itemsToRemove = append(itemsToRemove, i)
-		if remaining == 0 {
-			break
-		}
-	}
-	if remaining > 0 {
-		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "item not enough")
-	}
-
-	// 从后往前删除，避免索引变化
-	for i := len(itemsToRemove) - 1; i >= 0; i-- {
-		idx := itemsToRemove[i]
-		binaryData.BagData.Items = append(binaryData.BagData.Items[:idx], binaryData.BagData.Items[idx+1:]...)
-	}
-	// 重建辅助索引
-	a.rebuildIndex(binaryData.BagData)
 	return nil
 }
 
@@ -268,73 +252,15 @@ func (a *BagSystemAdapter) AddItemTx(ctx context.Context, itemID uint32, count u
 	if err != nil {
 		return err
 	}
-	binaryData, err := di.GetContainer().PlayerGateway().GetBinaryData(ctx, roleID)
+	err = a.addItemTxUseCase.Execute(ctx, roleID, itemID, count, bind)
 	if err != nil {
 		return err
 	}
-	if binaryData.BagData == nil {
-		binaryData.BagData = &protocol.SiBagData{
-			Items: make([]*protocol.ItemSt, 0),
-		}
+	// 重建辅助索引（UseCase 只操作内存数据，索引维护由适配层负责）
+	binaryData, err := di.GetContainer().PlayerGateway().GetBinaryData(ctx, roleID)
+	if err == nil && binaryData != nil && binaryData.BagData != nil {
+		a.rebuildIndex(binaryData.BagData)
 	}
-	if binaryData.BagData.Items == nil {
-		binaryData.BagData.Items = make([]*protocol.ItemSt, 0)
-	}
-
-	// 检查物品配置
-	itemConfig, ok := jsonconf.GetConfigManager().GetItemConfig(itemID)
-	if !ok {
-		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "item config not found: %d", itemID)
-	}
-
-	// 检查是否可以堆叠
-	if itemConfig.MaxStack > 1 {
-		// 可堆叠物品，尝试合并（使用现有索引）
-		if items, exists := a.itemIndex[itemID]; exists {
-			for _, existing := range items {
-				if existing == nil || existing.ItemId != itemID || existing.Bind != bind {
-					continue
-				}
-				maxAdd := itemConfig.MaxStack - existing.Count
-				if maxAdd > 0 {
-					addCount := count
-					if addCount > maxAdd {
-						addCount = maxAdd
-					}
-					existing.Count += addCount
-					count -= addCount
-					if count == 0 {
-						break
-					}
-				}
-			}
-		}
-	}
-
-	// 如果还有剩余，创建新物品
-	if count > 0 {
-		// 背包容量检查交由 UseCase 完整实现；此处为兼容旧逻辑，
-		// 仍然参考 Bag 配置做一次基础容量校验，避免明显溢出。
-		configMgr := jsonconf.GetConfigManager()
-		bagCfg, ok := configMgr.GetBagConfig(1)
-		if !ok || bagCfg == nil {
-			// 没有配置时，沿用旧实现的 100 容量默认值
-			if len(binaryData.BagData.Items) >= 100 {
-				return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "bag is full")
-			}
-		} else if len(binaryData.BagData.Items) >= int(bagCfg.Size) {
-			return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "bag is full")
-		}
-
-		newItem := &protocol.ItemSt{
-			ItemId: itemID,
-			Count:  count,
-			Bind:   bind,
-		}
-		binaryData.BagData.Items = append(binaryData.BagData.Items, newItem)
-		a.itemIndex[itemID] = append(a.itemIndex[itemID], newItem)
-	}
-
 	return nil
 }
 

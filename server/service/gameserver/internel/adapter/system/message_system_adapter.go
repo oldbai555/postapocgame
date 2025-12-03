@@ -11,11 +11,32 @@ import (
 	adaptercontext "postapocgame/server/service/gameserver/internel/adapter/context"
 )
 
-// MessageSystemAdapter 玩家消息系统：负责加载并回放离线期间积累的消息
+// MessageSystemAdapter 玩家消息系统适配器
+//
+// 生命周期职责：
+// - OnInit: 加载离线消息并触发回放
+// - OnRoleLogin: 登录时加载离线消息
+// - OnRoleReconnect: 重连时加载离线消息
+// - OnNewDay: 清理过期消息（超过7天的消息）
+// - RunOne: 检查消息数量限制（每个玩家最多1000条消息）
+// - 其他生命周期: 暂未使用
+//
+// 业务逻辑：消息类型注册、回放时机、失败重试策略主要在 UseCase 与消息注册中心中实现
+// 状态管理：维护 owner 引用，用于消息回放
+//
+// ⚠️ 防退化机制：禁止在 SystemAdapter 中编写业务规则逻辑，只允许调用 UseCase 与管理生命周期
+// 注意：主要逻辑为加载离线消息，属于框架层面的消息处理，保留在适配层符合 Clean Architecture 原则
 type MessageSystemAdapter struct {
 	*BaseSystemAdapter
 	owner iface2.IPlayerRole
 }
+
+const (
+	// MaxPlayerActorMessages 每个玩家最多保存的消息数量
+	MaxPlayerActorMessages = 1000
+	// MessageExpireDays 消息过期天数（超过此天数的消息将被清理）
+	MessageExpireDays = 7
+)
 
 // NewMessageSystemAdapter 创建消息系统适配器
 func NewMessageSystemAdapter() *MessageSystemAdapter {
@@ -96,6 +117,42 @@ func (ms *MessageSystemAdapter) processMessage(msg *database.PlayerActorMessage)
 		return false
 	}
 	return true
+}
+
+// OnNewDay 新的一天时清理过期消息
+func (ms *MessageSystemAdapter) OnNewDay(ctx context.Context) {
+	if ms.owner == nil {
+		return
+	}
+	// 清理超过7天的消息
+	deletedCount, err := database.DeleteExpiredPlayerActorMessages(MessageExpireDays)
+	if err != nil {
+		log.Errorf("MessageSys.OnNewDay: delete expired messages failed err=%v", err)
+	} else if deletedCount > 0 {
+		log.Infof("MessageSys.OnNewDay: deleted %d expired messages (older than %d days)", deletedCount, MessageExpireDays)
+	}
+}
+
+// RunOne 每帧调用，检查消息数量限制
+func (ms *MessageSystemAdapter) RunOne(ctx context.Context) {
+	if ms.owner == nil {
+		return
+	}
+	// 检查消息数量限制
+	count, err := database.GetPlayerActorMessageCount(ms.owner.GetPlayerRoleId())
+	if err != nil {
+		log.Errorf("MessageSys.RunOne: get message count failed role=%d err=%v", ms.owner.GetPlayerRoleId(), err)
+		return
+	}
+	if count > MaxPlayerActorMessages {
+		// 删除最旧的消息，保留最新的 MaxPlayerActorMessages 条
+		deletedCount, err := database.DeleteOldestPlayerActorMessages(ms.owner.GetPlayerRoleId(), MaxPlayerActorMessages)
+		if err != nil {
+			log.Errorf("MessageSys.RunOne: delete oldest messages failed role=%d err=%v", ms.owner.GetPlayerRoleId(), err)
+		} else if deletedCount > 0 {
+			log.Warnf("MessageSys.RunOne: deleted %d oldest messages for role=%d (exceeded limit %d)", deletedCount, ms.owner.GetPlayerRoleId(), MaxPlayerActorMessages)
+		}
+	}
 }
 
 // 确保实现 ISystem 接口

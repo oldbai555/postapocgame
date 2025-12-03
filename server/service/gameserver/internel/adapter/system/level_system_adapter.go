@@ -11,10 +11,19 @@ import (
 )
 
 // LevelSystemAdapter 等级系统适配器
+//
+// 生命周期职责：
+// - OnInit: 调用 InitLevelDataUseCase 初始化等级数据（默认值修正、经验同步）
+// - 其他生命周期: 暂未使用
+//
+// 业务逻辑：所有业务逻辑（加经验、升级、属性加成）均在 UseCase 层实现
+//
+// ⚠️ 防退化机制：禁止在 SystemAdapter 中编写业务规则逻辑，只允许调用 UseCase 与管理生命周期
 type LevelSystemAdapter struct {
 	*BaseSystemAdapter
-	addExpUseCase  *level.AddExpUseCase
-	levelUpUseCase *level.LevelUpUseCase
+	addExpUseCase        *level.AddExpUseCase
+	levelUpUseCase       *level.LevelUpUseCase
+	initLevelDataUseCase *level.InitLevelDataUseCase
 }
 
 // NewLevelSystemAdapter 创建等级系统适配器
@@ -37,50 +46,22 @@ func NewLevelSystemAdapter() *LevelSystemAdapter {
 			container.EventPublisher(),
 			container.ConfigGateway(),
 		),
-		levelUpUseCase: levelUpUC,
+		levelUpUseCase:       levelUpUC,
+		initLevelDataUseCase: level.NewInitLevelDataUseCase(container.PlayerGateway()),
 	}
 }
 
 // OnInit 系统初始化
 func (a *LevelSystemAdapter) OnInit(ctx context.Context) {
-	playerRole, err := adaptercontext.GetPlayerRoleFromContext(ctx)
+	roleID, err := adaptercontext.GetRoleIDFromContext(ctx)
 	if err != nil {
 		log.Errorf("level sys OnInit get role err:%v", err)
 		return
 	}
-
-	// 从PlayerRoleBinaryData获取数据，如果不存在则初始化
-	binaryData := playerRole.GetBinaryData()
-	if binaryData == nil {
-		log.Errorf("binary data is nil")
+	// 初始化等级数据（包括默认值修正、经验同步等业务逻辑）
+	if err := a.initLevelDataUseCase.Execute(ctx, roleID); err != nil {
+		log.Errorf("level sys OnInit init level data err:%v", err)
 		return
-	}
-
-	// 如果level_data不存在，则初始化
-	if binaryData.LevelData == nil {
-		binaryData.LevelData = &protocol.SiLevelData{
-			Level: 1,
-			Exp:   0,
-		}
-	}
-
-	// 确保等级至少为1
-	if binaryData.LevelData.Level < 1 {
-		binaryData.LevelData.Level = 1
-	}
-	if binaryData.LevelData.Exp < 0 {
-		binaryData.LevelData.Exp = 0
-	}
-
-	// 同步经验到货币系统（经验作为货币的一种）
-	// 统一以等级系统的经验值为准，同步到货币系统
-	if binaryData.MoneyData != nil {
-		if binaryData.MoneyData.MoneyMap == nil {
-			binaryData.MoneyData.MoneyMap = make(map[uint32]int64)
-		}
-		expMoneyID := uint32(protocol.MoneyType_MoneyTypeExp)
-		// 统一以等级系统的经验值为准
-		binaryData.MoneyData.MoneyMap[expMoneyID] = binaryData.LevelData.Exp
 	}
 }
 

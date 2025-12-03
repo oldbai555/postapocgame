@@ -3,7 +3,6 @@ package system
 import (
 	"context"
 	"postapocgame/server/internal"
-	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
 	adaptercontext "postapocgame/server/service/gameserver/internel/adapter/context"
@@ -15,11 +14,21 @@ import (
 )
 
 // SkillSystemAdapter 技能系统适配器
+//
+// 生命周期职责：
+// - OnInit: 调用 InitSkillDataUseCase 初始化技能数据（按职业配置初始化基础技能）
+// - 其他生命周期: 暂未使用
+//
+// 业务逻辑：所有业务逻辑（学习技能、升级技能、消耗校验）均在 UseCase 层实现
+// 外部交互：通过 DungeonServerGateway 同步技能数据到战斗服
+//
+// ⚠️ 防退化机制：禁止在 SystemAdapter 中编写业务规则逻辑，只允许调用 UseCase 与管理生命周期
 type SkillSystemAdapter struct {
 	*BaseSystemAdapter
-	learnSkillUseCase   *skill.LearnSkillUseCase
-	upgradeSkillUseCase *skill.UpgradeSkillUseCase
-	dungeonGateway      interfaces.DungeonServerGateway
+	learnSkillUseCase    *skill.LearnSkillUseCase
+	upgradeSkillUseCase  *skill.UpgradeSkillUseCase
+	initSkillDataUseCase *skill.InitSkillDataUseCase
+	dungeonGateway       interfaces.DungeonServerGateway
 }
 
 // NewSkillSystemAdapter 创建技能系统适配器
@@ -27,6 +36,7 @@ func NewSkillSystemAdapter() *SkillSystemAdapter {
 	container := di.GetContainer()
 	learnSkillUC := skill.NewLearnSkillUseCase(container.PlayerGateway(), container.ConfigGateway(), container.DungeonServerGateway())
 	upgradeSkillUC := skill.NewUpgradeSkillUseCase(container.PlayerGateway(), container.ConfigGateway(), container.DungeonServerGateway())
+	initSkillDataUC := skill.NewInitSkillDataUseCase(container.PlayerGateway(), container.ConfigGateway())
 
 	// 注入依赖
 	levelUseCase := NewLevelUseCaseAdapter()
@@ -35,10 +45,11 @@ func NewSkillSystemAdapter() *SkillSystemAdapter {
 	upgradeSkillUC.SetDependencies(consumeUseCase)
 
 	return &SkillSystemAdapter{
-		BaseSystemAdapter:   NewBaseSystemAdapter(uint32(protocol.SystemId_SysSkill)),
-		learnSkillUseCase:   learnSkillUC,
-		upgradeSkillUseCase: upgradeSkillUC,
-		dungeonGateway:      container.DungeonServerGateway(),
+		BaseSystemAdapter:    NewBaseSystemAdapter(uint32(protocol.SystemId_SysSkill)),
+		learnSkillUseCase:    learnSkillUC,
+		upgradeSkillUseCase:  upgradeSkillUC,
+		initSkillDataUseCase: initSkillDataUC,
+		dungeonGateway:       container.DungeonServerGateway(),
 	}
 }
 
@@ -49,32 +60,18 @@ func (a *SkillSystemAdapter) OnInit(ctx context.Context) {
 		log.Errorf("skill sys OnInit get role err:%v", err)
 		return
 	}
-
-	// 从PlayerRoleBinaryData获取数据，如果不存在则初始化
-	binaryData, err := di.GetContainer().PlayerGateway().GetBinaryData(ctx, playerRole.GetPlayerRoleId())
-	if err != nil {
-		log.Errorf("skill sys OnInit get binary data err:%v", err)
+	// 初始化技能数据（包括技能列表结构、按职业配置初始化基础技能等业务逻辑）
+	if err := a.initSkillDataUseCase.Execute(ctx, playerRole.GetPlayerRoleId(), playerRole.GetJob()); err != nil {
+		log.Errorf("skill sys OnInit init skill data err:%v", err)
 		return
 	}
-
-	// 如果skill_data不存在，则初始化
-	if binaryData.SkillData == nil {
-		binaryData.SkillData = &protocol.SiSkillData{
-			SkillMap: make(map[uint32]uint32),
-		}
-		// 根据职业配置初始化初始技能
-		jobConfigRaw, ok := di.GetContainer().ConfigGateway().GetJobConfig(playerRole.GetJob())
-		if ok && jobConfigRaw != nil {
-			jobConfig, ok := jobConfigRaw.(*jsonconf.JobConfig)
-			if ok && jobConfig != nil && len(jobConfig.SkillIds) > 0 {
-				for _, skillId := range jobConfig.SkillIds {
-					binaryData.SkillData.SkillMap[skillId] = 1 // 初始等级为1
-				}
-			}
-		}
+	// 获取技能数量用于日志（可选）
+	binaryData, _ := di.GetContainer().PlayerGateway().GetBinaryData(ctx, playerRole.GetPlayerRoleId())
+	skillCount := 0
+	if binaryData != nil && binaryData.SkillData != nil {
+		skillCount = len(binaryData.SkillData.SkillMap)
 	}
-
-	log.Infof("SkillSys initialized: SkillCount=%d", len(binaryData.SkillData.SkillMap))
+	log.Infof("SkillSys initialized: SkillCount=%d", skillCount)
 }
 
 // LearnSkill 学习技能（对外接口，供其他系统调用）

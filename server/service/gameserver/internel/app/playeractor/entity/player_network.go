@@ -8,7 +8,6 @@ package entity
 
 import (
 	"context"
-	attrsystem "postapocgame/server/service/gameserver/internel/adapter/system"
 	manager2 "postapocgame/server/service/gameserver/internel/app/manager"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/clientprotocol"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/entitysystem"
@@ -24,6 +23,7 @@ import (
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/adapter/router"
+	"postapocgame/server/service/gameserver/internel/adapter/system"
 	"postapocgame/server/service/gameserver/internel/di"
 	"postapocgame/server/service/gameserver/internel/usecase/interfaces"
 
@@ -385,20 +385,20 @@ func enterGame(sessionId string, roleInfo *protocol.PlayerSimpleData) error {
 
 	// 汇总所有属性（首次登录时计算所有属性）
 	roleCtx := playerRole.WithContext(context.Background())
-	attrSys := attrsystem.GetAttrSys(roleCtx)
 	var syncAttrData *protocol.SyncAttrData
-	if attrSys != nil {
-		allAttrs := attrSys.CalculateAllAttrs(roleCtx)
+	// playerRole 已经是 *PlayerRole 类型，直接访问 attrCalculator
+	if playerRole.attrCalculator != nil {
+		allAttrs := playerRole.attrCalculator.CalculateAllAttrs(roleCtx)
 		if len(allAttrs) > 0 {
 			syncAttrData = &protocol.SyncAttrData{
 				AttrData: allAttrs,
 			}
-			attrSys.PushSyncDataToClient(roleCtx, syncAttrData)
+			playerRole.attrCalculator.PushSyncDataToClient(roleCtx, syncAttrData)
 		}
 	}
 
 	// 获取技能列表
-	skillSys := attrsystem.GetSkillSys(roleCtx)
+	skillSys := system.GetSkillSys(roleCtx)
 	var skillMap map[uint32]uint32
 	if skillSys != nil {
 		if m, err := skillSys.GetSkillMap(roleCtx); err == nil {
@@ -610,12 +610,12 @@ func handleDungeonSyncAttrs(_ context.Context, _ string, data []byte) error {
 		log.Warnf("player role not found for dungeon sync attrs: RoleId=%d", req.RoleId)
 		return nil
 	}
-	attrSys := attrsystem.GetAttrSys(playerRole.WithContext(nil))
-	if attrSys == nil {
-		log.Warnf("attr sys not found for RoleId=%d", req.RoleId)
-		return nil
+	// 使用类型断言获取 PlayerRole，然后访问 attrCalculator
+	if pr, ok := playerRole.(*PlayerRole); ok && pr.attrCalculator != nil {
+		pr.attrCalculator.ApplyDungeonSyncData(req.SyncData)
+	} else {
+		log.Warnf("attr calculator not found for RoleId=%d", req.RoleId)
 	}
-	attrSys.ApplyDungeonSyncData(req.SyncData)
 	return nil
 }
 

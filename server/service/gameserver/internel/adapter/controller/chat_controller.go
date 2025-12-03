@@ -49,9 +49,10 @@ func (c *ChatController) HandleWorldChat(ctx context.Context, msg *network.Clien
 	if err := proto.Unmarshal(msg.Data, &req); err != nil {
 		return customerr.Wrap(err)
 	}
+	// 检查系统是否开启
 	chatSys := system.GetChatSys(ctx)
 	if chatSys == nil {
-		return c.presenter.SendError(ctx, sessionID, "聊天系统未初始化")
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_System_NotEnabled), "聊天系统未开启")
 	}
 	if err := c.worldUC.Execute(ctx, chatSys, roleID, playerRole.GetRoleInfo().RoleName, req.Content); err != nil {
 		return c.presenter.SendError(ctx, sessionID, err.Error())
@@ -77,9 +78,10 @@ func (c *ChatController) HandlePrivateChat(ctx context.Context, msg *network.Cli
 	if err := proto.Unmarshal(msg.Data, &req); err != nil {
 		return customerr.Wrap(err)
 	}
+	// 检查系统是否开启
 	chatSys := system.GetChatSys(ctx)
 	if chatSys == nil {
-		return c.presenter.SendError(ctx, sessionID, "聊天系统未初始化")
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_System_NotEnabled), "聊天系统未开启")
 	}
 	if err := c.privateUC.Execute(ctx, chatSys, roleID, playerRole.GetRoleInfo().RoleName, req.TargetId, req.Content); err != nil {
 		return c.presenter.SendError(ctx, sessionID, err.Error())

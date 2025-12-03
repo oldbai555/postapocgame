@@ -8,6 +8,7 @@ import (
 	"postapocgame/server/pkg/customerr"
 	adaptercontext "postapocgame/server/service/gameserver/internel/adapter/context"
 	"postapocgame/server/service/gameserver/internel/adapter/presenter"
+	"postapocgame/server/service/gameserver/internel/adapter/system"
 	"postapocgame/server/service/gameserver/internel/di"
 	"postapocgame/server/service/gameserver/internel/usecase/bag"
 )
@@ -33,6 +34,12 @@ func NewBagController() *BagController {
 
 // HandleOpenBag 处理打开背包请求
 func (c *BagController) HandleOpenBag(ctx context.Context, msg *network.ClientMessage) error {
+	// 检查系统是否开启
+	bagSys := system.GetBagSys(ctx)
+	if bagSys == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_System_NotEnabled), "背包系统未开启")
+	}
+
 	sessionID, err := adaptercontext.GetSessionIDFromContext(ctx)
 	if err != nil {
 		return err
@@ -64,6 +71,12 @@ func (c *BagController) HandleOpenBag(ctx context.Context, msg *network.ClientMe
 
 // HandleAddItem 处理添加物品请求（RPC，来自 DungeonServer）
 func (c *BagController) HandleAddItem(ctx context.Context, sessionID string, data []byte) error {
+	// 检查系统是否开启
+	bagSys := system.GetBagSys(ctx)
+	if bagSys == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_System_NotEnabled), "背包系统未开启")
+	}
+
 	var req protocol.D2GAddItemReq
 	if err := proto.Unmarshal(data, &req); err != nil {
 		return customerr.Wrap(err)

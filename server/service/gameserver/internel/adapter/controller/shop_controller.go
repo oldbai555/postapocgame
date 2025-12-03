@@ -9,6 +9,7 @@ import (
 	"postapocgame/server/pkg/customerr"
 	adaptercontext "postapocgame/server/service/gameserver/internel/adapter/context"
 	"postapocgame/server/service/gameserver/internel/adapter/presenter"
+	"postapocgame/server/service/gameserver/internel/adapter/system"
 	"postapocgame/server/service/gameserver/internel/adapter/usecaseadapter"
 	"postapocgame/server/service/gameserver/internel/di"
 	"postapocgame/server/service/gameserver/internel/usecase/shop"
@@ -38,6 +39,12 @@ func NewShopController() *ShopController {
 
 // HandleShopBuy 处理购买商品请求
 func (c *ShopController) HandleShopBuy(ctx context.Context, msg *network.ClientMessage) error {
+	// 检查系统是否开启
+	shopSys := system.GetShopSys(ctx)
+	if shopSys == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_System_NotEnabled), "商城系统未开启")
+	}
+
 	sessionID, err := adaptercontext.GetSessionIDFromContext(ctx)
 	if err != nil {
 		return err

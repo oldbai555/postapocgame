@@ -38,6 +38,12 @@ func NewItemUseController() *ItemUseController {
 
 // HandleUseItem 处理使用物品请求
 func (c *ItemUseController) HandleUseItem(ctx context.Context, msg *network.ClientMessage) error {
+	// 检查系统是否开启
+	itemUseSys := system.GetItemUseSys(ctx)
+	if itemUseSys == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_System_NotEnabled), "物品使用系统未开启")
+	}
+
 	sessionID, err := adaptercontext.GetSessionIDFromContext(ctx)
 	if err != nil {
 		return err

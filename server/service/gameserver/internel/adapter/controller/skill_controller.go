@@ -43,6 +43,12 @@ func NewSkillController() *SkillController {
 
 // HandleLearnSkill 处理学习技能请求
 func (c *SkillController) HandleLearnSkill(ctx context.Context, msg *network.ClientMessage) error {
+	// 检查系统是否开启
+	skillSys := system.GetSkillSys(ctx)
+	if skillSys == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_System_NotEnabled), "技能系统未开启")
+	}
+
 	sessionID, err := adaptercontext.GetSessionIDFromContext(ctx)
 	if err != nil {
 		return err
@@ -86,6 +92,12 @@ func (c *SkillController) HandleLearnSkill(ctx context.Context, msg *network.Cli
 
 // HandleUpgradeSkill 处理升级技能请求
 func (c *SkillController) HandleUpgradeSkill(ctx context.Context, msg *network.ClientMessage) error {
+	// 检查系统是否开启
+	skillSys := system.GetSkillSys(ctx)
+	if skillSys == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_System_NotEnabled), "技能系统未开启")
+	}
+
 	sessionID, err := adaptercontext.GetSessionIDFromContext(ctx)
 	if err != nil {
 		return err

@@ -12,11 +12,10 @@ import (
 
 // SubmitQuestUseCase 提交任务用例
 type SubmitQuestUseCase struct {
-	playerRepo           repository.PlayerRepository
-	configManager        interfaces.ConfigManager
-	levelUseCase         interfaces.LevelUseCase
-	rewardUseCase        interfaces.RewardUseCase
-	dailyActivityUseCase interfaces.DailyActivityUseCase
+	playerRepo    repository.PlayerRepository
+	configManager interfaces.ConfigManager
+	levelUseCase  interfaces.LevelUseCase
+	rewardUseCase interfaces.RewardUseCase
 }
 
 // NewSubmitQuestUseCase 创建提交任务用例
@@ -30,15 +29,13 @@ func NewSubmitQuestUseCase(
 	}
 }
 
-// SetDependencies 设置依赖（用于注入 LevelUseCase、RewardUseCase、DailyActivityUseCase）
+// SetDependencies 设置依赖（用于注入 LevelUseCase、RewardUseCase）
 func (uc *SubmitQuestUseCase) SetDependencies(
 	levelUseCase interfaces.LevelUseCase,
 	rewardUseCase interfaces.RewardUseCase,
-	dailyActivityUseCase interfaces.DailyActivityUseCase,
 ) {
 	uc.levelUseCase = levelUseCase
 	uc.rewardUseCase = rewardUseCase
-	uc.dailyActivityUseCase = dailyActivityUseCase
 }
 
 // Execute 执行提交任务用例
@@ -96,12 +93,7 @@ func (uc *SubmitQuestUseCase) Execute(ctx context.Context, roleID uint64, questI
 		}
 	}
 
-	// 日常任务奖励活跃点
-	if questType == questCategoryDaily && questConfig.ActivePoint > 0 && uc.dailyActivityUseCase != nil {
-		if err := uc.dailyActivityUseCase.AddActivePoints(ctx, roleID, questConfig.ActivePoint); err != nil {
-			log.Warnf("AddActivePoints failed: RoleID=%d, QuestID=%d, Err=%v", roleID, questId, err)
-		}
-	}
+	// 日常活跃系统已移除，不再添加活跃点
 
 	// 处理任务完成后的逻辑
 	switch questType {

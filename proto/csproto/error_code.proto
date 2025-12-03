@@ -10,5 +10,7 @@ enum ErrorCode {
     Network_Timeout        = 2001; // 网络超时
     Player_NotFound        = 3001; // 找不到玩家
     Item_NotEnough         = 5001; // 道具数量不足
+    System_NotFound        = 6001; // 系统不存在
+    System_NotEnabled      = 6002; // 系统未开启
     // ... 更多业务细分可继续补充 ...
 }

@@ -12,6 +12,14 @@ import (
 )
 
 // ShopSystemAdapter 商城系统适配器
+//
+// 生命周期职责：
+// - OnInit: 暂未使用（商城数据无需初始化）
+// - 其他生命周期: 暂未使用
+//
+// 业务逻辑：所有业务逻辑（购买商品、消耗/奖励构建）均在 UseCase 层实现
+//
+// ⚠️ 防退化机制：禁止在 SystemAdapter 中编写业务规则逻辑，只允许调用 UseCase 与管理生命周期
 type ShopSystemAdapter struct {
 	*BaseSystemAdapter
 	buyItemUseCase *shop.BuyItemUseCase
@@ -43,6 +51,7 @@ func (a *ShopSystemAdapter) OnInit(ctx context.Context) {
 
 	// 注意：原始代码中 purchaseCounters 是存储在系统实例中的内存数据，不是持久化的
 	// 这里暂时不实现持久化，保持与原始代码一致
+	// TODO(adapter-phaseA-A2): 限购/统计等策略应由 Shop 领域/UseCase 统一管理，适配层仅作为“本局运行期内存态”或查询入口
 
 	log.Infof("ShopSys initialized: RoleID=%d", roleID)
 }

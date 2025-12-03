@@ -34,9 +34,8 @@ func NewQuestController() *QuestController {
 	// 注入依赖
 	levelUseCase := system.NewLevelUseCaseAdapter()
 	rewardUseCase := usecaseadapter.NewRewardUseCaseAdapter()
-	dailyActivityUseCase := system.NewDailyActivityUseCaseAdapter()
 	acceptQuestUC.SetDependencies(levelUseCase)
-	submitQuestUC.SetDependencies(levelUseCase, rewardUseCase, dailyActivityUseCase)
+	submitQuestUC.SetDependencies(levelUseCase, rewardUseCase)
 
 	return &QuestController{
 		acceptQuestUseCase:    acceptQuestUC,
@@ -48,6 +47,12 @@ func NewQuestController() *QuestController {
 
 // HandleTalkToNPC 处理NPC对话请求
 func (c *QuestController) HandleTalkToNPC(ctx context.Context, msg *network.ClientMessage) error {
+	// 检查系统是否开启
+	questSys := system.GetQuestSys(ctx)
+	if questSys == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_System_NotEnabled), "任务系统未开启")
+	}
+
 	sessionID, err := adaptercontext.GetSessionIDFromContext(ctx)
 	if err != nil {
 		return err

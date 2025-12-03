@@ -4,12 +4,12 @@ import (
 	"context"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/pkg/customerr"
 	adaptercontext "postapocgame/server/service/gameserver/internel/adapter/context"
 	"postapocgame/server/service/gameserver/internel/adapter/presenter"
+	"postapocgame/server/service/gameserver/internel/adapter/system"
 	"postapocgame/server/service/gameserver/internel/di"
-	"postapocgame/server/service/gameserver/internel/usecase/dailyactivity"
 	"postapocgame/server/service/gameserver/internel/usecase/money"
-	vipusecase "postapocgame/server/service/gameserver/internel/usecase/vip"
 )
 
 // MoneyController 货币控制器
@@ -23,12 +23,7 @@ type MoneyController struct {
 func NewMoneyController() *MoneyController {
 	container := di.GetContainer()
 	addMoneyUC := money.NewAddMoneyUseCase(container.PlayerGateway(), container.EventPublisher())
-	// 为特殊货币注入对应用例（VIP 经验 + 活跃点）
-	vipUC := vipusecase.NewVipMoneyUseCaseImpl(container.PlayerGateway(), container.ConfigGateway())
-	activeUC := dailyactivity.NewPointsUseCase(container.PlayerGateway(), container.EventPublisher())
-	addMoneyUC.SetDependencies(nil, vipUC, activeUC)
 	consumeUC := money.NewConsumeMoneyUseCase(container.PlayerGateway(), container.EventPublisher())
-	consumeUC.SetDependencies(nil, activeUC)
 	return &MoneyController{
 		addMoneyUseCase:     addMoneyUC,
 		consumeMoneyUseCase: consumeUC,
@@ -38,6 +33,12 @@ func NewMoneyController() *MoneyController {
 
 // HandleOpenMoney 处理打开货币界面请求
 func (c *MoneyController) HandleOpenMoney(ctx context.Context, msg *network.ClientMessage) error {
+	// 检查系统是否开启
+	moneySys := system.GetMoneySys(ctx)
+	if moneySys == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_System_NotEnabled), "货币系统未开启")
+	}
+
 	sessionID, err := adaptercontext.GetSessionIDFromContext(ctx)
 	if err != nil {
 		return err

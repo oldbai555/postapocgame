@@ -3,23 +3,30 @@ package system
 import (
 	"context"
 	"postapocgame/server/internal/protocol"
-	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	adaptercontext "postapocgame/server/service/gameserver/internel/adapter/context"
 	"postapocgame/server/service/gameserver/internel/core/iface"
 	"postapocgame/server/service/gameserver/internel/di"
-	"postapocgame/server/service/gameserver/internel/usecase/dailyactivity"
 	"postapocgame/server/service/gameserver/internel/usecase/interfaces"
 	"postapocgame/server/service/gameserver/internel/usecase/money"
-	vipusecase "postapocgame/server/service/gameserver/internel/usecase/vip"
 )
 
 // MoneySystemAdapter 货币系统适配器
+//
+// 生命周期职责：
+// - OnInit: 调用 InitMoneyDataUseCase 初始化货币数据结构和默认金币
+// - 其他生命周期: 暂未使用
+//
+// 业务逻辑：所有业务逻辑（加钱、扣钱、余额校验）均在 UseCase 层实现
+//
+// ⚠️ 防退化机制：禁止在 SystemAdapter 中编写业务规则逻辑，只允许调用 UseCase 与管理生命周期
 type MoneySystemAdapter struct {
 	*BaseSystemAdapter
-	addMoneyUseCase     *money.AddMoneyUseCase
-	consumeMoneyUseCase *money.ConsumeMoneyUseCase
-	moneyUseCaseImpl    interfaces.MoneyUseCase
+	addMoneyUseCase        *money.AddMoneyUseCase
+	consumeMoneyUseCase    *money.ConsumeMoneyUseCase
+	updateBalanceTxUseCase *money.UpdateBalanceTxUseCase
+	initMoneyDataUseCase   *money.InitMoneyDataUseCase
+	moneyUseCaseImpl       interfaces.MoneyUseCase
 }
 
 // NewMoneySystemAdapter 创建货币系统适配器
@@ -27,17 +34,16 @@ func NewMoneySystemAdapter() *MoneySystemAdapter {
 	container := di.GetContainer()
 	moneyUseCaseImpl := money.NewMoneyUseCaseImpl(container.PlayerGateway())
 	addMoneyUC := money.NewAddMoneyUseCase(container.PlayerGateway(), container.EventPublisher())
-	// 为特殊货币注入对应用例（VIP 经验 + 活跃点）
-	vipUC := vipusecase.NewVipMoneyUseCaseImpl(container.PlayerGateway(), container.ConfigGateway())
-	activeUC := dailyactivity.NewPointsUseCase(container.PlayerGateway(), container.EventPublisher())
-	addMoneyUC.SetDependencies(nil, vipUC, activeUC)
 	consumeUC := money.NewConsumeMoneyUseCase(container.PlayerGateway(), container.EventPublisher())
-	consumeUC.SetDependencies(nil, activeUC)
+	updateBalanceTxUC := money.NewUpdateBalanceTxUseCase(container.PlayerGateway())
+	initMoneyDataUC := money.NewInitMoneyDataUseCase(container.PlayerGateway())
 	return &MoneySystemAdapter{
-		BaseSystemAdapter:   NewBaseSystemAdapter(uint32(protocol.SystemId_SysMoney)),
-		addMoneyUseCase:     addMoneyUC,
-		consumeMoneyUseCase: consumeUC,
-		moneyUseCaseImpl:    moneyUseCaseImpl,
+		BaseSystemAdapter:      NewBaseSystemAdapter(uint32(protocol.SystemId_SysMoney)),
+		addMoneyUseCase:        addMoneyUC,
+		consumeMoneyUseCase:    consumeUC,
+		updateBalanceTxUseCase: updateBalanceTxUC,
+		initMoneyDataUseCase:   initMoneyDataUC,
+		moneyUseCaseImpl:       moneyUseCaseImpl,
 	}
 }
 
@@ -48,28 +54,11 @@ func (a *MoneySystemAdapter) OnInit(ctx context.Context) {
 		log.Errorf("money sys OnInit get role err:%v", err)
 		return
 	}
-
-	// 从PlayerRoleBinaryData获取数据，如果不存在则初始化
-	binaryData, err := di.GetContainer().PlayerGateway().GetBinaryData(ctx, roleID)
-	if err != nil {
-		log.Errorf("money sys OnInit get binary data err:%v", err)
+	// 初始化货币数据（包括 MoneyData 结构、默认金币注入等业务逻辑）
+	if err := a.initMoneyDataUseCase.Execute(ctx, roleID); err != nil {
+		log.Errorf("money sys OnInit init money data err:%v", err)
 		return
 	}
-
-	// 如果money_data不存在，则初始化
-	if binaryData.MoneyData == nil {
-		binaryData.MoneyData = &protocol.SiMoneyData{
-			MoneyMap: make(map[uint32]int64),
-		}
-	}
-
-	// 如果MoneyMap为空，初始化默认金币
-	if len(binaryData.MoneyData.MoneyMap) == 0 {
-		defaultGoldMoneyID := uint32(protocol.MoneyType_MoneyTypeGoldCoin)
-		defaultGoldAmount := int64(100000)
-		binaryData.MoneyData.MoneyMap[defaultGoldMoneyID] = defaultGoldAmount
-	}
-
 	log.Infof("MoneySys initialized")
 }
 
@@ -141,25 +130,8 @@ func (a *MoneySystemAdapter) UpdateBalanceTx(ctx context.Context, moneyID uint32
 	if err != nil {
 		return err
 	}
-	binaryData, err := di.GetContainer().PlayerGateway().GetBinaryData(ctx, roleID)
-	if err != nil {
-		return err
-	}
-	if binaryData.MoneyData == nil {
-		binaryData.MoneyData = &protocol.SiMoneyData{
-			MoneyMap: make(map[uint32]int64),
-		}
-	}
-	if binaryData.MoneyData.MoneyMap == nil {
-		binaryData.MoneyData.MoneyMap = make(map[uint32]int64)
-	}
-	current := binaryData.MoneyData.MoneyMap[moneyID]
-	newAmount := current + delta
-	if newAmount < 0 {
-		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "money not enough")
-	}
-	binaryData.MoneyData.MoneyMap[moneyID] = newAmount
-	return nil
+	// 将“余额调整 + 不足校验”的纯业务逻辑下沉到 Money 用例，适配层只负责获取 roleID 与调用
+	return a.updateBalanceTxUseCase.Execute(ctx, roleID, moneyID, delta)
 }
 
 // UpdateBalanceOnlyMemory 仅更新内存状态（用于事务回滚后的恢复）

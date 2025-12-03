@@ -42,7 +42,6 @@ message PlayerRoleBinaryData {
     map<uint32, uint32> sys_open_status = 1;// 功能开启
     SiLevelData level_data = 2;
     SiBagData bag_data = 3;
-    SiVipData vip_data = 4;
     SiMoneyData money_data = 5;
     SiEquipData equip_data = 6;
     SiDungeonData dungeon_data = 7;// 副本记录数据
@@ -50,12 +49,4 @@ message PlayerRoleBinaryData {
     SiMailData mail_data = 9;// 邮件数据
     SiSkillData skill_data = 10;// 技能数据
     SiItemUseData item_use_data = 11;// 物品使用数据（冷却时间等）
-    SiOfflineRewardData offline_reward_data = 12;// 离线收益数据
-    SiAntiCheatData anti_cheat_data = 13;// 防作弊数据
-    SiDailyActivityData daily_activity_data = 14;// 日常活跃数据
-    SiAchievementData achievement_data = 15;// 成就数据
-    SiNewbieData newbie_data = 16;// 新手保护数据
-    SiFriendData friend_data = 17;// 好友数据
-    SiGuildData guild_data = 18;// 公会数据
-    SiAuctionData auction_data = 19;// 拍卖行数据
 }

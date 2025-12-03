@@ -2,9 +2,6 @@ package controller
 
 import (
 	"context"
-	"postapocgame/server/service/gameserver/internel/adapter/system"
-	"postapocgame/server/service/gameserver/internel/core/gshare"
-
 	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal"
 	"postapocgame/server/internal/jsonconf"
@@ -14,7 +11,9 @@ import (
 	"postapocgame/server/pkg/log"
 	adaptercontext "postapocgame/server/service/gameserver/internel/adapter/context"
 	"postapocgame/server/service/gameserver/internel/adapter/presenter"
+	"postapocgame/server/service/gameserver/internel/adapter/system"
 	"postapocgame/server/service/gameserver/internel/adapter/usecaseadapter"
+	"postapocgame/server/service/gameserver/internel/core/gshare"
 	"postapocgame/server/service/gameserver/internel/di"
 	"postapocgame/server/service/gameserver/internel/usecase/fuben"
 	"postapocgame/server/service/gameserver/internel/usecase/interfaces"
@@ -51,6 +50,18 @@ func NewFubenController() *FubenController {
 
 // HandleEnterDungeon 处理进入副本请求
 func (c *FubenController) HandleEnterDungeon(ctx context.Context, msg *network.ClientMessage) error {
+	// 检查系统是否开启
+	fubenSys := system.GetFubenSys(ctx)
+	if fubenSys == nil {
+		sessionID, _ := adaptercontext.GetSessionIDFromContext(ctx)
+		resp := &protocol.S2CEnterDungeonResultReq{
+			Success:   false,
+			Message:   "副本系统未开启",
+			DungeonId: 0,
+		}
+		return c.presenter.SendEnterDungeonResult(ctx, sessionID, resp)
+	}
+
 	sessionID, err := adaptercontext.GetSessionIDFromContext(ctx)
 	if err != nil {
 		return err
@@ -95,13 +106,15 @@ func (c *FubenController) HandleEnterDungeon(ctx context.Context, msg *network.C
 	}
 
 	// 汇总属性
-	attrSys := system.GetAttrSys(ctx)
 	var syncAttrData *protocol.SyncAttrData
-	if attrSys != nil {
-		allAttrs := attrSys.CalculateAllAttrs(ctx)
-		if len(allAttrs) > 0 {
-			syncAttrData = &protocol.SyncAttrData{
-				AttrData: allAttrs,
+	if playerRole != nil {
+		attrCalcRaw := playerRole.GetAttrCalculator()
+		if attrCalc, ok := attrCalcRaw.(interfaces.IAttrCalculator); ok && attrCalc != nil {
+			allAttrs := attrCalc.CalculateAllAttrs(ctx)
+			if len(allAttrs) > 0 {
+				syncAttrData = &protocol.SyncAttrData{
+					AttrData: allAttrs,
+				}
 			}
 		}
 	}
@@ -159,6 +172,13 @@ func (c *FubenController) HandleEnterDungeon(ctx context.Context, msg *network.C
 
 // HandleSettleDungeon 处理副本结算的RPC请求
 func (c *FubenController) HandleSettleDungeon(ctx context.Context, sessionID string, data []byte) error {
+	// 检查系统是否开启
+	fubenSys := system.GetFubenSys(ctx)
+	if fubenSys == nil {
+		log.Errorf("fuben system not enabled")
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_System_NotEnabled), "副本系统未开启")
+	}
+
 	var req protocol.D2GSettleDungeonReq
 	if err := proto.Unmarshal(data, &req); err != nil {
 		log.Errorf("unmarshal settle dungeon request failed: %v", err)

@@ -194,10 +194,10 @@ func HandleGMCommand(ctx context.Context, msg *network.ClientMessage) (string, b
 
 	roleCtx := playerRole.WithContext(ctx)
 
-	// 执行GM命令
+	// 检查系统是否开启
 	gmSys := GetGMSys(roleCtx)
 	if gmSys == nil {
-		return sessionId, false, customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "gm system not ready")
+		return sessionId, false, customerr.NewErrorByCode(int32(protocol.ErrorCode_System_NotEnabled), "GM系统未开启")
 	}
 	success, message := gmSys.ExecuteCommand(roleCtx, req.GmName, req.Args)
 	if success {

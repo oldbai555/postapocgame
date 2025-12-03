@@ -47,9 +47,10 @@ func (c *RecycleController) HandleRecycleItem(ctx context.Context, msg *network.
 		return err
 	}
 
+	// 检查系统是否开启
 	recycleSys := system.GetRecycleSys(ctx)
 	if recycleSys == nil {
-		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "recycle system not ready")
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_System_NotEnabled), "回收系统未开启")
 	}
 
 	awards, err := recycleSys.RecycleItem(ctx, roleID, req.ItemId, req.Count)

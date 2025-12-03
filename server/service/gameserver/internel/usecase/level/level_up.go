@@ -138,19 +138,15 @@ func (uc *LevelUpUseCase) Execute(ctx context.Context, roleID uint64) error {
 			log.Errorf("mark attr dirty failed: %v", err)
 		}
 	} else {
-		// 向后兼容：通过 Context 获取 AttrSys（如果 AttrUseCase 未注入）
+		// 向后兼容：通过 Context 获取 AttrCalculator（如果 AttrUseCase 未注入）
 		// 注意：这种方式违反了 Clean Architecture 原则，应该通过接口调用
 		// 但在过渡期，为了保持功能正常，保留此逻辑
 		playerRole := adaptercontext.MustGetPlayerRoleFromContext(ctx)
 		if playerRole != nil {
-			// 通过系统管理器获取 AttrSys
-			system := playerRole.GetSystem(uint32(protocol.SystemId_SysAttr))
-			if system != nil {
-				// 使用类型断言获取 AttrSystemAdapter
-				// 注意：这里需要导入 attr 包，但为了避免循环依赖，暂时不处理
-				// 等所有系统重构完成后，统一移除此逻辑
-				_ = system
-			}
+			// 通过 PlayerRole 获取 AttrCalculator
+			// 注意：这里需要导入 entity 包，但为了避免循环依赖，暂时不处理
+			// 等所有系统重构完成后，统一移除此逻辑
+			_ = playerRole
 		}
 	}
 

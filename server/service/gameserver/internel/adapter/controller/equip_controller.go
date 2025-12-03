@@ -40,6 +40,21 @@ func NewEquipController() *EquipController {
 
 // HandleEquipItem 处理装备物品请求
 func (c *EquipController) HandleEquipItem(ctx context.Context, msg *network.ClientMessage) error {
+	// 检查系统是否开启
+	equipSys := system.GetEquipSys(ctx)
+	if equipSys == nil {
+		sessionID, _ := adaptercontext.GetSessionIDFromContext(ctx)
+		resp := &protocol.S2CEquipResultReq{
+			Slot:    0,
+			ItemId:  0,
+			ErrCode: uint32(protocol.ErrorCode_System_NotEnabled),
+		}
+		if sendErr := c.presenter.SendEquipResult(ctx, sessionID, resp); sendErr != nil {
+			return sendErr
+		}
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_System_NotEnabled), "装备系统未开启")
+	}
+
 	sessionID, err := adaptercontext.GetSessionIDFromContext(ctx)
 	if err != nil {
 		return err

@@ -112,10 +112,6 @@ message S2CBagDataReq {
     SiBagData bag_data = 1;
 }
 
-message S2CVipDataReq {
-    SiVipData vip_data = 1;
-}
-
 message S2CMoneyDataReq {
     SiMoneyData money_data = 1;
 }
