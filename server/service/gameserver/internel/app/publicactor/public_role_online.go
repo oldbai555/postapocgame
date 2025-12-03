@@ -7,7 +7,6 @@ import (
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/core/gshare"
-	"postapocgame/server/service/gameserver/internel/infrastructure/gatewaylink"
 )
 
 // 在线状态管理相关逻辑
@@ -91,9 +90,8 @@ func handleRegisterOnline(ctx context.Context, msg actor.IActorMessage, publicRo
 				log.Errorf("Failed to marshal offline message: %v", err)
 				continue
 			}
-			err = gatewaylink.SendToSession(registerMsg.SessionId, uint16(protocol.S2CProtocol_S2CChatMessage), broadcastData)
-			if err != nil {
-				log.Warnf("Failed to send offline message to session %s: %v", registerMsg.SessionId, err)
+			if err := sendClientMessageViaPlayerActor(registerMsg.SessionId, uint16(protocol.S2CProtocol_S2CChatMessage), broadcastData); err != nil {
+				logSendFailure(registerMsg.SessionId, uint16(protocol.S2CProtocol_S2CChatMessage), err)
 			}
 		}
 	}

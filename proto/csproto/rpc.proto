@@ -14,15 +14,8 @@ import "player.proto";
 import "attr_def.proto";
 import "social_def.proto";
 
-enum G2DRpcProtocol{
-    G2DRPCProtocolNil = 0;
-
-    G2DEnterDungeon = 1;// 进入副本
-    G2DSyncAttrs = 2;// 同步属性
-    G2DUpdateHpMp = 3;// 更新HP/MP
-    G2DUpdateSkill = 4;// 更新技能（学习/升级）
-}
-
+// G2D 和 D2G 相关消息定义已移除，统一使用 DungeonActorMsgId 进行内部消息交互
+// 以下消息定义保留，用于 DungeonActorMsgId 消息的负载：
 message G2DEnterDungeonReq {
     string session_id = 1;
     uint32 platform_id = 2;// 平台ID
@@ -40,42 +33,29 @@ message G2DSyncAttrsReq {
     SyncAttrData sync_data = 3;// 属性同步数据
 }
 
-message G2DSyncGameDataReq {
-    uint32 platform_id = 1;// 平台ID
-    uint32 srv_id = 2;// 区服ID
+message G2DUpdateHpMpReq {
+    string session_id = 1;// 会话ID
+    uint64 role_id = 2;// 角色ID
+    int64 hp_delta = 3;// HP变化量（正数表示增加，负数表示减少）
+    int64 mp_delta = 4;// MP变化量（正数表示增加，负数表示减少）
 }
 
-// DungeonServer -> GameServer RPC Protocol
-enum D2GRpcProtocol{
-    D2GRPCProtocolNil = 0;
-
-    D2GRegisterProtocols = 1;// 注册协议
-    D2GUnregisterProtocols = 2;// 注销协议
-    D2GSettleDungeon = 3;// 副本结算
-    D2GEnterDungeonSuccess = 4;// 进入副本成功通知
-    D2GAddItem = 5;// 添加物品（拾取掉落物）
-    D2GSyncPosition = 6;// 同步坐标到GameServer
-    D2GSyncAttrs = 7;// Dungeon属性回传
+message G2DUpdateSkillReq {
+    string session_id = 1;// 会话ID
+    uint64 role_id = 2;// 角色ID
+    uint32 skill_id = 3;// 技能ID
+    uint32 skill_level = 4;// 技能等级
 }
 
-// 协议注册信息
-message ProtocolInfo {
-    uint32 protoId = 1;// 协议ID
-    bool isCommon = 2;// 是否为通用协议(多个DungeonServer共享)
+// DungeonActor → PlayerActor 消息定义（用于 PlayerActorMsgId 消息的负载）
+message D2GAddItemReq {
+    string session_id = 1;// 会话ID
+    uint64 role_id = 2;// 角色ID
+    uint32 item_id = 3;// 物品ID
+    uint32 count = 4;// 数量
+    uint64 item_hdl = 5;// 掉落物句柄（用于响应时移除）
 }
 
-// 注册协议请求
-message D2GRegisterProtocolsReq {
-    uint32 srvType = 1;// DungeonServer类型
-    repeated ProtocolInfo protocols = 2;// 协议列表
-}
-
-// 注销协议请求
-message D2GUnregisterProtocolsReq {
-    uint32 srvType = 1;// DungeonServer类型
-}
-
-// 副本结算请求
 message D2GSettleDungeonReq {
     string session_id = 1;// 会话ID
     uint64 role_id = 2;// 角色ID
@@ -87,58 +67,17 @@ message D2GSettleDungeonReq {
     repeated RewardItem rewards = 8;// 奖励列表
 }
 
-// 奖励物品
 message RewardItem {
     uint32 type = 1;// 1=经验 2=金币 3=物品
     uint32 item_id = 2;
     uint32 count = 3;
 }
 
-// 副本结算响应
-message D2GSettleDungeonResp {
-    bool success = 1;// 是否成功
-    string error_msg = 2;// 错误信息
-}
-
-// 进入副本成功通知
 message D2GEnterDungeonSuccessReq {
     string session_id = 1;// 会话ID
     uint64 role_id = 2;// 角色ID
 }
 
-// 更新HP/MP请求
-message G2DUpdateHpMpReq {
-    string session_id = 1;// 会话ID
-    uint64 role_id = 2;// 角色ID
-    int64 hp_delta = 3;// HP变化量（正数表示增加，负数表示减少）
-    int64 mp_delta = 4;// MP变化量（正数表示增加，负数表示减少）
-}
-
-// 添加物品请求（拾取掉落物）
-message D2GAddItemReq {
-    string session_id = 1;// 会话ID
-    uint64 role_id = 2;// 角色ID
-    uint32 item_id = 3;// 物品ID
-    uint32 count = 4;// 数量
-    uint64 item_hdl = 5;// 掉落物句柄（用于响应时移除）
-}
-
-// 添加物品响应
-message D2GAddItemResp {
-    bool success = 1;// 是否成功
-    string error_msg = 2;// 错误信息
-    uint64 item_hdl = 3;// 掉落物句柄（用于DungeonServer清理）
-}
-
-// 更新技能请求（学习/升级）
-message G2DUpdateSkillReq {
-    string session_id = 1;// 会话ID
-    uint64 role_id = 2;// 角色ID
-    uint32 skill_id = 3;// 技能ID
-    uint32 skill_level = 4;// 技能等级
-}
-
-// 同步坐标请求（DungeonServer -> GameServer）
 message D2GSyncPositionReq {
     string session_id = 1;// 会话ID
     uint64 role_id = 2;// 角色ID
@@ -147,17 +86,16 @@ message D2GSyncPositionReq {
     uint32 pos_y = 5;// 位置Y
 }
 
-// 同步坐标响应
-message D2GSyncPositionResp {
-    bool success = 1;// 是否成功
-    string error_msg = 2;// 错误信息
-}
-
-// Dungeon -> GameServer 属性同步
 message D2GSyncAttrsReq {
     string session_id = 1;// 会话ID
     uint64 role_id = 2;// 角色ID
     SyncAttrData sync_data = 3;// 属性数据
+}
+
+// 透传 S2C 协议
+message PlayerActorMsgIdSendToClientReq {
+    uint32 msg_id = 1; // S2C 协议ID
+    bytes data = 2;    // 编码后的 S2C 消息体
 }
 
 // 玩家Actor离线消息投递
@@ -165,6 +103,54 @@ message AddActorMessageMsg {
     uint64 role_id = 1;// 目标角色ID
     int32 msg_type = 2;// 消息类型
     bytes msg_data = 3;// 序列化后的消息体
+}
+
+// ========== DungeonActor <-> PlayerActor 内部消息 ==========
+
+// DungeonActor 内部消息ID（用于 GameServer 内部路由，PlayerActor → DungeonActor）
+// 说明：所有发送给 DungeonActor 的内部消息必须使用此枚举，禁止在 Go 代码中自行定义常量。
+// 这些消息的负载通常直接复用客户端 C2S 协议的请求体（例如 C2SStartMoveReq/C2SUseSkillReq 等）。
+enum DungeonActorMsgId {
+    DungeonActorMsgIdNil = 0;
+
+    // 移动相关
+    DungeonActorMsgIdStartMove    = 1; // C2SStartMove
+    DungeonActorMsgIdUpdateMove   = 2; // C2SUpdateMove
+    DungeonActorMsgIdEndMove      = 3; // C2SEndMove
+    DungeonActorMsgIdChangeScene  = 4; // C2SChangeScene
+
+    // 战斗与交互
+    DungeonActorMsgIdUseSkill     = 5; // C2SUseSkill
+    DungeonActorMsgIdPickupItem   = 6; // C2SPickupItem
+    DungeonActorMsgIdRevive       = 7; // C2SRevive
+
+    // GameServer → DungeonActor 内部消息（原 G2D RPC）
+    DungeonActorMsgIdEnterDungeon     = 8;  // G2DEnterDungeon
+    DungeonActorMsgIdSyncAttrs        = 9;  // G2DSyncAttrs
+    DungeonActorMsgIdUpdateHpMp       = 10; // G2DUpdateHpMp
+    DungeonActorMsgIdUpdateSkill      = 11; // G2DUpdateSkill
+    DungeonActorMsgIdGetNearestMonster = 12; // C2SGetNearestMonster
+}
+
+// ========== PlayerActor <-> DungeonActor 内部消息（DungeonActor → PlayerActor）==========
+
+// PlayerActor 内部消息ID（用于 GameServer 内部路由）
+// 说明：所有发送给 PlayerActor 的内部消息必须使用此枚举，禁止在 Go 代码中自行定义常量。
+enum PlayerActorMsgId {
+    PlayerActorMsgIdNil = 0;
+
+    // 系统消息（GameServer → PlayerActor）
+    PlayerActorMsgIdDoNetworkMsg = 1;    // 处理客户端网络消息
+    PlayerActorMsgIdDoRunOneMsg = 2;     // 执行 RunOne 循环
+    PlayerActorMsgIdPlayerMessageMsg = 3; // 玩家离线消息投递
+
+    // DungeonActor → PlayerActor 消息
+    PlayerActorMsgIdAddItem = 4;              // 添加物品（拾取掉落物）
+    PlayerActorMsgIdSettleDungeon = 5;        // 副本结算
+    PlayerActorMsgIdEnterDungeonSuccess = 6;  // 进入副本成功通知
+    PlayerActorMsgIdSyncPosition = 7;         // 同步坐标
+    PlayerActorMsgIdSyncAttrs = 8;            // 同步属性（Dungeon → GameServer）
+    PlayerActorMsgIdSendToClient = 9;         // 透传 S2C 协议
 }
 
 // ========== PublicActor <-> PlayerActor 内部消息 ==========

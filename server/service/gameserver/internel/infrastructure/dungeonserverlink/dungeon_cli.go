@@ -3,15 +3,10 @@ package dungeonserverlink
 import (
 	"context"
 	"fmt"
-	"postapocgame/server/internal/actor"
-	"postapocgame/server/internal/protocol"
-	"postapocgame/server/pkg/customerr"
-	gshare2 "postapocgame/server/service/gameserver/internel/core/gshare"
 	"postapocgame/server/service/gameserver/internel/infrastructure/gatewaylink"
 	"sync"
 	"time"
 
-	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/pkg/log"
 )
@@ -77,16 +72,7 @@ func (h *DungeonMessageHandler) handleRPCRequest(ctx context.Context, conn netwo
 		return h.sendRPCResponse(conn, req.RequestId, -1, []byte("no handler for msgId"))
 	}
 
-	// 对于需要在玩家Actor中串行处理的RPC，直接发送到Actor，由业务逻辑自行回包/通知客户端
-	if req.MsgId == uint16(protocol.D2GRpcProtocol_D2GAddItem) && req.SessionId != "" {
-		rpcCtx := context.WithValue(ctx, gshare2.ContextKeySession, req.SessionId)
-		actorMsg := actor.NewBaseMessage(rpcCtx, uint16(protocol.D2GRpcProtocol_D2GAddItem), req.Data)
-		if err := gshare2.SendMessageAsync(req.SessionId, actorMsg); err != nil {
-			log.Errorf("send to actor failed: %v", err)
-			return customerr.Wrap(err)
-		}
-		return nil
-	}
+	// RPC 调用已移除，不再处理 D2G 消息
 
 	// 调用处理器（同步处理）
 	if err := handler(ctx, req.SessionId, req.Data); err != nil {
@@ -178,20 +164,9 @@ func (dc *DungeonClient) Connect(ctx context.Context, srvType uint8, addr string
 	client := network.NewTCPClient(
 		network.WithTCPClientOptionOnConn(func(conn network.IConnection) {
 			log.Infof("connected to DungeonServer: srvType=%d, addr=%s", srvType, addr)
-			p := &protocol.G2DSyncGameDataReq{
-				PlatformId: gshare2.GetPlatformId(),
-				SrvId:      gshare2.GetSrvId(),
-			}
-			marshal, _ := proto.Marshal(p)
-			message := network.GetMessage()
-			message.Type = network.MsgTypeHandshake
-			message.Payload = marshal
-			err := conn.SendMessage(message)
-			network.PutMessage(message)
-			if err != nil {
-				log.Errorf("err:%v", err)
-				return
-			}
+			// G2DSyncGameDataReq 已移除，不再发送同步数据请求
+			// 握手消息已移除，DungeonActor 作为 InProcess 组件不再需要网络握手
+			_ = conn
 		}),
 		network.WithTCPClientOptionOnDisConn(func(conn network.IConnection) {
 			log.Warnf("disconnected from DungeonServer: srvType=%d, addr=%s", srvType, addr)

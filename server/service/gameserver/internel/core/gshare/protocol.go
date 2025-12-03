@@ -7,12 +7,6 @@
 package gshare
 
 const (
-	DoNetWorkMsg = iota + 1
-	DoRunOneMsg
-	PlayerMessageMsg
-)
-
-const (
 	ContextKeyRole    = "playerRole"
 	ContextKeySession = "playerRoleSession"
 )

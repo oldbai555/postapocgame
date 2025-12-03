@@ -3,6 +3,7 @@ package playeractor
 import (
 	"context"
 	"postapocgame/server/internal/actor"
+	"postapocgame/server/internal/protocol"
 	"postapocgame/server/service/gameserver/internel/core/gshare"
 )
 
@@ -31,6 +32,6 @@ func (h *PlayerHandler) Loop() {
 		sessionId := h.actorCtx.GetData("key") // 在这使用 sessionId做的key
 		ctx := context.Background()
 		ctx = context.WithValue(ctx, gshare.ContextKeySession, sessionId)
-		h.actorCtx.ExecuteAsync(actor.NewBaseMessage(ctx, gshare.DoRunOneMsg, []byte{}))
+		h.actorCtx.ExecuteAsync(actor.NewBaseMessage(ctx, uint16(protocol.PlayerActorMsgId_PlayerActorMsgIdDoRunOneMsg), []byte{}))
 	}
 }

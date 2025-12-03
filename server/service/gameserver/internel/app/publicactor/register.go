@@ -4,12 +4,12 @@ import (
 	"context"
 	"postapocgame/server/internal/event"
 	"postapocgame/server/service/gameserver/internel/core/gshare"
-	gevent2 "postapocgame/server/service/gameserver/internel/infrastructure/gevent"
+	"postapocgame/server/service/gameserver/internel/infrastructure/gevent"
 )
 
 // 在服务器启动事件中注册 PublicActor 内部消息处理器
 func init() {
-	gevent2.Subscribe(gevent2.OnSrvStart, func(ctx context.Context, e *event.Event) {
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, e *event.Event) {
 		facade := gshare.GetPublicActorFacade()
 		if facade == nil {
 			return

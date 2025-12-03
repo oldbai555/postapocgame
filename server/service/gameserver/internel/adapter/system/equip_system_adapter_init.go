@@ -8,7 +8,7 @@ import (
 	gameattrcalc "postapocgame/server/service/gameserver/internel/adapter/system/attrcalc"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/entitysystem"
 	"postapocgame/server/service/gameserver/internel/core/iface"
-	gevent2 "postapocgame/server/service/gameserver/internel/infrastructure/gevent"
+	"postapocgame/server/service/gameserver/internel/infrastructure/gevent"
 	"postapocgame/server/service/gameserver/internel/usecase/interfaces"
 )
 
@@ -22,7 +22,7 @@ func init() {
 	// 订阅玩家事件（订阅到全局模板）
 	// 注意：装备变更/升级事件的处理属于框架层面的状态管理（标记属性系统需要重算），
 	// 符合 Clean Architecture 原则，保留在 SystemAdapter 层
-	gevent2.SubscribePlayerEvent(gevent2.OnEquipChange, func(ctx context.Context, ev *event.Event) {
+	gevent.SubscribePlayerEvent(gevent.OnEquipChange, func(ctx context.Context, ev *event.Event) {
 		// 装备变更时标记属性系统需要重算（框架状态管理，非业务逻辑）
 		playerRole, err := adaptercontext.GetPlayerRoleFromContext(ctx)
 		if err != nil {
@@ -35,7 +35,7 @@ func init() {
 	})
 
 	// 订阅装备升级事件
-	gevent2.SubscribePlayerEvent(gevent2.OnEquipUpgrade, func(ctx context.Context, ev *event.Event) {
+	gevent.SubscribePlayerEvent(gevent.OnEquipUpgrade, func(ctx context.Context, ev *event.Event) {
 		// 装备升级时标记属性系统需要重算（框架状态管理，非业务逻辑）
 		playerRole, err := adaptercontext.GetPlayerRoleFromContext(ctx)
 		if err != nil {

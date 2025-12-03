@@ -36,7 +36,7 @@ func SendPlayerActorMessage(roleId uint64, msgType int32, msg proto.Message) err
 
 		ctx := role.WithContext(nil)
 		ctx = context.WithValue(ctx, ContextKeySession, role.GetSessionId())
-		actorMsg := actor.NewBaseMessage(ctx, PlayerMessageMsg, data)
+		actorMsg := actor.NewBaseMessage(ctx, uint16(protocol.PlayerActorMsgId_PlayerActorMsgIdPlayerMessageMsg), data)
 		if err := SendMessageAsync(role.GetSessionId(), actorMsg); err == nil {
 			return nil
 		} else {

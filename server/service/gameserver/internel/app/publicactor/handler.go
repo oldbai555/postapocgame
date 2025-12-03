@@ -4,7 +4,6 @@ import (
 	"context"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/protocol"
-	"postapocgame/server/service/gameserver/internel/core/gshare"
 )
 
 var _ actor.IActorHandler = (*PublicHandler)(nil)
@@ -60,7 +59,7 @@ func (h *PublicHandler) OnStart() {
 	// 触发第一次 RunOne
 	if h.actorCtx != nil {
 		ctx := context.Background()
-		h.actorCtx.ExecuteAsync(actor.NewBaseMessage(ctx, gshare.DoRunOneMsg, []byte{}))
+		h.actorCtx.ExecuteAsync(actor.NewBaseMessage(ctx, uint16(protocol.PlayerActorMsgId_PlayerActorMsgIdDoRunOneMsg), []byte{}))
 	}
 }
 

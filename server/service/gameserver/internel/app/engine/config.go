@@ -69,15 +69,16 @@ func (c *ServerConfig) Validate() error {
 	if c.ActorPoolSize <= 0 {
 		return fmt.Errorf("actor_pool_size must be greater than 0")
 	}
-	if len(c.DungeonServerAddrMap) == 0 {
-		return fmt.Errorf("dungeon_server_addr_map must not be empty")
-	}
-	for srvType, addr := range c.DungeonServerAddrMap {
-		if addr == "" {
-			return fmt.Errorf("dungeon_server_addr_map[%d] is empty", srvType)
-		}
-		if err := validateAddr(addr); err != nil {
-			return fmt.Errorf("invalid dungeon server addr for srvType=%d: %w", srvType, err)
+	// InProcess DungeonActor 模式下，DungeonServerAddrMap 可为空；
+	// 如需远程 DungeonServer，可在配置中补充并复用现有校验逻辑。
+	if len(c.DungeonServerAddrMap) > 0 {
+		for srvType, addr := range c.DungeonServerAddrMap {
+			if addr == "" {
+				return fmt.Errorf("dungeon_server_addr_map[%d] is empty", srvType)
+			}
+			if err := validateAddr(addr); err != nil {
+				return fmt.Errorf("invalid dungeon server addr for srvType=%d: %w", srvType, err)
+			}
 		}
 	}
 	if c.TCPAddr != "" {

@@ -8,12 +8,12 @@ package entity
 
 import (
 	"context"
-	manager2 "postapocgame/server/service/gameserver/internel/app/manager"
+	"postapocgame/server/service/gameserver/internel/app/manager"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/clientprotocol"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/entitysystem"
-	gshare2 "postapocgame/server/service/gameserver/internel/core/gshare"
-	gatewaylink2 "postapocgame/server/service/gameserver/internel/infrastructure/gatewaylink"
-	gevent2 "postapocgame/server/service/gameserver/internel/infrastructure/gevent"
+	"postapocgame/server/service/gameserver/internel/core/gshare"
+	"postapocgame/server/service/gameserver/internel/infrastructure/gatewaylink"
+	"postapocgame/server/service/gameserver/internel/infrastructure/gevent"
 
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/database"
@@ -25,21 +25,20 @@ import (
 	"postapocgame/server/service/gameserver/internel/adapter/router"
 	"postapocgame/server/service/gameserver/internel/adapter/system"
 	"postapocgame/server/service/gameserver/internel/di"
-	"postapocgame/server/service/gameserver/internel/usecase/interfaces"
 
 	"google.golang.org/protobuf/proto"
 )
 
 func logInfo(ctx context.Context, format string, v ...interface{}) {
-	gshare2.InfofCtx(ctx, format, v...)
+	gshare.InfofCtx(ctx, format, v...)
 }
 
 func logWarn(ctx context.Context, format string, v ...interface{}) {
-	gshare2.WarnfCtx(ctx, format, v...)
+	gshare.WarnfCtx(ctx, format, v...)
 }
 
 func logError(ctx context.Context, format string, v ...interface{}) {
-	gshare2.ErrorfCtx(ctx, format, v...)
+	gshare.ErrorfCtx(ctx, format, v...)
 }
 
 func newSessionContext(sessionId string) context.Context {
@@ -47,12 +46,12 @@ func newSessionContext(sessionId string) context.Context {
 		return context.Background()
 	}
 	ctx := context.Background()
-	return context.WithValue(ctx, gshare2.ContextKeySession, sessionId)
+	return context.WithValue(ctx, gshare.ContextKeySession, sessionId)
 }
 
 // handleRegister 处理账号注册
 func handleRegister(ctx context.Context, msg *network.ClientMessage) error {
-	sessionId := ctx.Value(gshare2.ContextKeySession).(string)
+	sessionId := ctx.Value(gshare.ContextKeySession).(string)
 	logInfo(ctx, "handleRegister: SessionId=%s", sessionId)
 
 	// 解析注册请求
@@ -65,13 +64,13 @@ func handleRegister(ctx context.Context, msg *network.ClientMessage) error {
 
 	// 验证用户名和密码
 	if len(req.Username) < 3 || len(req.Username) > 32 {
-		return gatewaylink2.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CRegisterResult), &protocol.S2CRegisterResultReq{
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CRegisterResult), &protocol.S2CRegisterResultReq{
 			Success: false,
 			Message: "用户名长度必须在3-32个字符之间",
 		})
 	}
 	if len(req.Password) < 6 {
-		return gatewaylink2.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CRegisterResult), &protocol.S2CRegisterResultReq{
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CRegisterResult), &protocol.S2CRegisterResultReq{
 			Success: false,
 			Message: "密码长度至少6个字符",
 		})
@@ -81,7 +80,7 @@ func handleRegister(ctx context.Context, msg *network.ClientMessage) error {
 	_, err = database.GetAccountByUsername(req.Username)
 	if err == nil {
 		// 用户名已存在
-		return gatewaylink2.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CRegisterResult), &protocol.S2CRegisterResultReq{
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CRegisterResult), &protocol.S2CRegisterResultReq{
 			Success: false,
 			Message: "用户名已存在",
 		})
@@ -91,7 +90,7 @@ func handleRegister(ctx context.Context, msg *network.ClientMessage) error {
 	account, err := database.CreateAccount(req.Username, req.Password)
 	if err != nil {
 		logError(ctx, "create account failed: %v", err)
-		return gatewaylink2.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CRegisterResult), &protocol.S2CRegisterResultReq{
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CRegisterResult), &protocol.S2CRegisterResultReq{
 			Success: false,
 			Message: "注册失败，请稍后重试",
 		})
@@ -101,7 +100,7 @@ func handleRegister(ctx context.Context, msg *network.ClientMessage) error {
 	token := database.GenerateToken(account.ID)
 
 	// 设置Session的账号ID和Token
-	session := gatewaylink2.GetSession(sessionId)
+	session := gatewaylink.GetSession(sessionId)
 	if session != nil {
 		session.SetAccountID(account.ID)
 		session.SetToken(token)
@@ -110,7 +109,7 @@ func handleRegister(ctx context.Context, msg *network.ClientMessage) error {
 	logInfo(ctx, "Account registered: AccountID=%d, Username=%s", account.ID, account.Username)
 
 	// 返回注册成功
-	return gatewaylink2.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CRegisterResult), &protocol.S2CRegisterResultReq{
+	return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CRegisterResult), &protocol.S2CRegisterResultReq{
 		Success: true,
 		Message: "注册成功",
 		Token:   token,
@@ -119,7 +118,7 @@ func handleRegister(ctx context.Context, msg *network.ClientMessage) error {
 
 // handleLogin 处理账号登录
 func handleLogin(ctx context.Context, msg *network.ClientMessage) error {
-	sessionId := ctx.Value(gshare2.ContextKeySession).(string)
+	sessionId := ctx.Value(gshare.ContextKeySession).(string)
 	logInfo(ctx, "handleLogin: SessionId=%s", sessionId)
 
 	// 解析登录请求
@@ -134,7 +133,7 @@ func handleLogin(ctx context.Context, msg *network.ClientMessage) error {
 	account, err := database.GetAccountByUsername(req.Username)
 	if err != nil {
 		logError(ctx, "account not found: %v", err)
-		return gatewaylink2.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CLoginResult), &protocol.S2CLoginResultReq{
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CLoginResult), &protocol.S2CLoginResultReq{
 			Success: false,
 			Message: "用户名或密码错误",
 		})
@@ -143,7 +142,7 @@ func handleLogin(ctx context.Context, msg *network.ClientMessage) error {
 	// 验证密码
 	if !account.CheckPassword(req.Password) {
 		logWarn(ctx, "password incorrect for account: %s", req.Username)
-		return gatewaylink2.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CLoginResult), &protocol.S2CLoginResultReq{
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CLoginResult), &protocol.S2CLoginResultReq{
 			Success: false,
 			Message: "用户名或密码错误",
 		})
@@ -153,7 +152,7 @@ func handleLogin(ctx context.Context, msg *network.ClientMessage) error {
 	token := database.GenerateToken(account.ID)
 
 	// 设置Session的账号ID和Token
-	session := gatewaylink2.GetSession(sessionId)
+	session := gatewaylink.GetSession(sessionId)
 	if session != nil {
 		session.SetAccountID(account.ID)
 		session.SetToken(token)
@@ -162,7 +161,7 @@ func handleLogin(ctx context.Context, msg *network.ClientMessage) error {
 	logInfo(ctx, "Account logged in: AccountID=%d, Username=%s", account.ID, account.Username)
 
 	// 返回登录成功
-	return gatewaylink2.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CLoginResult), &protocol.S2CLoginResultReq{
+	return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CLoginResult), &protocol.S2CLoginResultReq{
 		Success: true,
 		Message: "登录成功",
 		Token:   token,
@@ -174,11 +173,11 @@ func handleVerify(_ context.Context, _ *network.ClientMessage) error {
 }
 
 func handleQueryRoles(ctx context.Context, _ *network.ClientMessage) error {
-	sessionId := ctx.Value(gshare2.ContextKeySession).(string)
+	sessionId := ctx.Value(gshare.ContextKeySession).(string)
 	logInfo(ctx, "handleQueryRoles: SessionId=%s", sessionId)
 
 	// 获取Session
-	session := gatewaylink2.GetSession(sessionId)
+	session := gatewaylink.GetSession(sessionId)
 	if session == nil {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "session not found")
 	}
@@ -186,7 +185,7 @@ func handleQueryRoles(ctx context.Context, _ *network.ClientMessage) error {
 	// 获取账号ID
 	accountID := session.GetAccountID()
 	if accountID == 0 {
-		return gatewaylink2.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CRoleList), &protocol.S2CRoleListReq{
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CRoleList), &protocol.S2CRoleListReq{
 			RoleList: []*protocol.PlayerSimpleData{},
 		})
 	}
@@ -215,11 +214,11 @@ func handleQueryRoles(ctx context.Context, _ *network.ClientMessage) error {
 	}
 
 	// 发送给客户端
-	return gatewaylink2.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CRoleList), resp)
+	return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CRoleList), resp)
 }
 
 func handleEnterGame(ctx context.Context, msg *network.ClientMessage) error {
-	sessionId := ctx.Value(gshare2.ContextKeySession).(string)
+	sessionId := ctx.Value(gshare.ContextKeySession).(string)
 	logInfo(ctx, "handleSelectRole: SessionId=%s", sessionId)
 
 	// 解析选择角色请求
@@ -231,7 +230,7 @@ func handleEnterGame(ctx context.Context, msg *network.ClientMessage) error {
 	}
 
 	// 获取Session
-	session := gatewaylink2.GetSession(sessionId)
+	session := gatewaylink.GetSession(sessionId)
 	if session == nil {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "session not found")
 	}
@@ -275,7 +274,7 @@ func handleReconnect(_ context.Context, _ *network.ClientMessage) error {
 }
 
 func handleCreateRole(ctx context.Context, msg *network.ClientMessage) error {
-	sessionId := ctx.Value(gshare2.ContextKeySession).(string)
+	sessionId := ctx.Value(gshare.ContextKeySession).(string)
 	logInfo(ctx, "handleCreateRole: SessionId=%s", sessionId)
 
 	// 解析创建角色请求
@@ -287,7 +286,7 @@ func handleCreateRole(ctx context.Context, msg *network.ClientMessage) error {
 	}
 
 	// 获取Session
-	session := gatewaylink2.GetSession(sessionId)
+	session := gatewaylink.GetSession(sessionId)
 	if session == nil {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "session not found")
 	}
@@ -295,7 +294,7 @@ func handleCreateRole(ctx context.Context, msg *network.ClientMessage) error {
 	// 验证是否已登录
 	accountID := session.GetAccountID()
 	if accountID == 0 {
-		return gatewaylink2.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CCreateRoleResult), &protocol.S2CCreateRoleResultReq{
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CCreateRoleResult), &protocol.S2CCreateRoleResultReq{
 			Job:      0,
 			Sex:      0,
 			RoleName: "",
@@ -304,7 +303,7 @@ func handleCreateRole(ctx context.Context, msg *network.ClientMessage) error {
 
 	// 验证角色名
 	if req.RoleData == nil || len(req.RoleData.RoleName) == 0 {
-		return gatewaylink2.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CCreateRoleResult), &protocol.S2CCreateRoleResultReq{
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CCreateRoleResult), &protocol.S2CCreateRoleResultReq{
 			Job:      0,
 			Sex:      0,
 			RoleName: "",
@@ -318,7 +317,7 @@ func handleCreateRole(ctx context.Context, msg *network.ClientMessage) error {
 		return customerr.Wrap(err)
 	}
 	if exists {
-		return gatewaylink2.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CCreateRoleResult), &protocol.S2CCreateRoleResultReq{
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CCreateRoleResult), &protocol.S2CCreateRoleResultReq{
 			Job:      0,
 			Sex:      0,
 			RoleName: "",
@@ -332,7 +331,7 @@ func handleCreateRole(ctx context.Context, msg *network.ClientMessage) error {
 		return customerr.Wrap(err)
 	}
 	if len(players) >= 3 {
-		return gatewaylink2.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CCreateRoleResult), &protocol.S2CCreateRoleResultReq{
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CCreateRoleResult), &protocol.S2CCreateRoleResultReq{
 			Job:      0,
 			Sex:      0,
 			RoleName: "",
@@ -349,7 +348,7 @@ func handleCreateRole(ctx context.Context, msg *network.ClientMessage) error {
 	logInfo(ctx, "Player created: AccountID=%d, RoleId=%d, RoleName=%s", accountID, dbPlayer.ID, dbPlayer.RoleName)
 
 	// 返回创建成功
-	return gatewaylink2.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CCreateRoleResult), &protocol.S2CCreateRoleResultReq{
+	return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CCreateRoleResult), &protocol.S2CCreateRoleResultReq{
 		Job:      uint32(dbPlayer.Job),
 		Sex:      uint32(dbPlayer.Sex),
 		RoleName: dbPlayer.RoleName,
@@ -360,7 +359,7 @@ func handleCreateRole(ctx context.Context, msg *network.ClientMessage) error {
 func enterGame(sessionId string, roleInfo *protocol.PlayerSimpleData) error {
 	ctx := newSessionContext(sessionId)
 	if roleInfo != nil {
-		ctx = context.WithValue(ctx, gshare2.ContextKeyRole, roleInfo.RoleId)
+		ctx = context.WithValue(ctx, gshare.ContextKeyRole, roleInfo.RoleId)
 	}
 	logInfo(ctx, "enterGame: SessionId=%s, RoleId=%d", sessionId, roleInfo.RoleId)
 
@@ -368,8 +367,8 @@ func enterGame(sessionId string, roleInfo *protocol.PlayerSimpleData) error {
 	playerRole := NewPlayerRole(sessionId, roleInfo)
 
 	// 添加到PlayerRole管理器
-	manager2.GetPlayerRoleManager().Add(playerRole)
-	session := gatewaylink2.GetSession(sessionId)
+	manager.GetPlayerRoleManager().Add(playerRole)
+	session := gatewaylink.GetSession(sessionId)
 	session.SetRoleId(playerRole.GetPlayerRoleId())
 
 	// 设置玩家所在的DungeonServer类型(默认为3)
@@ -414,8 +413,8 @@ func enterGame(sessionId string, roleInfo *protocol.PlayerSimpleData) error {
 
 	reqData, err := proto.Marshal(&protocol.G2DEnterDungeonReq{
 		SessionId:    sessionId,
-		PlatformId:   gshare2.GetPlatformId(),
-		SrvId:        gshare2.GetSrvId(),
+		PlatformId:   gshare.GetPlatformId(),
+		SrvId:        gshare.GetSrvId(),
 		SimpleData:   roleInfo,
 		SyncAttrData: syncAttrData,
 		SkillMap:     skillMap,
@@ -424,8 +423,8 @@ func enterGame(sessionId string, roleInfo *protocol.PlayerSimpleData) error {
 		return customerr.Wrap(err)
 	}
 
-	// 使用带SessionId的异步RPC调用
-	err = di.GetContainer().DungeonServerGateway().AsyncCall(context.Background(), srvType, sessionId, uint16(protocol.G2DRpcProtocol_G2DEnterDungeon), reqData)
+	// 使用带SessionId的异步调用（通过 DungeonActorMsgId 枚举）
+	err = di.GetContainer().DungeonServerGateway().AsyncCall(context.Background(), sessionId, uint16(protocol.DungeonActorMsgId_DungeonActorMsgIdEnterDungeon), reqData)
 	if err != nil {
 		logError(ctx, "call dungeon service enter scene failed: %v", err)
 		return customerr.Wrap(err, int32(protocol.ErrorCode_Internal_Error))
@@ -442,7 +441,7 @@ func handlePlayerMessageMsg(message actor.IActorMessage) {
 		return
 	}
 
-	playerRole := manager2.GetPlayerRole(msg.RoleId)
+	playerRole := manager.GetPlayerRole(msg.RoleId)
 	if playerRole == nil {
 		if err := database.SavePlayerActorMessage(msg.RoleId, msg.MsgType, msg.MsgData); err != nil {
 			logError(ctx, "handlePlayerMessageMsg: fallback save failed: %v", err)
@@ -460,12 +459,12 @@ func handlePlayerMessageMsg(message actor.IActorMessage) {
 }
 
 func handleRunOneMsg(message actor.IActorMessage) {
-	sessionId := message.GetContext().Value(gshare2.ContextKeySession).(string)
-	session := gatewaylink2.GetSession(sessionId)
+	sessionId := message.GetContext().Value(gshare.ContextKeySession).(string)
+	session := gatewaylink.GetSession(sessionId)
 	if session == nil {
 		return
 	}
-	iPlayerRole := manager2.GetPlayerRoleManager().GetBySession(sessionId)
+	iPlayerRole := manager.GetPlayerRoleManager().GetBySession(sessionId)
 	if iPlayerRole == nil {
 		return
 	}
@@ -474,11 +473,11 @@ func handleRunOneMsg(message actor.IActorMessage) {
 
 // handleQueryRank 处理查询排行榜
 func handleQueryRank(ctx context.Context, msg *network.ClientMessage) error {
-	sessionId := ctx.Value(gshare2.ContextKeySession).(string)
-	playerRole := manager2.GetPlayerRoleManager().GetBySession(sessionId)
+	sessionId := ctx.Value(gshare.ContextKeySession).(string)
+	playerRole := manager.GetPlayerRoleManager().GetBySession(sessionId)
 	if playerRole == nil {
 		log.Errorf("handleQueryRank: player not found for session=%s", sessionId)
-		return gatewaylink2.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
+		return gatewaylink.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
 			Code: -1,
 			Msg:  "未登录",
 		})
@@ -520,59 +519,7 @@ func handleQueryRank(ctx context.Context, msg *network.ClientMessage) error {
 	return nil
 }
 
-// handleRegisterProtocols 处理DungeonServer注册协议的RPC请求
-func handleRegisterProtocols(_ context.Context, _ string, data []byte) error {
-	var req protocol.D2GRegisterProtocolsReq
-	if err := proto.Unmarshal(data, &req); err != nil {
-		log.Errorf("unmarshal register protocols request failed: %v", err)
-		return customerr.Wrap(err)
-	}
-
-	srvType := uint8(req.SrvType)
-	log.Infof("received protocol registration from DungeonServer: srvType=%d, protocols=%d", srvType, len(req.Protocols))
-
-	// 转换协议信息
-	protocols := make([]interfaces.ProtocolInfo, len(req.Protocols))
-	for i, protocolInfo := range req.Protocols {
-		protocols[i] = interfaces.ProtocolInfo{
-			ProtoID:  uint16(protocolInfo.ProtoId),
-			IsCommon: protocolInfo.IsCommon,
-		}
-		log.Debugf("  - protoId=%d, isCommon=%v", protocolInfo.ProtoId, protocolInfo.IsCommon)
-	}
-
-	// 注册到协议管理器
-	if err := di.GetContainer().DungeonServerGateway().RegisterProtocols(srvType, protocols); err != nil {
-		log.Errorf("register protocols failed: %v", err)
-		return customerr.Wrap(err)
-	}
-
-	log.Infof("successfully registered %d protocols for srvType=%d", len(protocols), srvType)
-	return nil
-}
-
-// handleUnregisterProtocols 处理DungeonServer注销协议的RPC请求
-func handleUnregisterProtocols(_ context.Context, _ string, data []byte) error {
-	var req protocol.D2GUnregisterProtocolsReq
-	if err := proto.Unmarshal(data, &req); err != nil {
-		log.Errorf("unmarshal unregister protocols request failed: %v", err)
-		return customerr.Wrap(err)
-	}
-
-	srvType := uint8(req.SrvType)
-	log.Infof("received protocol unregistration from DungeonServer: srvType=%d", srvType)
-
-	// 从协议管理器注销
-	if err := di.GetContainer().DungeonServerGateway().UnregisterProtocols(srvType); err != nil {
-		log.Errorf("unregister protocols failed: %v", err)
-		return customerr.Wrap(err)
-	}
-
-	log.Infof("successfully unregistered protocols for srvType=%d", srvType)
-	return nil
-}
-
-// handleSyncPosition 处理坐标同步的RPC请求
+// handleSyncPosition 处理坐标同步消息（来自 DungeonActor）
 func handleSyncPosition(_ context.Context, _ string, data []byte) error {
 	var req protocol.D2GSyncPositionReq
 	if err := proto.Unmarshal(data, &req); err != nil {
@@ -583,7 +530,7 @@ func handleSyncPosition(_ context.Context, _ string, data []byte) error {
 	log.Debugf("received position sync: RoleId=%d, SceneId=%d, Pos=(%d,%d)", req.RoleId, req.SceneId, req.PosX, req.PosY)
 
 	// 获取玩家角色
-	playerRole := manager2.GetPlayerRole(req.RoleId)
+	playerRole := manager.GetPlayerRole(req.RoleId)
 	if playerRole == nil {
 		log.Warnf("player role not found for position sync: RoleId=%d", req.RoleId)
 		// 不返回错误，坐标同步失败不影响游戏流程
@@ -598,14 +545,14 @@ func handleSyncPosition(_ context.Context, _ string, data []byte) error {
 	return nil
 }
 
-// handleDungeonSyncAttrs 处理副本属性回传
+// handleDungeonSyncAttrs 处理副本属性同步消息（来自 DungeonActor）
 func handleDungeonSyncAttrs(_ context.Context, _ string, data []byte) error {
 	var req protocol.D2GSyncAttrsReq
 	if err := proto.Unmarshal(data, &req); err != nil {
 		log.Errorf("unmarshal dungeon sync attrs failed: %v", err)
 		return customerr.Wrap(err)
 	}
-	playerRole := manager2.GetPlayerRole(req.RoleId)
+	playerRole := manager.GetPlayerRole(req.RoleId)
 	if playerRole == nil {
 		log.Warnf("player role not found for dungeon sync attrs: RoleId=%d", req.RoleId)
 		return nil
@@ -620,11 +567,12 @@ func handleDungeonSyncAttrs(_ context.Context, _ string, data []byte) error {
 }
 
 func init() {
-	gevent2.Subscribe(gevent2.OnSrvStart, func(ctx context.Context, event *event.Event) {
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, event *event.Event) {
 		protocolRouter := router.NewProtocolRouterController()
-		gshare2.RegisterHandler(gshare2.DoNetWorkMsg, protocolRouter.HandleDoNetworkMsg)
-		gshare2.RegisterHandler(gshare2.DoRunOneMsg, handleRunOneMsg)
-		gshare2.RegisterHandler(gshare2.PlayerMessageMsg, handlePlayerMessageMsg)
+		gshare.RegisterHandler(uint16(protocol.PlayerActorMsgId_PlayerActorMsgIdDoNetworkMsg), protocolRouter.HandleDoNetworkMsg)
+		gshare.RegisterHandler(uint16(protocol.PlayerActorMsgId_PlayerActorMsgIdDoRunOneMsg), handleRunOneMsg)
+		gshare.RegisterHandler(uint16(protocol.PlayerActorMsgId_PlayerActorMsgIdPlayerMessageMsg), handlePlayerMessageMsg)
+		gshare.RegisterHandler(uint16(protocol.PlayerActorMsgId_PlayerActorMsgIdSendToClient), handleSendToClient)
 
 		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SRegister), handleRegister)
 		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SLogin), handleLogin)
@@ -635,12 +583,39 @@ func init() {
 		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SReconnect), handleReconnect)
 		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SQueryRank), handleQueryRank)
 
-		// 注册协议注册的RPC处理器
-		dungeonGateway := di.GetContainer().DungeonServerGateway()
-		dungeonGateway.RegisterRPCHandler(uint16(protocol.D2GRpcProtocol_D2GRegisterProtocols), handleRegisterProtocols)
-		dungeonGateway.RegisterRPCHandler(uint16(protocol.D2GRpcProtocol_D2GUnregisterProtocols), handleUnregisterProtocols)
-		dungeonGateway.RegisterRPCHandler(uint16(protocol.D2GRpcProtocol_D2GSyncPosition), handleSyncPosition)
-		dungeonGateway.RegisterRPCHandler(uint16(protocol.D2GRpcProtocol_D2GSyncAttrs), handleDungeonSyncAttrs)
+		// 注册 PlayerActor 消息处理器（DungeonActor → PlayerActor）
+		gshare.RegisterHandler(uint16(protocol.PlayerActorMsgId_PlayerActorMsgIdSyncPosition), func(message actor.IActorMessage) {
+			msgCtx := message.GetContext()
+			sessionID, _ := msgCtx.Value(gshare.ContextKeySession).(string)
+			if err := handleSyncPosition(msgCtx, sessionID, message.GetData()); err != nil {
+				log.Errorf("[player-network] handleSyncPosition failed: %v", err)
+			}
+		})
+		gshare.RegisterHandler(uint16(protocol.PlayerActorMsgId_PlayerActorMsgIdSyncAttrs), func(message actor.IActorMessage) {
+			msgCtx := message.GetContext()
+			sessionID, _ := msgCtx.Value(gshare.ContextKeySession).(string)
+			if err := handleDungeonSyncAttrs(msgCtx, sessionID, message.GetData()); err != nil {
+				log.Errorf("[player-network] handleDungeonSyncAttrs failed: %v", err)
+			}
+		})
 
 	})
+}
+
+func handleSendToClient(message actor.IActorMessage) {
+	var req protocol.PlayerActorMsgIdSendToClientReq
+	if err := proto.Unmarshal(message.GetData(), &req); err != nil {
+		log.Errorf("[player-network] handleSendToClient: unmarshal failed: %v", err)
+		return
+	}
+
+	sessionID, _ := message.GetContext().Value(gshare.ContextKeySession).(string)
+	if sessionID == "" {
+		log.Warnf("[player-network] handleSendToClient: missing session id")
+		return
+	}
+
+	if err := gatewaylink.SendToSession(sessionID, uint16(req.GetMsgId()), req.GetData()); err != nil {
+		log.Errorf("[player-network] handleSendToClient: send failed: %v", err)
+	}
 }

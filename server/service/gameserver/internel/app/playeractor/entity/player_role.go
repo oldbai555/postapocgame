@@ -17,7 +17,7 @@ import (
 	"postapocgame/server/service/gameserver/internel/core/iface"
 	"postapocgame/server/service/gameserver/internel/di"
 	"postapocgame/server/service/gameserver/internel/infrastructure/gatewaylink"
-	gevent2 "postapocgame/server/service/gameserver/internel/infrastructure/gevent"
+	"postapocgame/server/service/gameserver/internel/infrastructure/gevent"
 	"time"
 )
 
@@ -67,7 +67,7 @@ func NewPlayerRole(sessionId string, roleInfo *protocol.PlayerSimpleData) *Playe
 		IsOnline:     true,
 		ReconnectKey: generateReconnectKey(sessionId, roleInfo.RoleId),
 		// 从全局模板克隆独立的事件总线
-		eventBus: gevent2.ClonePlayerEventBus(),
+		eventBus: gevent.ClonePlayerEventBus(),
 	}
 	// 创建系统管理器
 	pr.sysMgr = entitysystem.NewSysMgr()
@@ -76,7 +76,7 @@ func NewPlayerRole(sessionId string, roleInfo *protocol.PlayerSimpleData) *Playe
 	pr.attrCalculator = NewAttrCalculator(pr)
 
 	// 订阅升级事件，自动更新排行榜（订阅到玩家自己的事件总线）
-	pr.eventBus.Subscribe(gevent2.OnPlayerLevelUp, 3, func(evCtx context.Context, ev *event.Event) {
+	pr.eventBus.Subscribe(gevent.OnPlayerLevelUp, 3, func(evCtx context.Context, ev *event.Event) {
 		pr.UpdateRankSnapshot(pr.WithContext(nil))
 	})
 
@@ -157,7 +157,7 @@ func (pr *PlayerRole) OnLogin() error {
 	}
 
 	// 发布玩家登录事件
-	pr.Publish(gevent2.OnPlayerLogin)
+	pr.Publish(gevent.OnPlayerLogin)
 
 	// 更新排行榜快照（玩家上线时）
 	pr.UpdateRankSnapshot(pr.WithContext(nil))
@@ -308,7 +308,7 @@ func (pr *PlayerRole) OnLogout() error {
 	}
 
 	// 发布玩家登出事件
-	pr.Publish(gevent2.OnPlayerLogout)
+	pr.Publish(gevent.OnPlayerLogout)
 
 	return nil
 }
@@ -323,7 +323,7 @@ func (pr *PlayerRole) OnReconnect(newSessionId string) error {
 	pr.DisconnectAt = time.Time{}
 
 	// 发布玩家重连事件
-	pr.Publish(gevent2.OnPlayerReconnect)
+	pr.Publish(gevent.OnPlayerReconnect)
 	if pr.attrCalculator != nil {
 		pr.attrCalculator.PushFullAttrData(pr.WithContext(nil))
 	}
@@ -470,10 +470,9 @@ func (pr *PlayerRole) GetAttrCalculator() interface{} {
 	return pr.attrCalculator
 }
 
-// CallDungeonServer 异步调用DungeonServer的RPC方法（用于解耦，避免循环依赖）
+// CallDungeonServer 异步调用DungeonServer（用于解耦，避免循环依赖）
 func (pr *PlayerRole) CallDungeonServer(ctx context.Context, msgId uint16, data []byte) error {
-	srvType := pr.GetDungeonSrvType()
-	return di.GetContainer().DungeonServerGateway().AsyncCall(ctx, srvType, pr.GetSessionId(), msgId, data)
+	return di.GetContainer().DungeonServerGateway().AsyncCall(ctx, pr.GetSessionId(), msgId, data)
 }
 
 func (pr *PlayerRole) timeSync() {

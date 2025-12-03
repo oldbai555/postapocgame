@@ -3,7 +3,6 @@ package publicactor
 import (
 	"context"
 	"postapocgame/server/service/gameserver/internel/core/gshare"
-	"postapocgame/server/service/gameserver/internel/infrastructure/gatewaylink"
 
 	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/actor"
@@ -212,9 +211,8 @@ func handleQueryRank(ctx context.Context, msg actor.IActorMessage, publicRole *P
 	}
 
 	// 发送给请求者
-	err = gatewaylink.SendToSession(queryMsg.RequesterSessionId, uint16(protocol.S2CProtocol_S2CQueryRankResult), respData)
-	if err != nil {
-		log.Warnf("Failed to send rank query result to session %s: %v", queryMsg.RequesterSessionId, err)
+	if err := sendClientMessageViaPlayerActor(queryMsg.RequesterSessionId, uint16(protocol.S2CProtocol_S2CQueryRankResult), respData); err != nil {
+		logSendFailure(queryMsg.RequesterSessionId, uint16(protocol.S2CProtocol_S2CQueryRankResult), err)
 		return
 	}
 

@@ -23,7 +23,7 @@
 - **项目名称**：postapocgame（后启示录横版动作）  
 - **客户端**：Godot（计划中），运行于 Windows / Android / iOS  
 - **服务器语言**：Golang 1.24.10（`go 1.24` toolchain）  
-- **服务集合**：`gateway`、`gameserver`、`dungeonserver` 单仓管理  
+- **服务集合**：`gateway`、`gameserver`（内置 `DungeonActor` 单 Actor 战斗引擎） 单仓管理  
 - **数据层**：SQLite（`server/output/postapocgame.db`）+ GORM，所有玩家数据落于 `PlayerRoleBinaryData`  
 - **配置驱动**：`server/output/config/*.json` 26+ 表；需存在于输出目录方可启动  
 - **目标部署**：开发使用 Windows；线上兼容 Windows/Linux
@@ -37,9 +37,9 @@
 | 服务            | 职责                                                                 | 关键目录 |
 | --------------- | -------------------------------------------------------------------- | -------- |
 | Gateway         | TCP/WS 接入、Session 生命周期、消息压缩/分发、限流、日志             | `server/service/gateway` |
-| GameServer      | 玩家长连接逻辑（任务、成长、经济、社交、公会、GM），一玩家一 Actor    | `server/service/gameserver` |
-| DungeonServer   | 副本/战斗/掉落/技能状态机，单 Actor 驱动                              | `server/service/dungeonserver` |
+| GameServer      | 玩家长连接逻辑（任务、成长、经济、社交、公会、GM），一玩家一 Actor；内置 `DungeonActor` 作为战斗/副本引擎 | `server/service/gameserver` |
 | Shared Packages | Actor 框架、事件、网络编解码、Proto、配置、日志、错误码              | `server/internal`, `server/pkg`, `proto/` |
+| DungeonActor    | 在 GameServer 进程内以单 Actor 形式承载战斗/副本/场景逻辑，通过 `DungeonServerGateway` 暴露统一接口；通过 `gshare.IDungeonActorFacade` 与 PlayerActor 协作，使用 `DungeonActorMsgId` / `PlayerActorMsgId` 枚举统一管理内部消息 | `server/service/gameserver/internel/app/dungeonactor` |
 
 ### 2.2 拓扑与通信
 
@@ -48,14 +48,12 @@ Client (TCP / WebSocket)
       |
 Gateway (SessionManager + ClientHandler)
       | ForwardMessage / SessionEvent
-GameServer (per-player Actor + PublicActor)
-      | Async RPC (dungeonserverlink / gameserverlink)
-DungeonServer (single Actor dungeon runtime)
+GameServer (per-player Actor + PublicActor + DungeonActor)
 ```
 
 - **会话分发**：Gateway 维护 Session，所有 C2S 消息封装为 `ForwardMessage` 异步转发到 GameServer；Session 事件通过 `gameserverlink` 广播。  
-- **Actor 调度**：GameServer 使用 `actor.ModePerKey`（key=SessionId）；`PlayerHandler.Loop()` 通过 `actorCtx.ExecuteAsync` 注入 `gshare.DoRunOneMsg`，确保所有系统 RunOne 在 Actor 主线程执行。  
-- **跨服 RPC**：GameServer ↔ DungeonServer 间统一使用 `dungeonserverlink.AsyncCall` 与 `gameserverlink` 注册回调，禁止同步阻塞。  
+- **Actor 调度**：GameServer 使用 `actor.ModePerKey`（key=SessionId）；`PlayerHandler.Loop()` 通过 `actorCtx.ExecuteAsync` 注入 `gshare.DoRunOneMsg`，确保所有系统 RunOne 在 Actor 主线程执行；DungeonActor 使用 `actor.ModeSingle` 作为进程内战斗/副本引擎骨架。  
+- **内部 Actor 通信**：PlayerActor ↔ DungeonActor 通过 `gshare.IDungeonActorFacade` 发送内部 Actor 消息（`DungeonActorMsgId` / `PlayerActorMsgId`），UseCase 层统一通过 `DungeonServerGateway` 接口访问 DungeonActor 能力，避免直接感知 Actor 实现细节。  
 - **数据持久化**：玩家系统数据序列化为 `protocol.PlayerRoleBinaryData`，落库字段 `Player.BinaryData`；全局数据（公会/拍卖行等）将由 PublicActor 驱动持久化。  
 - **公共 Actor**：GameServer 内包含 `PublicActor`（单 Actor）用于社交经济全局数据、在线映射、排行榜等逻辑。
 
@@ -66,12 +64,11 @@ DungeonServer (single Actor dungeon runtime)
 - **Go 版本**：`go 1.24.0`，toolchain `1.24.10`。  
 - **最新可执行文件**：  
   - `go build -o server/output/gameserver.exe ./server/service/gameserver`  
-  - `go build -o server/output/dungeonserver.exe ./server/service/dungeonserver`  
   - `gateway.exe` 已存在历史构建产物  
-- **配置**：`server/output/{gateway,gamesrv,dungeonsrv}.json` + `server/output/config/*.json` 必须齐备。  
+- **配置**：`server/output/{gateway,gamesrv}.json` + `server/output/config/*.json` 必须齐备。  
 - **数据库**：`server/output/postapocgame.db` 随 GameServer 自动迁移，表定义位于 `server/internal/database/*.go`。  
 - **日志**：各服务默认输出到 `server/output/log/<service>.log`，同时打印至控制台。  
-- **启动顺序建议**：DungeonServer → GameServer → Gateway → 客户端。
+- **启动顺序建议**：GameServer → Gateway → 客户端。
 
 ---
 
@@ -114,8 +111,8 @@ DungeonServer (single Actor dungeon runtime)
 - ✅ 系统广播与系统邮件：`SendSystemNotification* / SendSystemMail* / SendSystemMailByTemplate* / GrantRewardsByMail` 支持单人/全服广播与系统邮件发放，可复用为运营活动工具
 
 **副本协作**
-- `FubenSys`、`SkillSys`、`dungeonserverlink` 负责副本进入、技能同步、掉落拾取
-- ✅ GameServer 自动识别无法本地处理的 `C2S` 协议，并将 `MsgTypeClient` 消息透传至对应 `DungeonServer`，确保客户端战斗/移动协议无需重复注册
+- `FubenSys`、`SkillSys` 负责副本进入、技能同步、掉落拾取
+- ✅ 所有客户端 C2S 协议统一在 PlayerActor Controller 层处理，通过 `gshare.SendDungeonMessageAsync` 将请求转发到 DungeonActor，使用 `DungeonActorMsgId` 枚举统一管理内部消息
 
 **Phase 3 社交经济系统（全部完成）**
 - ✅ **PublicActor 框架**：单 Actor 框架、在线状态管理、消息路由
@@ -132,7 +129,7 @@ DungeonServer (single Actor dungeon runtime)
 - 🆕 **玩家消息系统（阶段三：发送入口）**：新增 `gshare.SendPlayerActorMessage`（在线直接向 Actor 投递，失败/离线回落入库）、`player_network.handlePlayerMessageMsg`（Actor 内调度消息回调）以及 `rpc.proto/AddActorMessageMsg`，完成在线/离线统一链路
 
 **属性系统阶段一（基础结构）**
-- `entitysystem/attr_sys.go` 支持 `sysAttr/sysAddRateAttr/sysPowerMap` 缓存、差异化重算与 `ResetSysAttr` 对外接口；`SyncAttrData` 追加 `AddRateAttr` 字段，下行仅同步变更系统，降低 DungeonServer 压力。
+- `entitysystem/attr_sys.go` 支持 `sysAttr/sysAddRateAttr/sysPowerMap` 缓存、差异化重算与 `ResetSysAttr` 对外接口；`SyncAttrData` 追加 `AddRateAttr` 字段，下行仅同步变更系统。
 
 **属性系统阶段二（加成与推送）**
 - `attrcalc/add_rate_bus.go` 提供加成计算注册；示例 `level_sys` 基于角色等级注入 HP/MP 回复加成，`AttrSys.calcTotalSysAddRate` 自动汇总并写入 `sysAddRateAttr`。
@@ -192,11 +189,11 @@ DungeonServer (single Actor dungeon runtime)
   - ✅ 创建了 `adapter/system/attr/attr_system_adapter.go`（系统适配器，实现核心逻辑）
   - ✅ 创建了 `adapter/system/attr/attr_system_adapter_helper.go`（GetAttrSys 函数）
   - ✅ 创建了 `adapter/system/attr/attr_system_adapter_init.go`（系统注册）
-  - ✅ 实现了 `RunOne` 方法（计算变动的系统属性并同步到DungeonServer）
+  - ✅ 实现了 `RunOne` 方法（计算变动的系统属性并同步到DungeonActor）
   - ✅ 实现了 `MarkDirty` 方法（标记需要重算的系统）
   - ✅ 实现了 `CalculateAllAttrs` 方法（计算所有系统的属性）
   - ✅ 通过 `attrcalc` 包注册的计算器获取各系统属性（LevelSys 和 EquipSys 已注册）
-  - ✅ 属性同步到 DungeonServer（通过 DungeonServerGateway）
+  - ✅ 属性同步到 DungeonActor（通过 DungeonServerGateway）
   - ✅ 属性推送到客户端（通过 NetworkGateway）
   - ✅ 保持了向后兼容性（通过接口定义依赖，支持新旧代码并存）
 - 🆕 **统一数据访问和网络发送**：已完成阶段二系统的统一验证
@@ -218,7 +215,7 @@ DungeonServer (single Actor dungeon runtime)
   - ✅ 通过接口依赖 BagSys 和 LevelSys，避免循环依赖
   - ✅ 完善了 ConfigManager 接口（添加 GetItemUseEffectConfig、GetJobConfig、GetEquipSetConfig）
   - ✅ 保持了向后兼容性（通过接口定义依赖，支持新旧代码并存）
-  - ⏳ TODO: 完善 HP/MP 同步到 DungeonServer 的逻辑（通过事件或接口）
+  - ⏳ TODO: 完善 HP/MP 同步到 DungeonActor 的逻辑（通过事件或接口）
 - 🆕 **阶段三：玩法系统重构（SkillSys）**：已完成 SkillSys 的 Clean Architecture 重构
   - ✅ 创建了 `usecase/skill/learn_skill.go`、`upgrade_skill.go`（提取业务逻辑）
   - ✅ 创建了 `usecase/interfaces/consume.go`（ConsumeUseCase 接口定义）
@@ -229,7 +226,7 @@ DungeonServer (single Actor dungeon runtime)
   - ✅ 完善了 `usecase/interfaces/level.go`（添加 GetLevel 方法）
   - ✅ 实现了 `GetSkillSys(ctx)` 函数和系统注册
   - ✅ 通过接口依赖 LevelSys 和 ConsumeUseCase，避免循环依赖
-  - ✅ 实现了技能同步到 DungeonServer 的逻辑（通过 DungeonServerGateway）
+  - ✅ 实现了技能同步到 DungeonActor 的逻辑（通过 DungeonServerGateway）
   - ✅ 保持了向后兼容性（通过接口定义依赖，支持新旧代码并存）
 - 🆕 **阶段三：玩法系统重构（FubenSys）**：已完成 FubenSys 的 Clean Architecture 重构
   - ✅ 创建了 `usecase/fuben/enter_dungeon.go`、`settle_dungeon.go`（提取业务逻辑）
@@ -294,7 +291,7 @@ DungeonServer (single Actor dungeon runtime)
   - ✅ 删除旧版 `entitysystem/friend_sys.go`，所有逻辑迁移到 Clean Architecture 层次
 - 🆕 **阶段三：玩法系统重构（RPC 调用链路）**：已完成 GameServer ↔ DungeonServer RPC 管理重构
 - 🆕 **阶段六：Legacy EntitySystem 清理**：删除 `server/service/gameserver/internel/app/playeractor/entitysystem` 下 Bag/Money/Level/Skill/Quest/Fuben/ItemUse/Shop/Attr/Equip 等旧实现，仅保留 `sys_mgr.go` 与 `message_dispatcher.go`；所有调用统一改用 `adapter/system` + UseCase/Controller，避免 Legacy 入口与循环依赖
-  - ✅ 新增 `adapter/controller/protocol_router_controller.go`，集中处理 `C2S` 协议解析、上下文注入与 DungeonServer 转发
+  - ✅ 新增 `adapter/controller/protocol_router_controller.go`，集中处理 `C2S` 协议解析、上下文注入与 DungeonActor 转发
   - ✅ `player_network.go` 仅保留 gshare Handler 注册，原 `handleDoNetWorkMsg` 逻辑全部迁移至 Controller 层
   - ✅ `DungeonServerGateway` 扩展 `RegisterProtocols/UnregisterProtocols`、`GetSrvTypeForProtocol` 返回自定义枚举，统一 RPC 入口
   - ✅ `adapter/system/bag_system_adapter_init.go` 等路径均改为通过 `DungeonServerGateway.RegisterRPCHandler` 注册回调
@@ -304,7 +301,7 @@ DungeonServer (single Actor dungeon runtime)
 **服务器开服信息**
 - `server/internal/database/server_info.go` 存储开服时间，`gshare.GetOpenSrvDay()` 获取开服天数
 
-### 4.3 DungeonServer（副本与战斗）
+### 4.3 DungeonActor（副本与战斗）
 
 - 单 Actor 主循环、实体层（角色/怪物/掉落/AOI）
 - 状态机、Buff、AI、技能、战斗系统
@@ -324,7 +321,7 @@ DungeonServer (single Actor dungeon runtime)
 - **寻路系统**：支持 A* 算法（绕障碍、贴墙走）和直线寻路（最短直线、遇障碍自动绕过），`MonsterAIConfig` 可配置巡逻/追击时使用的寻路算法，`MoveSys.MoveToWithPathfinding` 提供寻路移动接口
 - 技能释放校验（`Effects` 为空时返回错误）
 - 技能广播（释放成功/伤害结果，客户端驱动动画）
-- **协议注册重构**：参考 GameServer 的协议注册方式，将 DungeonServer 的协议注册归到具体业务系统中；技能协议（`C2SUseSkill`）的注册已从 `clientprotocol/skill_handler.go` 移至 `entitysystem/fight_sys.go`，使用 `devent.Subscribe(OnSrvStart)` 在服务器启动时注册
+- **消息注册**：DungeonActor 不再直接注册或处理任何 C2S 协议，所有客户端协议统一在 PlayerActor Controller 层处理；DungeonActor 通过 `gshare.IDungeonActorFacade.RegisterHandler` 注册内部消息处理器（`DungeonActorMsgId`），在 `register.go` 中按业务模块拆分注册
 - **坐标系统优化**：
   - ✅ 移动系统：客户端发送的像素坐标自动转换为格子坐标进行校验，距离计算和速度校验基于格子大小
   - ✅ 寻路算法：明确输入输出为格子坐标，距离计算使用格子距离（曼哈顿距离或欧几里得距离）
@@ -336,13 +333,14 @@ DungeonServer (single Actor dungeon runtime)
 **属性系统阶段一（聚合同步）**
 - `entitysystem/attr_sys.go` 提供 `ApplySyncData/ensureAggregated`，可直接聚合 GameServer 下发的系统属性与 `AddRateAttr`；`entity/rolest.go` 的 `UpdateAttrs/initAttrSys` 仅透传 `SyncAttrData`，移除旧的逐属性增减逻辑。
 
-**属性系统阶段四（DungeonServer 本地属性计算与 RunOne 机制）**
+**属性系统阶段四（DungeonActor 本地属性计算与 RunOne 机制）**
 - ✅ **属性计算器注册管理器**：`entitysystem/attrcalc/bus.go` 提供 `RegIncAttrCalcFn/RegDecAttrCalcFn` 和 `GetIncAttrCalcFn/GetDecAttrCalcFn`，支持注册怪物基础属性计算器（`MonsterBaseProperty`）、Buff 属性计算器（`SaBuff`）等
 - ✅ **ResetSysAttr 方法**：`AttrSys.ResetSysAttr` 通过注册管理器触发属性重算，支持增量和减量属性计算
 - ✅ **RunOne 机制**：`AttrSys.RunOne` 每帧调用 `ResetProperty` 和 `CheckAndSyncProp`，在 `BaseEntity.RunOne` 中统一调用
 - ✅ **非战斗属性变化跟踪**：使用 `extraUpdateMask`（map）跟踪非战斗属性变化，`CheckAndSyncProp` 检查并同步变化
 - ✅ **初始化完成标志**：`bInitFinish` 标志控制是否广播属性（初始化完成前不广播），`SetInitFinish` 方法标记初始化完成
 - ✅ **实体属性重置**：`MonsterEntity.ResetProperty` 先调用 `ResetSysAttr` 计算基础属性，再调用 `AttrSys.ResetProperty` 触发完整流程
+- ✅ **属性同步到 PlayerActor**：属性变化时通过 `gshare.SendMessageAsync` 发送 `PlayerActorMsgIdSyncAttrs` 消息给 PlayerActor
 
 ### 4.4 共享基础能力
 
@@ -649,6 +647,69 @@ PlayerActor（通知/回写）
 
 > 详细移除方案见 `docs/系统移除方案.md`
 
+### 6.3 DungeonActor 架构优化（已完成基础，持续完善）
+
+- [✅] **架构与目录规划**
+  - [✅] 在 `server/service/gameserver/internel/app` 下新增 `dungeonactor` 目录，定义 `DungeonActor` 单 Actor 骨架（ModeSingle），拆分为 `adapter.go`、`handler.go`、`register.go`、`message.go`。
+  - [✅] 在 `main.go` 中接入 DungeonActor 的创建与启动/停止流程，将其视为与 PublicActor 类似的基础设施 Actor，随 GameServer 一同常驻运行。
+- [✅] **Gateway 实现**
+  - [✅] 在 `adapter/gateway/dungeon_server_gateway.go` 中实现 InProcess 版 `DungeonServerGateway`：对 UseCase 暴露统一的异步接口，内部直接路由到 GameServer 内部的 DungeonActor，仅支持 InProcess 模式。
+- [✅] **DungeonActor 启动与运行**
+  - [✅] 已将原 `server/service/dungeonserver/internel` 下的核心代码（`entity`、`entitysystem`、`scene`、`fuben`、`fbmgr`、`skill` 等）完整复制到 `internel/app/dungeonactor`，统一 import 前缀并保持 UTF-8 编码。
+  - [✅] GameServer 启动时自动创建并启动 ModeSingle 的 DungeonActor，在 `handler.go` 的 `NewDungeonActorHandler` 中初始化默认副本。
+  - [✅] DungeonActor 的 `Loop` 方法驱动 `entitymgr.RunOne` 和 `fbmgr.RunOne`，实现实体和副本的每帧更新。
+- [✅] **交互与协议收敛**
+  - [✅] 删除 `dungeonactor/{drpcprotocol,clientprotocol}` 包，移除所有 C2S/G2D 本地注册逻辑。
+  - [✅] 在 `gshare.actor_facade.go` 中引入 `IDungeonActorFacade` 接口，由 `dungeonactor.NewDungeonActor` 在启动时注入实现。
+  - [✅] 在 `proto/csproto/rpc.proto` 中新增 `DungeonActorMsgId` 和 `PlayerActorMsgId` 枚举，统一管理内部消息ID。
+  - [✅] 所有客户端 C2S 协议统一在 PlayerActor Controller 层处理，通过 `gshare.SendDungeonMessageAsync` 转发到 DungeonActor。
+  - [✅] DungeonActor → PlayerActor 的消息（添加物品、副本结算、坐标同步、属性同步等）通过 `gshare.SendMessageAsync` 发送，使用 `PlayerActorMsgId` 枚举。
+- [✅] **清理与收尾**
+  - [✅] 物理删除 `server/service/dungeonserver` 代码目录及相关构建脚本，所有战斗相关改动统一在 `internel/app/dungeonactor` 维护。
+- [⏳] **性能评估与优化**
+  - [⏳] 完成副本进入/结算、移动/技能、掉落/拾取的完整联调与性能评估。
+
+#### 阶段 8.7 DungeonActor 交互与协议收敛实现概要（已完成）
+
+1. 明确 DungeonActor 只作为 GameServer 内部的战斗/副本 Actor，不再直接暴露任何网络协议或 G2D/D2G RPC 枚举；所有客户端 C2S 协议统一由 PlayerActor 侧的 Controller 处理（包括移动、技能、掉落拾取、副本进入/退出等）。  
+2. 为保持 Clean Architecture 依赖方向，UseCase 仍然只依赖 `interfaces.DungeonServerGateway` 接口，Gateway 负责将“进入副本/同步属性/更新技能/拾取掉落”等领域意图转换为 DungeonActor 可理解的内部消息，通过 `gshare.SendDungeonMessageAsync` 发送。  
+3. PlayerActor ↔ DungeonActor 的通信按照 PublicActor 的模式落地：在 `internel/core/gshare/actor_facade.go` 上扩展出 `IDungeonActorFacade` 接口与 `SetDungeonActorFacade/GetDungeonActorFacade/SendDungeonMessageAsync` 等方法，由 `dungeonactor.NewDungeonActor` 在启动时注入具体实现。  
+4. GameServer 侧的 Controller/UseCase 需要驱动 DungeonActor 时，通过 `gshare.SendDungeonMessageAsync` 发送内部消息，使用 `DungeonActorMsgId` 枚举统一内部消息ID；已在 `adapter/controller` 中补齐移动/技能/拾取/复活四条链路，通过 `clientprotocol.Register` + `SendDungeonMessageAsync("global", NewBaseMessage(ctxWithSession, DungeonActorMsgId_*, data))` 将 C2S 请求转发给 DungeonActor。  
+5. DungeonActor 不再注册/处理任何 C2S 协议：已物理删除旧的 `dungeonactor/{clientprotocol,drpcprotocol}` 包，并在 `entitysystem/{move_sys,fight_sys,drop_sys}.go`、`entity/rolest.go` 中移除所有 C2S 注册逻辑，协议注册统一迁移到 GameServer Controller 层。  
+6. DungeonActor 通过 `gshare.IDungeonActorFacade.RegisterHandler` 注册内部消息处理器，在 `register.go` 中按业务模块拆分注册（`RegisterMoveHandlers`、`RegisterFightHandlers`、`RegisterFuBenHandlers`）。  
+7. DungeonActor → PlayerActor 的消息（添加物品、副本结算、坐标同步、属性同步等）统一通过 `gshare.SendMessageAsync` 发送，使用 `PlayerActorMsgId` 枚举，在 `drop_sys.go`、`move_sys.go`、`settlement.go`、`actor_msg.go`、`attr_sys.go` 中实现对应的发送函数。  
+8. 已完成架构收敛：物理删除 `server/service/dungeonserver` 代码目录，所有战斗相关改动统一在 `internel/app/dungeonactor` 维护；通过“Controller → UseCase → Gateway → ActorFacade → DungeonActor”链路，支撑所有战斗/副本相关交互。
+
+#### 阶段 8.2 代码迁移实现概要（已完成）
+
+1. 以批量脚本方式，将原 `server/service/dungeonserver/internel` 下的核心目录（`entity`、`entitymgr`、`entitysystem`、`fbmgr`、`fuben`、`gameserverlink`、`iface`、`scene`、`scenemgr`、`skill` 等）全部复制到 `server/service/gameserver/internel/app/dungeonactor`，保持原有目录结构。  
+2. 统一将所有 `postapocgame/server/service/dungeonserver/internel/...` import 前缀替换为 `postapocgame/server/service/gameserver/internel/app/dungeonactor/...`，使新包完全脱离旧路径。  
+3. `entitysystem` 下的系统（移动、战斗、AI、AOI、Buff、属性、掉落等）以及 `scene/scenemgr`、`entitymgr`、`fbmgr`、`fuben`、`gameserverlink` 等辅助模块现已与 GameServer 同仓维护。  
+4. 执行 `go build ./service/gameserver/...` 验证所有新包均可独立编译，避免隐藏的循环依赖或编码异常。  
+5. 物理删除 `server/service/dungeonserver` 代码目录，所有战斗相关改动统一在 `internel/app/dungeonactor` 维护。
+
+#### 阶段 8.3 Gateway 接线与消息交互实现概要（已完成）
+
+1. 在 GameServer 侧保持 Clean Architecture：Controller（如 `FubenController`）仍然只依赖 `DungeonServerGateway` 接口，不直接感知 DungeonActor 实现。  
+2. `DungeonServerGatewayImpl.AsyncCall` 直接调用本地 `dungeonactor.GetDungeonActor().AsyncCall`，将消息投递到 DungeonActor 的单线程 Loop。  
+3. `DungeonActor` 内使用 `DungeonActorMessage` 封装消息，通过单线程 Actor Loop + `HandleMessage` 分发，保证战斗逻辑仍在单 Actor 线程上执行，符合并发约束。  
+4. DungeonActor 通过 `gshare.IDungeonActorFacade.RegisterHandler` 注册内部消息处理器，在 `register.go` 中按业务模块拆分注册。  
+5. 整个链路为：客户端 `C2SEnterDungeon` → `FubenController` 做系统开关与参数校验 → `EnterDungeonUseCase` → `DungeonServerGateway.AsyncCall` → `gshare.SendDungeonMessageAsync` → DungeonActor 处理 `DungeonActorMsgIdEnterDungeon` → 通过 `gshare.SendMessageAsync` 发送 `PlayerActorMsgIdEnterDungeonSuccess` / `PlayerActorMsgIdSettleDungeon` → PlayerActor 处理并回写客户端。  
+6. 该实现保证 UseCase 与 Controller 完全不感知 Actor 实现细节，只依赖接口；同时保持 Actor 单线程语义，避免跨 goroutine 并发访问战斗状态。  
+7. DungeonActor → PlayerActor 的消息（添加物品、副本结算、坐标同步、属性同步等）统一通过 `gshare.SendMessageAsync` 发送，使用 `PlayerActorMsgId` 枚举。
+
+#### 阶段 8.4 DungeonActor → PlayerActor 消息发送实现概要（已完成）
+
+1. 对 `dungeonactor.DungeonActorHandler.Loop` 进行增强：在单线程 Loop 中驱动 `entitymgr.RunOne(now)` 与 `fbmgr.GetFuBenMgr().RunOne(now)`，复用原战斗逻辑的实体与副本主循环，使移动、技能、掉落等系统的 RunOne 能在 GameServer 进程内按帧执行。  
+2. 实现 DungeonActor → PlayerActor 的消息发送：
+   - `drop_sys.go`：拾取物品后发送 `PlayerActorMsgIdAddItem` 消息
+   - `move_sys.go`：移动结束后发送 `PlayerActorMsgIdSyncPosition` 消息
+   - `settlement.go`：副本结算时发送 `PlayerActorMsgIdSettleDungeon` 消息
+   - `actor_msg.go`：进入副本成功后发送 `PlayerActorMsgIdEnterDungeonSuccess` 消息
+   - `attr_sys.go`：属性变化时发送 `PlayerActorMsgIdSyncAttrs` 消息
+3. 所有消息统一通过 `gshare.SendMessageAsync` 发送，使用 `PlayerActorMsgId` 枚举，消息体使用对应的 `D2G*Req` Proto 定义（如 `D2GAddItemReq`、`D2GSyncPositionReq` 等）。  
+4. PlayerActor 侧通过 `gshare.RegisterHandler` 注册这些消息的处理器，在 `bag_controller_init.go`、`fuben_controller_init.go`、`player_network.go` 等文件中处理对应的消息。  
+
 ### 6.3 Phase 2 核心玩法（进行中）
 
 - [ ] 战斗录像：录制 / 回放 / 存储链路
@@ -658,21 +719,21 @@ PlayerActor（通知/回写）
 - [ ] 数据统计与分析：关键事件打点、性能监控、行为分析
 - [ ] 技能配置巡检：对 `skillCfg.Effects` 为空的技能补齐配置，避免运行期被判定为释放失败
 - [ ] 地图生产工具：`map_config` 可视化编辑、行列与 `scene_config` 校验、阻挡可视化导出
-- [✅] 属性系统重构（进行中，高优先级）：参考 `server/server` 实现，分阶段完成 `server/service` 中 GameServer 与 DungeonServer 的属性系统
-  - ✅ 阶段一（基础结构）：GameServer `entitysystem/attr_sys.go` 支持系统级缓存、差异化同步与 `AddRateAttr` 扩展；DungeonServer `entitysystem/attr_sys.go` / `entity/rolest.go` 可直接聚合 `SyncAttrData`
+- [✅] 属性系统重构（进行中，高优先级）：参考 `server/server` 实现，分阶段完成 `server/service` 中 GameServer 与 DungeonActor 的属性系统
+  - ✅ 阶段一（基础结构）：GameServer `entitysystem/attr_sys.go` 支持系统级缓存、差异化同步与 `AddRateAttr` 扩展；DungeonActor `entitysystem/attr_sys.go` / `entity/rolest.go` 可直接聚合 `SyncAttrData`
   - ✅ 阶段二（加成与推送）：`attrcalc/add_rate_bus.go` 提供加成计算注册，`level_sys` 实现示例加成；`S2CAttrDataReq` 携带 `SyncAttrData + sys_power_map`，GameServer 在变更/登录/重连时推送属性
-  - ✅ 阶段三（战力与广播）：DungeonServer `AttrSys` 使用共享 `AttrSet` + `ResetProperty`，在应用 `attr_config.json.formula`（转换/百分比）后向客户端与 GameServer (`D2GSyncAttrs`) 双向广播；GameServer 复用 `attrpower` 战力计算、`attrpush` 推送配置与统一的属性/加成计算器接口
-  - ✅ 阶段四（DungeonServer 本地属性计算）：为 DungeonServer 创建属性计算器注册管理器（`server/service/dungeonserver/internel/entitysystem/attrcalc/bus.go`），实现 `ResetSysAttr` 方法，支持怪物基础属性计算器（`MonsterBaseProperty`）、Buff 系统属性计算器（`SaBuff`）；属性汇总逻辑：`GameServer属性 + Buff属性 + 其他战斗服系统属性`；在 `proto/csproto/attr_def.proto` 中添加 `SaBuff` 和 `MonsterBaseProperty` 系统ID；详见《`docs/属性系统重构文档.md`》第 8 章
+  - ✅ 阶段三（战力与广播）：DungeonActor `AttrSys` 使用共享 `AttrSet` + `ResetProperty`，在应用 `attr_config.json.formula`（转换/百分比）后向客户端与 GameServer 双向广播；GameServer 复用 `attrpower` 战力计算、`attrpush` 推送配置与统一的属性/加成计算器接口
+  - ✅ 阶段四（DungeonActor 本地属性计算）：为 DungeonActor 创建属性计算器注册管理器（`server/service/gameserver/internel/app/dungeonactor/entitysystem/attrcalc/bus.go`），实现 `ResetSysAttr` 方法，支持怪物基础属性计算器（`MonsterBaseProperty`）、Buff 系统属性计算器（`SaBuff`）；属性汇总逻辑：`GameServer属性 + Buff属性 + 其他战斗服系统属性`；在 `proto/csproto/attr_def.proto` 中添加 `SaBuff` 和 `MonsterBaseProperty` 系统ID；详见《`docs/属性系统重构文档.md`》第 8 章
 - [⏳] 坐标系统优化（基本完成）：
   - ✅ 坐标系统定义与转换：已完成格子大小常量定义和坐标转换函数（`TileCoordToPixel`、`PixelCoordToTile`、`IsSameTile`），详见 `server/internal/argsdef/position.go`
-  - ✅ 移动系统优化：已完成客户端像素坐标到格子坐标的转换，距离计算和速度校验基于格子大小，容差调整为格子距离（详见 `server/service/dungeonserver/internel/entitysystem/move_sys.go`）
-  - ✅ 寻路算法优化：已确保寻路算法输入输出明确为格子坐标，距离计算使用格子距离，添加了详细注释（详见 `server/service/dungeonserver/internel/entitysystem/pathfinding.go`）
-  - ✅ 场景系统优化：已确认场景系统统一使用格子坐标，所有位置相关函数明确标注坐标类型（详见 `server/service/dungeonserver/internel/scene/scenest.go`）
+  - ✅ 移动系统优化：已完成客户端像素坐标到格子坐标的转换，距离计算和速度校验基于格子大小，容差调整为格子距离（详见 `server/service/gameserver/internel/app/dungeonactor/entitysystem/move_sys.go`）
+  - ✅ 寻路算法优化：已确保寻路算法输入输出明确为格子坐标，距离计算使用格子距离，添加了详细注释（详见 `server/service/gameserver/internel/app/dungeonactor/entitysystem/pathfinding.go`）
+  - ✅ 场景系统优化：已确认场景系统统一使用格子坐标，所有位置相关函数明确标注坐标类型（详见 `server/service/gameserver/internel/app/dungeonactor/scene/scenest.go`）
   - ✅ 客户端优化：调试客户端已明确坐标类型，添加详细注释说明坐标系统（详见 `server/example/game_client.go`）
   - ✅ 协议定义检查：已在移动、实体、技能相关协议中添加坐标类型注释（详见 `proto/csproto/cs.proto`、`proto/csproto/sc.proto`、`proto/csproto/base.proto`）
-  - ✅ 距离和范围计算：技能范围、攻击范围已统一使用格子距离，添加了详细注释（详见 `server/service/dungeonserver/internel/skill/skill.go`）
+  - ✅ 距离和范围计算：技能范围、攻击范围已统一使用格子距离，添加了详细注释（详见 `server/service/gameserver/internel/app/dungeonactor/skill/skill.go`）
   - [⏳] 配置和常量优化：当前格子大小硬编码为128，未来可考虑配置化（低优先级，详见 `docs/坐标系统优化建议.md` 第8点）
-- [⏳] 日志上下文请求器推广（新）：`server/pkg/log` 与 `gshare` 已支持 `IRequester` 注入 Session/Role 前缀，后续需在 Gateway/DungeonServer/工具脚本等路径替换旧的 `GetSkipCall+字符串拼接` 做法，确保跨模块日志能定位真实调用者
+- [⏳] 日志上下文请求器推广（新）：`server/pkg/log` 与 `gshare` 已支持 `IRequester` 注入 Session/Role 前缀，后续需在 Gateway/DungeonActor/工具脚本等路径替换旧的 `GetSkipCall+字符串拼接` 做法，确保跨模块日志能定位真实调用者
 
 - [⏳] GM 权限与审计体系（新，高优先级）  
   - 目前 `GMSys` 通过 `C2SGMCommand` 协议直接对接 `GMManager`，尚未在协议入口统一做 GM 账号权限校验（账号标记/IP 白名单/签名令牌）与调用频率限制  
@@ -681,7 +742,6 @@ PlayerActor（通知/回写）
 
 - [⏳] 网关 / 副本接入安全加固（新，高优先级）  
   - Gateway WebSocket 当前配置 `AllowedIPs=nil` 且 `CheckOrigin=func() bool { return true }`，仅适合开发环境；生产需启用 IP 白名单、Origin 校验与握手阶段的签名/Token 校验  
-  - DungeonServer 只做 TCP 地址合法性校验，尚未对上游 GameServer 地址/证书做强校验；后续需结合 TLS 与双向认证确保只接受可信来源  
   - 以上接入防护应与 7.4 中的 TLS/鉴权要求一并落地，并在配置中提供灰度/开关能力
 
 - [⏳] 玩家消息系统（进行中）
@@ -721,7 +781,7 @@ PlayerActor（通知/回写）
 
 ### 7.1 Actor / 并发约束
 
-- 每位玩家仅一个 Actor；DungeonServer 单 Actor。禁止在业务逻辑中额外创建 goroutine 访问玩家状态
+- 每位玩家仅一个 Actor；DungeonActor 单 Actor。禁止在业务逻辑中额外创建 goroutine 访问玩家状态
 - 所有玩家系统禁止使用 `sync.Mutex`；数据只能源自 `PlayerRoleBinaryData`
 - PublicActor 负责所有跨玩家数据，保持无锁；如需并行计算，必须在 Actor 外封装异步任务并通过消息返回
 - `MoveSys` 只专注于移动功能，不包含AI业务逻辑；AI系统通过组合调用移动协议方法（`HandleStartMove` → `HandleUpdateMove` → `HandleEndMove`）实现移动，模拟客户端行为
@@ -744,7 +804,7 @@ PlayerActor（通知/回写）
   - **坐标定义**：客户端格子大小为 128×128 像素，服务端坐标 (x, y) 代表格子坐标，玩家在格子中心（像素坐标 x*128+64, y*128+64）
   - **坐标转换函数**：已定义坐标转换函数（`argsdef.TileCoordToPixel`、`argsdef.PixelCoordToTile`、`argsdef.IsSameTile`），详见 `server/internal/argsdef/position.go`
   - **已优化模块**：移动系统、寻路算法、场景系统、技能系统、距离计算已统一使用格子坐标；协议定义已明确客户端发送像素坐标；服务端统一将像素坐标转换为格子坐标
-- **属性同步规范**：GameServer 仅下发差异化的 `SyncAttrData.AttrData` + 汇总 `AddRateAttr`；DungeonServer 必须通过 `entitysystem.AttrSys.ApplySyncData` 聚合，禁止在 `RoleEntity` 等处自行累加或直接写入属性值。
+- **属性同步规范**：GameServer 仅下发差异化的 `SyncAttrData.AttrData` + 汇总 `AddRateAttr`；DungeonActor 必须通过 `entitysystem.AttrSys.ApplySyncData` 聚合，禁止在 `RoleEntity` 等处自行累加或直接写入属性值。
 - **属性推送规范**：GameServer 在属性变更、首登与重连时通过 `S2CAttrData` 推送最新 `SyncAttrData + sys_power_map`，客户端禁止本地推导。
 - **玩家消息持久化规范**：离线消息（非聊天）统一写入 `PlayerActorMessage` 表，`MsgData` 存储完整 Proto 字节，时间字段采用 `servertime.Now().Unix()`（秒）；所有 DAO 调用需位于 `server/internal/database/player_actor_message.go`，禁止直接拼 SQL。
 
@@ -755,7 +815,7 @@ PlayerActor（通知/回写）
 - 若数据无法使用 Proto，放入 `server/internal/argsdef/`
 - **协议注册规范（2025-01-XX 更新）**：
   1. **GameServer**：所有 C2S 协议、RPC、事件入口统一在 `adapter/controller/*_controller_init.go` 注册。`init()` 中使用 `gevent.Subscribe(gevent.OnSrvStart, ...)` 调用 `clientprotocol.Register(protoId, controller.HandleXXX)`；Controller 内部通过 UseCase → Presenter 完成执行业务与回包。禁止在 SystemAdapter、EntitySystem 或 `player_network.go` 新增注册逻辑。
-  2. **DungeonServer**：比照 GameServer，将协议注册集中在 `entitysystem/*` 下的 `*_controller_init.go` 或 `*_handler.go` 中，通过 `devent.Subscribe(devent.OnSrvStart, ...)` 触发 `clientprotocol.Register`；禁止在 `clientprotocol` 目录直接注册。
+  2. **DungeonActor**：不再直接注册或处理任何 C2S 协议，所有客户端协议统一在 PlayerActor Controller 层处理；DungeonActor 通过 `gshare.IDungeonActorFacade.RegisterHandler` 注册内部消息处理器（`DungeonActorMsgId`），在 `register.go` 中按业务模块拆分注册。
   3. **公共约束**：协议处理函数禁止直接访问数据库/网关/RPC，必须经 UseCase/Adapter；注册时需同时声明 Request/Response Proto，并在文档记录关键链路。
 - **Controller/Presenter 初始化清单**：
   - Controller 负责：协议注册、Request 解析、上下文注入（SessionId、RoleId）、调用 UseCase。
@@ -769,7 +829,11 @@ PlayerActor（通知/回写）
 - `pkg/log` 支持 `IRequester`，带上下文日志必须组合 `NewRequester/WithRequester` 传入 session/role 信息，同时设置 `GetLogCallStackSkip()` 以确保堆栈定位到真实业务函数
 - WebSocket/TCP 尚未加 TLS/鉴权，线上前需补齐
 - 防作弊：频率检测、移动测速、伤害验证、CD 校验需逐步接入协议链路
-- GameServer 在 `handleDoNetWorkMsg` 中将无法本地处理的 `C2S` 协议以 `msgId=0` 调用 `dungeonserverlink.AsyncCall`，底层会编码为 `MsgTypeClient` 并带上 `sessionId`；禁止直接构造自定义格式，避免 DungeonServer 无法识别会话
+- GameServer 在 Controller 层处理所有 C2S 协议，需要转发到 DungeonActor 的通过 `gshare.SendDungeonMessageAsync` 发送内部 Actor 消息，使用 `DungeonActorMsgId` 枚举
+- **S2C 发送链路统一（2025-12-04 更新）**：
+  - `DungeonActor`、`PublicActor` 以及其它系统代码禁止直接引用 `gatewaylink`；所有发往客户端的协议必须交由 PlayerActor 统一透传。
+  - 发送 S2C 时构造 `PlayerActorMsgIdSendToClient`（`PlayerActorMsgIdSendToClientReq{msg_id,data}`）消息，通过 `gshare.SendMessageAsync` 投递给 PlayerActor，对应 Handler `handleSendToClient` 再调用 `gatewaylink`。
+  - 该准则保证 Session 校验、频控、日志注入全部集中在 PlayerActor，维持 Actor 单线程语义并避免跨 Actor 直接操作网络。
 
 **接入与权限补充约束**
 - Gateway WebSocket 在生产环境必须开启 IP 白名单与 Origin 校验：`WSServerConfig.AllowedIPs` 需配置为可信网段，`CheckOrigin` 禁止返回常量 true，应校验域名/协议与预期前端一致  
@@ -778,9 +842,9 @@ PlayerActor（通知/回写）
 
 ### 7.8 RPC 与上下文使用
 
-- 所有 GameServer ↔ DungeonServer 调用一律通过 `DungeonServerGateway` 适配层完成，禁止直接依赖 `dungeonserverlink`；Gateway 负责 `AsyncCall/ RegisterRPCHandler / RegisterProtocols` 等操作  
-- 客户端协议转发由 `ProtocolRouterController` 托管，`player_network.go` 仅注册 gshare Handler；任何新协议转发逻辑必须集中在 Controller 层，复用 `DungeonServerGateway` 的路由能力  
-- 在跨服 RPC 场景（`DungeonServerGateway.AsyncCall`、`gameserverlink.CallGameServer` 等）中禁止直接使用 `context.Background()` 发起长链路调用，上线前需统一改为携带超时的 `context.WithTimeout` 或服务级别的请求上下文  
+- 所有 PlayerActor ↔ DungeonActor 调用一律通过 `DungeonServerGateway` 适配层完成，UseCase 层统一通过该接口访问 DungeonActor 能力；PlayerActor → DungeonActor 通过 `gshare.SendDungeonMessageAsync` 发送内部 Actor 消息，DungeonActor → PlayerActor 通过 `gshare.SendMessageAsync` 发送内部 Actor 消息  
+- 客户端协议转发由 `ProtocolRouterController` 托管，`player_network.go` 仅注册 gshare Handler；任何新协议转发逻辑必须集中在 Controller 层，通过 `gshare.SendDungeonMessageAsync` 转发到 DungeonActor  
+- 在 Actor 消息发送场景中禁止直接使用 `context.Background()` 发起长链路调用，上线前需统一改为携带超时的 `context.WithTimeout` 或服务级别的请求上下文  
 - 对于 fire-and-forget 类通知可以继续使用带超时的短期上下文，但必须保证底层 TCP 客户端在失败时不会无限重试或阻塞 Actor 主线程  
 - 新增 RPC 时需在本节登记调用方/被调方、上下文策略（带/不带超时）、失败重试与降级策略
 
@@ -847,7 +911,7 @@ PlayerActor（通知/回写）
 
 ### 7.11 Clean Architecture 架构决策（新）
 
-- **架构原则**：GameServer 和 DungeonServer 将按照 Clean Architecture（清洁架构）原则进行重构，实现业务逻辑与框架解耦。
+- **架构原则**：GameServer（包含 DungeonActor）将按照 Clean Architecture（清洁架构）原则进行重构，实现业务逻辑与框架解耦。
 - **分层结构**：
   - **Entities 层**：纯业务实体和值对象，不依赖任何框架
   - **Use Cases 层**：业务用例和业务规则，依赖 Entities 和 Repository 接口
@@ -873,12 +937,11 @@ PlayerActor（通知/回写）
 - **参考文档**：
   - Gateway 重构：详见《`docs/gateway_CleanArchitecture重构文档.md`》
   - GameServer 重构：详见《`docs/gameserver_CleanArchitecture重构文档.md`》
-  - DungeonServer 重构：详见《`docs/dungeonserver_CleanArchitecture重构文档.md`》
 - **注意事项**：
   - 重构过程中保持向后兼容，不破坏现有功能
   - 保持 Actor 框架的单线程特性
   - 避免过度抽象导致性能下降
-  - DungeonServer 作为实时战斗服务器，需特别注意性能影响
+  - DungeonActor 作为实时战斗引擎，需特别注意性能影响
 - FriendSys 迁移后，`C2SAddFriend/Respond/Query` 必须通过 Use Case → `PublicActorGateway` 异步转发，禁止在 Controller 中直接调用 `gshare.SendPublicMessageAsync`
 - Friend/Blacklist 数据统一存储在 `PlayerRoleBinaryData.FriendData` 与 `BlacklistRepository`，任何模块需要访问必须依赖对应 UseCase 或接口，不得直接操作数据库
 - PlayerActor 层统一使用 `PlayerRole.sendPublicActorMessage`（内部依赖 `PublicActorGateway`）发送所有 PublicActor 消息，禁止直接调用 `gshare.SendPublicMessageAsync`
@@ -913,7 +976,7 @@ PlayerActor（通知/回写）
 - `server/service/gameserver/internel/app/playeractor/entity/player_network.go`：客户端协议处理入口（与 `adapter/controller` 共同完成协议路由）
 - `server/service/gameserver/internel/app/playeractor/entity/player_role.go`：PlayerRole 主体逻辑与 `sendPublicActorMessage` 封装，统一通过 `PublicActorGateway` 发送消息
 - `server/service/gameserver/internel/adapter/controller/*_controller_init.go`：所有 GameServer 控制器的协议/RPC 注册入口，SystemAdapter 不再直接依赖 controller 包
-- `server/service/gameserver/internel/adapter/controller/protocol_router_controller.go`：协议路由控制器，负责解析 C2S 消息、注入上下文并通过 `DungeonServerGateway` 转发到 DungeonServer
+- `server/service/gameserver/internel/adapter/controller/protocol_router_controller.go`：协议路由控制器，负责解析 C2S 消息、注入上下文并通过 `gshare.SendDungeonMessageAsync` 转发到 DungeonActor
 - `server/service/gameserver/internel/adapter/controller/friend_controller.go`：好友系统协议入口，负责发送/响应好友申请、查询好友/黑名单
 - `server/service/gameserver/internel/adapter/controller/guild_controller.go`：公会系统协议入口（创建/加入/退出/查询）
 - `server/service/gameserver/internel/adapter/controller/chat_controller.go`：聊天系统协议入口（世界/私聊，带冷却与敏感词过滤）
@@ -951,26 +1014,31 @@ PlayerActor（通知/回写）
  - `docs/gameserver_目录与调用关系说明.md`：GameServer 目录结构与调用关系说明文档，从分层、依赖方向和调用链路三个角度解释其如何满足 Clean Architecture 规范
 - `docs/gameserver_CleanArchitecture重构实施手册.md`：GameServer Clean Architecture 重构执行手册，提供阶段路线、子系统任务清单、跨模块约束与测试/验收标准
 
-### 8.5 DungeonServer
-- `server/service/dungeonserver/internel/clientprotocol`：DungeonServer 协议入口（协议注册表，协议处理器应注册在对应的业务系统中）
-- `server/service/dungeonserver/internel/entitysystem/*`：AI、Buff、Attr、Move、Fight、StateMachine、AOI
+### 8.5 DungeonActor
+- `server/service/gameserver/internel/app/dungeonactor/adapter.go`：DungeonActor 适配器，实现 `IDungeonActorFacade` 接口
+- `server/service/gameserver/internel/app/dungeonactor/handler.go`：DungeonActor 消息处理器，实现 `Loop` 方法驱动实体和副本管理
+- `server/service/gameserver/internel/app/dungeonactor/register.go`：消息处理器注册，按业务模块拆分（`RegisterMoveHandlers`、`RegisterFightHandlers`、`RegisterFuBenHandlers`）
+- `server/service/gameserver/internel/app/dungeonactor/entitysystem/*`：AI、Buff、Attr、Move、Fight、StateMachine、AOI
   - `entitysystem/pathfinding.go`：寻路算法实现（A*、直线寻路），`FindPath` 提供统一入口；所有坐标参数和返回值都是格子坐标；直线寻路在遇到障碍时自动绕过，优先保持直线方向并选择最接近目标的方向
   - `entitysystem/move_sys.go`：移动系统，专注于移动功能，不包含AI业务逻辑
     - `HandleStartMove`：处理 C2SStartMove，记录 move_data（包含目的地），广播 S2CStartMove
     - `HandleUpdateMove`：处理 C2SUpdateMove，判定坐标误差（支持1s误差），如果差距大就结束移动，否则更新坐标
-    - `HandleEndMove`：处理 C2SEndMove，广播 S2CEndMove，通知客户端结束移动
+    - `HandleEndMove`：处理 C2SEndMove，广播 S2CEndMove，通知客户端结束移动；移动结束后发送 `PlayerActorMsgIdSyncPosition` 消息给 PlayerActor
     - `HandMove`：处理客户端移动请求的核心逻辑
     - `LocationUpdate`：客户端位置更新校验，防止移动过快或瞬移
     - `MovingTime`：服务端时间驱动移动，根据时间计算当前位置
-  - `entitysystem/fight_sys.go`：战斗系统，管理技能释放、伤害结算、Buff 应用；包含 `handleUseSkill` 协议处理器，通过 `devent.Subscribe(OnSrvStart)` 注册 `C2SUseSkill` 协议
+  - `entitysystem/fight_sys.go`：战斗系统，管理技能释放、伤害结算、Buff 应用
   - `entitysystem/ai_sys.go`：AI系统，通过组合调用移动协议方法（`HandleStartMove` → `HandleUpdateMove` → `HandleEndMove`）实现移动，模拟客户端行为；`moveTowardsWithPathfinding` 根据配置选择寻路算法并管理路径缓存；`distanceBetween` 函数计算格子距离
-  - `entitysystem/attr_sys.go`：属性系统，使用 `attrcalc.AttrSet`+`ResetProperty`，广播 `S2CAttrData`（Dungeon即时属性）并复用 `attr_config.json.power` 战力公式；支持 `ApplySyncData` 接收 GameServer 属性，`ResetSysAttr` 支持本地系统属性计算（怪物、Buff 等）；`RunOne` 每帧调用 `ResetProperty` 和 `CheckAndSyncProp`；`extraUpdateMask` 跟踪非战斗属性变化，`bInitFinish` 控制是否广播属性
+  - `entitysystem/attr_sys.go`：属性系统，使用 `attrcalc.AttrSet`+`ResetProperty`，广播 `S2CAttrData`（Dungeon即时属性）并复用 `attr_config.json.power` 战力公式；支持 `ApplySyncData` 接收 GameServer 属性，`ResetSysAttr` 支持本地系统属性计算（怪物、Buff 等）；`RunOne` 每帧调用 `ResetProperty` 和 `CheckAndSyncProp`；`extraUpdateMask` 跟踪非战斗属性变化，`bInitFinish` 控制是否广播属性；属性变化时发送 `PlayerActorMsgIdSyncAttrs` 消息给 PlayerActor
   - `entitysystem/attrcalc/bus.go`：属性计算器注册管理器，提供 `RegIncAttrCalcFn/RegDecAttrCalcFn` 和 `GetIncAttrCalcFn/GetDecAttrCalcFn`，支持注册怪物基础属性计算器（`MonsterBaseProperty`）、Buff 属性计算器（`SaBuff`）等
+  - `entitysystem/drop_sys.go`：掉落系统，拾取物品后发送 `PlayerActorMsgIdAddItem` 消息给 PlayerActor
   - `entity/monster.go`：怪物实体，在 `NewMonsterEntity` 中调用 `ResetProperty()` 触发完整属性计算流程；`MonsterEntity.ResetProperty()` 方法先调用 `ResetSysAttr(MonsterBaseProperty)` 计算基础属性，再调用 `AttrSys.ResetProperty()` 触发属性汇总、转换、百分比加成和广播；`monsterBaseProperty` 函数从怪物配置表读取属性并写入 `AttrSet`
   - `entitysystem/buff_sys.go`：Buff 系统，在 `AddBuff/RemoveBuff/ClearAllBuffs` 时触发 `ResetSysAttr(SaBuff)`；`buffAttrCalc` 函数遍历所有 Buff 汇总属性加成
-- `server/service/dungeonserver/internel/fuben` & `fbmgr`：副本实例与结算逻辑
-- `server/service/dungeonserver/internel/scene/scenest.go`：`GameMap` 绑定、出生点随机校验（`BornArea`）、移动校验；所有位置相关函数统一使用格子坐标
-- `server/service/dungeonserver/internel/skill/skill.go`：技能目标筛选、配置校验、结果填充；距离计算和范围判断统一使用格子距离
+- `server/service/gameserver/internel/app/dungeonactor/fuben` & `fbmgr`：副本实例与结算逻辑
+  - `fuben/settlement.go`：副本结算时发送 `PlayerActorMsgIdSettleDungeon` 消息给 PlayerActor
+  - `fuben/actor_msg.go`：进入副本成功后发送 `PlayerActorMsgIdEnterDungeonSuccess` 消息给 PlayerActor
+- `server/service/gameserver/internel/app/dungeonactor/scene/scenest.go`：`GameMap` 绑定、出生点随机校验（`BornArea`）、移动校验；所有位置相关函数统一使用格子坐标
+- `server/service/gameserver/internel/app/dungeonactor/skill/skill.go`：技能目标筛选、配置校验、结果填充；距离计算和范围判断统一使用格子距离
 
 ### 8.6 数据库
 - `server/internal/database`：账号/角色/Token 访问层
@@ -1027,10 +1095,10 @@ PlayerActor（通知/回写）
 
 1. **登录**：Client → Gateway → GameServer (`C2SRegister/C2SLogin`) → `database.Account` 校验 → Token + Session 扩展
 2. **角色管理**：`C2SQueryRoles/C2SCreateRole/C2SEnterGame` → 加载 `PlayerRoleBinaryData` → 初始化系统 → `S2CLoginSuccess`
-3. **进入副本**：GameServer 通过 `dungeonserverlink` 发 `G2DEnterDungeonReq`（含属性/技能），DungeonServer 创建实体并回执
-4. **移动与战斗**：客户端直接连接 DungeonServer，移动走 `C2SStart/Update/EndMove`，技能走 `C2SUseSkill`；DungeonServer 校验并广播，必要信息回传 GameServer
-5. **掉落拾取**：DungeonServer 判定归属/距离 → GameServer RPC 检查背包 → 成功则删除掉落并触发任务事件
-6. **副本结算**：DungeonServer 发送 `D2GSettleDungeon` → GameServer `FubenSys` 更新记录、发奖励
+3. **进入副本**：GameServer Controller 通过 `gshare.SendDungeonMessageAsync` 发送 `DungeonActorMsgIdEnterDungeon` 消息到 DungeonActor，DungeonActor 创建实体并发送 `PlayerActorMsgIdEnterDungeonSuccess` 消息回 PlayerActor
+4. **移动与战斗**：客户端发送 `C2SStart/Update/EndMove` 和 `C2SUseSkill`，GameServer Controller 通过 `gshare.SendDungeonMessageAsync` 转发到 DungeonActor；DungeonActor 校验并广播，必要信息通过 `PlayerActorMsgId` 消息回传 PlayerActor
+5. **掉落拾取**：DungeonActor 判定归属/距离，拾取成功后发送 `PlayerActorMsgIdAddItem` 消息给 PlayerActor，PlayerActor 处理背包逻辑
+6. **副本结算**：DungeonActor 发送 `PlayerActorMsgIdSettleDungeon` 消息 → PlayerActor `FubenSys` 更新记录、发奖励
 7. **断线重连**：Gateway 关闭连接 → GameServer 接收 `SessionEventClose`，标记离线并允许在 `ReconnectKey` 有效期内重连
 
 ---

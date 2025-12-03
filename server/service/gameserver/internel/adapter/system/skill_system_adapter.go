@@ -163,8 +163,8 @@ func (a *SkillSystemAdapter) syncSkillToDungeonServer(ctx context.Context, skill
 		return
 	}
 
-	// 异步调用DungeonServer更新技能
-	err = a.dungeonGateway.AsyncCall(ctx, playerRole.GetDungeonSrvType(), sessionId, uint16(protocol.G2DRpcProtocol_G2DUpdateSkill), reqData)
+	// 异步调用DungeonActor更新技能（通过 DungeonActorMsgId 枚举）
+	err = a.dungeonGateway.AsyncCall(ctx, sessionId, uint16(protocol.DungeonActorMsgId_DungeonActorMsgIdUpdateSkill), reqData)
 	if err != nil {
 		log.Errorf("call dungeon server update skill failed: %v", err)
 		// 不返回错误，继续执行

@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"google.golang.org/protobuf/proto"
+	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
@@ -11,6 +12,7 @@ import (
 	"postapocgame/server/service/gameserver/internel/adapter/presenter"
 	"postapocgame/server/service/gameserver/internel/adapter/system"
 	"postapocgame/server/service/gameserver/internel/adapter/usecaseadapter"
+	"postapocgame/server/service/gameserver/internel/core/gshare"
 	"postapocgame/server/service/gameserver/internel/di"
 	"postapocgame/server/service/gameserver/internel/usecase/skill"
 )
@@ -131,4 +133,28 @@ func (c *SkillController) HandleUpgradeSkill(ctx context.Context, msg *network.C
 
 	// 发送响应
 	return c.presenter.SendUpgradeSkillResult(ctx, sessionID, resp)
+}
+
+// HandleUseSkill 处理战斗服内技能释放请求（转发给 DungeonActor）
+// 说明：技能的实际判定与伤害计算仍在 DungeonActor 的 FightSys 中执行。
+func (c *SkillController) HandleUseSkill(ctx context.Context, msg *network.ClientMessage) error {
+	// 检查副本/战斗相关系统是否开启（这里复用 FubenSys 的开关做最小保护）
+	fubenSys := system.GetFubenSys(ctx)
+	if fubenSys == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_System_NotEnabled), "副本系统未开启")
+	}
+
+	sessionID, err := adaptercontext.GetSessionIDFromContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	if len(msg.Data) == 0 {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "empty C2SUseSkill payload")
+	}
+
+	// 直接复用客户端上报的 Proto 数据，交由 DungeonActor 解析处理
+	ctxWithSession := context.WithValue(ctx, "session", sessionID)
+	actorMsg := actor.NewBaseMessage(ctxWithSession, uint16(protocol.DungeonActorMsgId_DungeonActorMsgIdUseSkill), msg.Data)
+	return gshare.SendDungeonMessageAsync("global", actorMsg)
 }

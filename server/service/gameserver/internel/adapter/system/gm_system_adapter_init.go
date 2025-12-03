@@ -7,7 +7,7 @@ import (
 	"postapocgame/server/service/gameserver/internel/core/gshare"
 	"postapocgame/server/service/gameserver/internel/core/iface"
 	"postapocgame/server/service/gameserver/internel/infrastructure/gatewaylink"
-	gevent2 "postapocgame/server/service/gameserver/internel/infrastructure/gevent"
+	"postapocgame/server/service/gameserver/internel/infrastructure/gevent"
 
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/network"
@@ -48,7 +48,7 @@ func init() {
 		return NewGMSystemAdapter()
 	})
 
-	gevent2.Subscribe(gevent2.OnSrvStart, func(ctx context.Context, _ *event.Event) {
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, _ *event.Event) {
 		clientprotocol.Register(uint16(protocol.C2SProtocol_C2SGMCommand), handleGMCommand)
 	})
 }

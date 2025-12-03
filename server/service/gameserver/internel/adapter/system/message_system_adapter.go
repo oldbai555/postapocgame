@@ -3,7 +3,7 @@ package system
 import (
 	"context"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/entitysystem"
-	iface2 "postapocgame/server/service/gameserver/internel/core/iface"
+	"postapocgame/server/service/gameserver/internel/core/iface"
 
 	"postapocgame/server/internal/database"
 	"postapocgame/server/internal/protocol"
@@ -28,7 +28,7 @@ import (
 // 注意：主要逻辑为加载离线消息，属于框架层面的消息处理，保留在适配层符合 Clean Architecture 原则
 type MessageSystemAdapter struct {
 	*BaseSystemAdapter
-	owner iface2.IPlayerRole
+	owner iface.IPlayerRole
 }
 
 const (
@@ -69,7 +69,7 @@ func (ms *MessageSystemAdapter) OnRoleReconnect(ctx context.Context) {
 	ms.loadMsgFromDB(0)
 }
 
-func (ms *MessageSystemAdapter) ensureOwner(ctx context.Context) iface2.IPlayerRole {
+func (ms *MessageSystemAdapter) ensureOwner(ctx context.Context) iface.IPlayerRole {
 	if ms.owner != nil {
 		return ms.owner
 	}
@@ -156,4 +156,4 @@ func (ms *MessageSystemAdapter) RunOne(ctx context.Context) {
 }
 
 // 确保实现 ISystem 接口
-var _ iface2.ISystem = (*MessageSystemAdapter)(nil)
+var _ iface.ISystem = (*MessageSystemAdapter)(nil)

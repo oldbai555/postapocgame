@@ -214,14 +214,9 @@ func (ac *AttrCalculator) syncAttrsToDungeonServer(ctx context.Context, playerRo
 		return
 	}
 
-	// 发送RPC请求到DungeonServer
+	// 发送请求到DungeonActor（通过 DungeonActorMsgId 枚举）
 	sessionID := playerRole.GetSessionId()
-	srvType, _, ok := ac.dungeonGateway.GetSrvTypeForProtocol(uint16(protocol.G2DRpcProtocol_G2DSyncAttrs))
-	if !ok {
-		log.Errorf("get srv type for protocol failed: G2DSyncAttrs")
-		return
-	}
-	err = ac.dungeonGateway.AsyncCall(ctx, srvType, sessionID, uint16(protocol.G2DRpcProtocol_G2DSyncAttrs), reqData)
+	err = ac.dungeonGateway.AsyncCall(ctx, sessionID, uint16(protocol.DungeonActorMsgId_DungeonActorMsgIdSyncAttrs), reqData)
 	if err != nil {
 		log.Errorf("sync attrs to dungeon server failed: %v", err)
 		return

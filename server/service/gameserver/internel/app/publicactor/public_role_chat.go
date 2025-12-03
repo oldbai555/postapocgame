@@ -9,7 +9,6 @@ import (
 	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/core/gshare"
-	"postapocgame/server/service/gameserver/internel/infrastructure/gatewaylink"
 )
 
 // 聊天系统相关 handler 注册
@@ -63,11 +62,10 @@ func handleChatWorld(ctx context.Context, msg actor.IActorMessage, publicRole *P
 		return
 	}
 
-	// 通过 gatewaylink 发送给所有在线玩家
+	// 发送给所有在线玩家
 	for _, sessionId := range sessionIds {
-		err := gatewaylink.SendToSession(sessionId, uint16(protocol.S2CProtocol_S2CChatMessage), broadcastData)
-		if err != nil {
-			log.Warnf("Failed to send chat message to session %s: %v", sessionId, err)
+		if err := sendClientMessageViaPlayerActor(sessionId, uint16(protocol.S2CProtocol_S2CChatMessage), broadcastData); err != nil {
+			logSendFailure(sessionId, uint16(protocol.S2CProtocol_S2CChatMessage), err)
 		}
 	}
 
@@ -120,7 +118,11 @@ func handleChatPrivate(ctx context.Context, msg actor.IActorMessage, publicRole 
 			}
 			broadcastData, err := proto.Marshal(broadcastMsg)
 			if err == nil {
-				gatewaylink.SendToSession(senderSessionId, uint16(protocol.S2CProtocol_S2CChatMessage), broadcastData)
+				if err := sendClientMessageViaPlayerActor(senderSessionId, uint16(protocol.S2CProtocol_S2CChatMessage), broadcastData); err != nil {
+					logSendFailure(senderSessionId, uint16(protocol.S2CProtocol_S2CChatMessage), err)
+				}
+			} else {
+				log.Errorf("Failed to marshal ChatBroadcastMsg: %v", err)
 			}
 		}
 		return
@@ -146,18 +148,16 @@ func handleChatPrivate(ctx context.Context, msg actor.IActorMessage, publicRole 
 		return
 	}
 
-	err = gatewaylink.SendToSession(targetSessionId, uint16(protocol.S2CProtocol_S2CChatMessage), broadcastData)
-	if err != nil {
-		log.Warnf("Failed to send private chat message to session %s: %v", targetSessionId, err)
+	if err := sendClientMessageViaPlayerActor(targetSessionId, uint16(protocol.S2CProtocol_S2CChatMessage), broadcastData); err != nil {
+		logSendFailure(targetSessionId, uint16(protocol.S2CProtocol_S2CChatMessage), err)
 		return
 	}
 
 	// 同时发送给发送者（确认消息已发送）
 	senderSessionId, ok := publicRole.GetSessionId(chatMsg.SenderId)
 	if ok {
-		err = gatewaylink.SendToSession(senderSessionId, uint16(protocol.S2CProtocol_S2CChatMessage), broadcastData)
-		if err != nil {
-			log.Warnf("Failed to send private chat confirmation to sender %s: %v", senderSessionId, err)
+		if err := sendClientMessageViaPlayerActor(senderSessionId, uint16(protocol.S2CProtocol_S2CChatMessage), broadcastData); err != nil {
+			logSendFailure(senderSessionId, uint16(protocol.S2CProtocol_S2CChatMessage), err)
 		}
 	}
 

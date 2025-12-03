@@ -2,7 +2,7 @@ package customerr
 
 import (
 	"fmt"
-	"runtime"
+	"postapocgame/server/pkg/tool"
 	"sync"
 )
 
@@ -73,7 +73,7 @@ func NewError(format string, args ...interface{}) error {
 // NewErrorByCode 创建带定位的错误，自动采集1级Caller
 func NewErrorByCode(code int32, format string, args ...interface{}) error {
 	tag := GetErrorTag(code)
-	callSite := caller(2)
+	callSite := tool.GetCaller(2)
 	var detail = format
 	if len(args) > 0 {
 		detail = fmt.Sprintf(format, args...)
@@ -84,15 +84,6 @@ func NewErrorByCode(code int32, format string, args ...interface{}) error {
 		Message: detail,
 		Caller:  callSite,
 	}
-}
-
-// caller 获取调用者文件+行号
-func caller(skip int) string {
-	_, file, line, ok := runtime.Caller(skip)
-	if !ok {
-		return "-"
-	}
-	return fmt.Sprintf("%s:%d", file, line)
 }
 
 // Wrap 增强版包装底层错误为同样结构
@@ -113,6 +104,6 @@ func Wrap(err error, code ...int32) error {
 		Code:    cd,
 		Tag:     tag,
 		Message: err.Error(),
-		Caller:  caller(2),
+		Caller:  tool.GetCaller(2),
 	}
 }

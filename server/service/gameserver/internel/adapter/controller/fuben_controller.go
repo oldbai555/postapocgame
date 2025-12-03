@@ -148,9 +148,8 @@ func (c *FubenController) HandleEnterDungeon(ctx context.Context, msg *network.C
 		return c.presenter.SendEnterDungeonResult(ctx, sessionID, resp)
 	}
 
-	// 使用带SessionId的异步RPC调用
-	srvType := uint8(protocol.SrvType_SrvTypeDungeonServer)
-	err = c.dungeonGateway.AsyncCall(ctx, srvType, sessionID, uint16(protocol.G2DRpcProtocol_G2DEnterDungeon), reqData)
+	// 使用带SessionId的异步调用（通过 DungeonActorMsgId 枚举）
+	err = c.dungeonGateway.AsyncCall(ctx, sessionID, uint16(protocol.DungeonActorMsgId_DungeonActorMsgIdEnterDungeon), reqData)
 	if err != nil {
 		log.Errorf("call dungeon service enter dungeon failed: %v", err)
 		resp := &protocol.S2CEnterDungeonResultReq{

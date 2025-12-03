@@ -11,13 +11,13 @@ import (
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
-	engine2 "postapocgame/server/service/gameserver/internel/app/engine"
+	"postapocgame/server/service/gameserver/internel/app/dungeonactor"
+	"postapocgame/server/service/gameserver/internel/app/engine"
 	"postapocgame/server/service/gameserver/internel/app/manager"
 	"postapocgame/server/service/gameserver/internel/app/playeractor"
 	"postapocgame/server/service/gameserver/internel/app/publicactor"
 	"postapocgame/server/service/gameserver/internel/core/gshare"
-	"postapocgame/server/service/gameserver/internel/infrastructure/dungeonserverlink"
-	gevent2 "postapocgame/server/service/gameserver/internel/infrastructure/gevent"
+	"postapocgame/server/service/gameserver/internel/infrastructure/gevent"
 	"syscall"
 	"time"
 )
@@ -42,7 +42,7 @@ func main() {
 
 	// 初始化错误码映射
 	protocol.InitErrorCodes()
-	serverConfig, err := engine2.LoadServerConfig("")
+	serverConfig, err := engine.LoadServerConfig("")
 	if err != nil {
 		log.Fatalf("err:%v", err)
 	}
@@ -57,7 +57,7 @@ func main() {
 	gshare.SetOpenSrvTime(serverInfo.ServerOpenTimeAt)
 
 	// 创建GameServer
-	gs := engine2.NewGameServer(serverConfig)
+	gs := engine.NewGameServer(serverConfig)
 
 	// 玩家消息处理
 	playerRoleActor := playeractor.NewPlayerRoleActor(actor.ModePerKey)
@@ -76,6 +76,9 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// 副本 / 战斗 DungeonActor（单 Actor，常驻运行）
+	dActor := dungeonactor.NewDungeonActor(actor.ModeSingle)
+
 	if err := playerRoleActor.Start(ctx); err != nil {
 		log.Fatalf("Start playerRoleActor failed: %v", err)
 	}
@@ -89,10 +92,11 @@ func main() {
 		log.Fatalf("Start GameServer failed: %v", err)
 	}
 
-	gevent2.Publish(context.Background(), event.NewEvent(gevent2.OnSrvStart))
+	if err := dActor.Start(ctx); err != nil {
+		log.Fatalf("Start DungeonActor failed: %v", err)
+	}
 
-	// 连接DungeonServer
-	dungeonserverlink.StartDungeonClient(ctx, serverConfig.DungeonServerAddrMap)
+	gevent.Publish(context.Background(), event.NewEvent(gevent.OnSrvStart))
 
 	// 等待退出信号
 	sigChan := make(chan os.Signal, 1)
@@ -100,7 +104,6 @@ func main() {
 	<-sigChan
 
 	log.Infof("Shutting down GameServer...")
-	dungeonserverlink.Stop()
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
 	if err := publicActor.Stop(shutdownCtx); err != nil {
@@ -108,6 +111,9 @@ func main() {
 	}
 	if err := playerRoleActor.Stop(shutdownCtx); err != nil {
 		log.Errorf("Stop playerRoleActor failed: %v", err)
+	}
+	if err := dActor.Stop(shutdownCtx); err != nil {
+		log.Errorf("Stop DungeonActor failed: %v", err)
 	}
 	manager.GetPlayerRoleManager().FlushAndSave(shutdownCtx)
 	if err := gs.Stop(shutdownCtx); err != nil {
