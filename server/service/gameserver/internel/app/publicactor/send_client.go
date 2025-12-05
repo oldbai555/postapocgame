@@ -2,13 +2,13 @@ package publicactor
 
 import (
 	"context"
+	"postapocgame/server/service/gameserver/internel/gshare"
 
 	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
-	gshare "postapocgame/server/service/gameserver/internel/core/gshare"
 )
 
 func sendClientMessageViaPlayerActor(sessionId string, msgId uint16, data []byte) error {

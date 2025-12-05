@@ -8,24 +8,24 @@ import (
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/service/gameserver/internel/adapter/gateway"
-	gameattrcalc "postapocgame/server/service/gameserver/internel/adapter/system/attrcalc"
-	"postapocgame/server/service/gameserver/internel/core/iface"
-	"postapocgame/server/service/gameserver/internel/di"
-	"postapocgame/server/service/gameserver/internel/usecase/attr"
-	"postapocgame/server/service/gameserver/internel/usecase/interfaces"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/gateway"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/system/attrcalc"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/deps"
+	attr2 "postapocgame/server/service/gameserver/internel/app/playeractor/usecase/attr"
+	interfaces2 "postapocgame/server/service/gameserver/internel/app/playeractor/usecase/interfaces"
+	"postapocgame/server/service/gameserver/internel/iface"
 )
 
 // 确保 AttrCalculator 实现 IAttrCalculator 接口
-var _ interfaces.IAttrCalculator = (*AttrCalculator)(nil)
+var _ interfaces2.IAttrCalculator = (*AttrCalculator)(nil)
 
 // AttrCalculator 属性计算工具类（从 AttrSystemAdapter 重构而来）
 // 不依赖 Actor 框架，只依赖接口（Repository、ConfigManager 等）
 type AttrCalculator struct {
 	attrDataMap           map[uint32]*protocol.AttrVec
 	dirtySystems          map[uint32]bool
-	calculators           map[uint32]gameattrcalc.Calculator
-	addRateCalcs          map[uint32]gameattrcalc.AddRateCalculator
+	calculators           map[uint32]attrcalc.Calculator
+	addRateCalcs          map[uint32]attrcalc.AddRateCalculator
 	sysAttr               map[uint32]*icalc.FightAttrCalc
 	sysAddRateAttr        map[uint32]*icalc.FightAttrCalc
 	extraAttr             *icalc.ExtraAttrCalc
@@ -33,23 +33,22 @@ type AttrCalculator struct {
 	extraDirty            map[attrdef.AttrType]struct{}
 	sysPowerMap           map[uint32]int64
 	sysAttrChanged        bool
-	calcSysPowerUseCase   *attr.CalculateSysPowerUseCase
-	compareAttrVecUseCase *attr.CompareAttrVecUseCase
-	dungeonGateway        interfaces.DungeonServerGateway
+	calcSysPowerUseCase   *attr2.CalculateSysPowerUseCase
+	compareAttrVecUseCase *attr2.CompareAttrVecUseCase
+	dungeonGateway        interfaces2.DungeonServerGateway
 	networkGateway        gateway.NetworkGateway
 	playerRole            iface.IPlayerRole
 }
 
 // NewAttrCalculator 创建属性计算工具类
 func NewAttrCalculator(playerRole iface.IPlayerRole) *AttrCalculator {
-	container := di.GetContainer()
-	calcSysPowerUC := attr.NewCalculateSysPowerUseCase(container.ConfigGateway())
-	compareAttrVecUC := attr.NewCompareAttrVecUseCase()
+	calcSysPowerUC := attr2.NewCalculateSysPowerUseCase(deps.ConfigGateway())
+	compareAttrVecUC := attr2.NewCompareAttrVecUseCase()
 	return &AttrCalculator{
 		attrDataMap:           make(map[uint32]*protocol.AttrVec),
 		dirtySystems:          make(map[uint32]bool),
-		calculators:           make(map[uint32]gameattrcalc.Calculator),
-		addRateCalcs:          make(map[uint32]gameattrcalc.AddRateCalculator),
+		calculators:           make(map[uint32]attrcalc.Calculator),
+		addRateCalcs:          make(map[uint32]attrcalc.AddRateCalculator),
 		sysAttr:               make(map[uint32]*icalc.FightAttrCalc),
 		sysAddRateAttr:        make(map[uint32]*icalc.FightAttrCalc),
 		extraAttr:             icalc.NewExtraAttrCalc(),
@@ -58,8 +57,8 @@ func NewAttrCalculator(playerRole iface.IPlayerRole) *AttrCalculator {
 		sysPowerMap:           make(map[uint32]int64),
 		calcSysPowerUseCase:   calcSysPowerUC,
 		compareAttrVecUseCase: compareAttrVecUC,
-		dungeonGateway:        container.DungeonServerGateway(),
-		networkGateway:        container.GetNetworkGateway(),
+		dungeonGateway:        deps.DungeonServerGateway(),
+		networkGateway:        deps.NetworkGateway(),
 		playerRole:            playerRole,
 	}
 }
@@ -76,18 +75,18 @@ func (ac *AttrCalculator) OnInit(ctx context.Context) {
 }
 
 func (ac *AttrCalculator) cloneCalculators(ctx context.Context) {
-	calculators := gameattrcalc.CloneCalculators(ctx)
+	calculators := attrcalc.CloneCalculators(ctx)
 	if len(calculators) == 0 {
-		ac.calculators = make(map[uint32]gameattrcalc.Calculator)
+		ac.calculators = make(map[uint32]attrcalc.Calculator)
 		return
 	}
 	ac.calculators = calculators
 }
 
 func (ac *AttrCalculator) cloneAddRateCalculators(ctx context.Context) {
-	calculators := gameattrcalc.CloneAddRateCalculators(ctx)
+	calculators := attrcalc.CloneAddRateCalculators(ctx)
 	if len(calculators) == 0 {
-		ac.addRateCalcs = make(map[uint32]gameattrcalc.AddRateCalculator)
+		ac.addRateCalcs = make(map[uint32]attrcalc.AddRateCalculator)
 		return
 	}
 	ac.addRateCalcs = calculators
@@ -360,7 +359,7 @@ func (ac *AttrCalculator) calcSysPowerMap(ctx context.Context) {
 		job = ac.playerRole.GetJob()
 	}
 	// 使用 UseCase 计算系统战力（纯业务逻辑已下沉）
-	data := &attr.SystemAttrData{
+	data := &attr2.SystemAttrData{
 		SysAttr:        ac.sysAttr,
 		SysAddRateAttr: ac.sysAddRateAttr,
 		Job:            job,
@@ -443,6 +442,10 @@ func (ac *AttrCalculator) pushAttrDataToClient(ctx context.Context, playerRole i
 		return
 	}
 	cfg := getAttrPushConfig()
+	if cfg == nil {
+		log.Warnf("push attr data skipped: attr push config not found")
+		return
+	}
 	filtered := ac.filterSyncAttrData(syncData, cfg)
 	if filtered == nil {
 		return
@@ -481,7 +484,7 @@ func shouldPushAttr(sysID uint32) bool {
 }
 
 func (ac *AttrCalculator) filterSyncAttrData(data *protocol.SyncAttrData, cfg *jsonconf.AttrPushConfig) *protocol.SyncAttrData {
-	if data == nil {
+	if data == nil || cfg == nil {
 		return nil
 	}
 	result := &protocol.SyncAttrData{

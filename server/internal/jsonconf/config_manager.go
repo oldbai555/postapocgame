@@ -49,42 +49,47 @@ type ConfigManager struct {
 }
 
 var (
-	globalConfigManager *ConfigManager
+	globalConfigManager = newConfigManager()
 	configOnce          sync.Once
 )
+
+func newConfigManager() *ConfigManager {
+	return &ConfigManager{
+		itemConfigs:                make(map[uint32]*ItemConfig),
+		levelConfigs:               make(map[uint32]*LevelConfig),
+		vipConfigs:                 make(map[uint32]*VipConfig),
+		moneyConfigs:               make(map[uint32]*MoneyConfig),
+		questConfigs:               make(map[uint32]*QuestConfig),
+		mailTemplateConfigs:        make(map[uint32]*MailTemplateConfig),
+		monsterConfigs:             make(map[uint32]*MonsterConfig),
+		skillConfigs:               make(map[uint32]*SkillConfig),
+		buffConfigs:                make(map[uint32]*BuffConfig),
+		dungeonConfigs:             make(map[uint32]*DungeonConfig),
+		consumeConfigs:             make(map[uint32]*ConsumeConfig),
+		rewardConfigs:              make(map[uint32]*RewardConfig),
+		equipUpgradeConfigs:        make(map[uint32]*EquipUpgradeConfig),
+		itemUseEffectConfigs:       make(map[uint32]*ItemUseEffectConfig),
+		itemRecycleConfigs:         make(map[uint32]*ItemRecycleConfig),
+		shopConfigs:                make(map[uint32]*ShopConfig),
+		jobConfigs:                 make(map[uint32]*JobConfig),
+		sceneConfigs:               make(map[uint32]*SceneConfig),
+		mapConfigs:                 make(map[uint32]*MapConfig),
+		monsterSceneConfigs:        make([]*MonsterSceneConfig, 0),
+		npcSceneConfigs:            make([]*NPCSceneConfig, 0),
+		teleportConfigs:            make(map[uint32]*TeleportConfig),
+		dailyActivityRewardConfigs: make(map[uint32]*DailyActivityRewardConfig),
+		achievementConfigs:         make(map[uint32]*AchievementConfig),
+		equipRefineConfigs:         make(map[uint32]*EquipRefineConfig),
+		equipEnchantConfigs:        make(map[uint32]*EquipEnchantConfig),
+		equipSetConfigs:            make(map[uint32]*EquipSetConfig),
+		bagConfigs:                 make(map[uint32]*BagConfig),
+	}
+}
 
 // GetConfigManager 获取全局配置管理器
 func GetConfigManager() *ConfigManager {
 	configOnce.Do(func() {
-		globalConfigManager = &ConfigManager{
-			itemConfigs:                make(map[uint32]*ItemConfig),
-			levelConfigs:               make(map[uint32]*LevelConfig),
-			vipConfigs:                 make(map[uint32]*VipConfig),
-			moneyConfigs:               make(map[uint32]*MoneyConfig),
-			questConfigs:               make(map[uint32]*QuestConfig),
-			mailTemplateConfigs:        make(map[uint32]*MailTemplateConfig),
-			monsterConfigs:             make(map[uint32]*MonsterConfig),
-			skillConfigs:               make(map[uint32]*SkillConfig),
-			buffConfigs:                make(map[uint32]*BuffConfig),
-			dungeonConfigs:             make(map[uint32]*DungeonConfig),
-			consumeConfigs:             make(map[uint32]*ConsumeConfig),
-			rewardConfigs:              make(map[uint32]*RewardConfig),
-			equipUpgradeConfigs:        make(map[uint32]*EquipUpgradeConfig),
-			itemUseEffectConfigs:       make(map[uint32]*ItemUseEffectConfig),
-			itemRecycleConfigs:         make(map[uint32]*ItemRecycleConfig),
-			shopConfigs:                make(map[uint32]*ShopConfig),
-			jobConfigs:                 make(map[uint32]*JobConfig),
-			sceneConfigs:               make(map[uint32]*SceneConfig),
-			mapConfigs:                 make(map[uint32]*MapConfig),
-			monsterSceneConfigs:        make([]*MonsterSceneConfig, 0),
-			npcSceneConfigs:            make([]*NPCSceneConfig, 0),
-			teleportConfigs:            make(map[uint32]*TeleportConfig),
-			dailyActivityRewardConfigs: make(map[uint32]*DailyActivityRewardConfig),
-			achievementConfigs:         make(map[uint32]*AchievementConfig),
-			equipRefineConfigs:         make(map[uint32]*EquipRefineConfig),
-			equipEnchantConfigs:        make(map[uint32]*EquipEnchantConfig),
-			equipSetConfigs:            make(map[uint32]*EquipSetConfig),
-		}
+		globalConfigManager = newConfigManager()
 	})
 	return globalConfigManager
 }
@@ -541,33 +546,36 @@ func (cm *ConfigManager) loadEquipUpgradeConfigs() error {
 	return nil
 }
 
-// GetItemConfig 获取道具配置
-func (cm *ConfigManager) GetItemConfig(itemId uint32) (*ItemConfig, bool) {
+// GetItemConfig 获取道具配置，未找到返回 nil
+func (cm *ConfigManager) GetItemConfig(itemId uint32) *ItemConfig {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.itemConfigs[itemId]
-	return cfg, ok
+	return cm.itemConfigs[itemId]
 }
 
-// GetEquipUpgradeConfig 获取装备强化配置
-func (cm *ConfigManager) GetEquipUpgradeConfig(itemId uint32) (*EquipUpgradeConfig, bool) {
+// GetEquipUpgradeConfig 获取装备强化配置，未找到返回 nil
+func (cm *ConfigManager) GetEquipUpgradeConfig(itemId uint32) *EquipUpgradeConfig {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.equipUpgradeConfigs[itemId]
-	return cfg, ok
+	return cm.equipUpgradeConfigs[itemId]
 }
 
-// GetLevelConfig 获取等级配置
-func (cm *ConfigManager) GetLevelConfig(level uint32) (*LevelConfig, bool) {
+// GetLevelConfig 获取等级配置，未找到返回 nil
+func (cm *ConfigManager) GetLevelConfig(level uint32) *LevelConfig {
+	if cm == nil || cm.levelConfigs == nil {
+		return nil
+	}
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.levelConfigs[level]
-	return cfg, ok
+	return cm.levelConfigs[level]
 }
 
 // GetLevelAttrs 获取指定等级的属性（高等级覆盖低等级）
 // 返回该等级及以下所有等级的属性合并结果，高等级属性会覆盖低等级同名属性
 func (cm *ConfigManager) GetLevelAttrs(level uint32) map[uint32]uint64 {
+	if cm == nil || cm.levelConfigs == nil {
+		return nil
+	}
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 
@@ -591,28 +599,25 @@ func (cm *ConfigManager) GetLevelAttrs(level uint32) map[uint32]uint64 {
 	return result
 }
 
-// GetVipConfig 获取VIP配置
-func (cm *ConfigManager) GetVipConfig(level uint32) (*VipConfig, bool) {
+// GetVipConfig 获取VIP配置，未找到返回 nil
+func (cm *ConfigManager) GetVipConfig(level uint32) *VipConfig {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.vipConfigs[level]
-	return cfg, ok
+	return cm.vipConfigs[level]
 }
 
 // GetMoneyConfig 获取货币配置
-func (cm *ConfigManager) GetMoneyConfig(moneyId uint32) (*MoneyConfig, bool) {
+func (cm *ConfigManager) GetMoneyConfig(moneyId uint32) *MoneyConfig {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.moneyConfigs[moneyId]
-	return cfg, ok
+	return cm.moneyConfigs[moneyId]
 }
 
 // GetQuestConfig 获取任务配置
-func (cm *ConfigManager) GetQuestConfig(questId uint32) (*QuestConfig, bool) {
+func (cm *ConfigManager) GetQuestConfig(questId uint32) *QuestConfig {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.questConfigs[questId]
-	return cfg, ok
+	return cm.questConfigs[questId]
 }
 
 // GetQuestConfigsByType 根据类型获取任务配置
@@ -631,12 +636,11 @@ func (cm *ConfigManager) GetQuestConfigsByType(questType uint32) []*QuestConfig 
 	return result
 }
 
-// GetMailTemplateConfig 获取邮件模板配置
-func (cm *ConfigManager) GetMailTemplateConfig(templateId uint32) (*MailTemplateConfig, bool) {
+// GetMailTemplateConfig 获取邮件模板配置，未找到返回 nil
+func (cm *ConfigManager) GetMailTemplateConfig(templateId uint32) *MailTemplateConfig {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.mailTemplateConfigs[templateId]
-	return cfg, ok
+	return cm.mailTemplateConfigs[templateId]
 }
 
 // Reload 热加载配置
@@ -645,44 +649,48 @@ func (cm *ConfigManager) Reload() error {
 	return cm.LoadAllConfigs()
 }
 
-// GetMonsterConfig 获取怪物配置
-func (cm *ConfigManager) GetMonsterConfig(monsterId uint32) (*MonsterConfig, bool) {
+// GetMonsterConfig 获取怪物配置，未找到返回 nil
+func (cm *ConfigManager) GetMonsterConfig(monsterId uint32) *MonsterConfig {
+	if cm == nil || cm.monsterConfigs == nil {
+		return nil
+	}
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.monsterConfigs[monsterId]
-	return cfg, ok
+	return cm.monsterConfigs[monsterId]
 }
 
-// GetSkillConfig 获取技能配置
-func (cm *ConfigManager) GetSkillConfig(skillId uint32) (*SkillConfig, bool) {
+// GetSkillConfig 获取技能配置，未找到返回 nil
+func (cm *ConfigManager) GetSkillConfig(skillId uint32) *SkillConfig {
+	if cm == nil || cm.skillConfigs == nil {
+		return nil
+	}
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.skillConfigs[skillId]
-	return cfg, ok
+	return cm.skillConfigs[skillId]
 }
 
-// GetBuffConfig 获取Buff配置
-func (cm *ConfigManager) GetBuffConfig(buffId uint32) (*BuffConfig, bool) {
+// GetBuffConfig 获取Buff配置，未找到返回 nil
+func (cm *ConfigManager) GetBuffConfig(buffId uint32) *BuffConfig {
+	if cm == nil || cm.buffConfigs == nil {
+		return nil
+	}
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.buffConfigs[buffId]
-	return cfg, ok
+	return cm.buffConfigs[buffId]
 }
 
-// GetConsumeConfig 获取通用消耗配置
-func (cm *ConfigManager) GetConsumeConfig(consumeId uint32) (*ConsumeConfig, bool) {
+// GetConsumeConfig 获取通用消耗配置，未找到返回 nil
+func (cm *ConfigManager) GetConsumeConfig(consumeId uint32) *ConsumeConfig {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.consumeConfigs[consumeId]
-	return cfg, ok
+	return cm.consumeConfigs[consumeId]
 }
 
-// GetRewardConfig 获取通用奖励配置
-func (cm *ConfigManager) GetRewardConfig(rewardId uint32) (*RewardConfig, bool) {
+// GetRewardConfig 获取通用奖励配置，未找到返回 nil
+func (cm *ConfigManager) GetRewardConfig(rewardId uint32) *RewardConfig {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.rewardConfigs[rewardId]
-	return cfg, ok
+	return cm.rewardConfigs[rewardId]
 }
 
 // loadDungeonConfigs 加载副本配置
@@ -710,12 +718,14 @@ func (cm *ConfigManager) loadDungeonConfigs() error {
 	return nil
 }
 
-// GetDungeonConfig 获取副本配置
-func (cm *ConfigManager) GetDungeonConfig(dungeonId uint32) (*DungeonConfig, bool) {
+// GetDungeonConfig 获取副本配置，未找到返回 nil
+func (cm *ConfigManager) GetDungeonConfig(dungeonId uint32) *DungeonConfig {
+	if cm == nil || cm.dungeonConfigs == nil {
+		return nil
+	}
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.dungeonConfigs[dungeonId]
-	return cfg, ok
+	return cm.dungeonConfigs[dungeonId]
 }
 
 // loadItemUseEffectConfigs 加载物品使用效果配置
@@ -809,28 +819,25 @@ func (cm *ConfigManager) loadShopConfigs() error {
 	return nil
 }
 
-// GetItemUseEffectConfig 获取物品使用效果配置
-func (cm *ConfigManager) GetItemUseEffectConfig(itemId uint32) (*ItemUseEffectConfig, bool) {
+// GetItemUseEffectConfig 获取物品使用效果配置，未找到返回 nil
+func (cm *ConfigManager) GetItemUseEffectConfig(itemId uint32) *ItemUseEffectConfig {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.itemUseEffectConfigs[itemId]
-	return cfg, ok
+	return cm.itemUseEffectConfigs[itemId]
 }
 
-// GetItemRecycleConfig 获取物品回收配置
-func (cm *ConfigManager) GetItemRecycleConfig(itemId uint32) (*ItemRecycleConfig, bool) {
+// GetItemRecycleConfig 获取物品回收配置，未找到返回 nil
+func (cm *ConfigManager) GetItemRecycleConfig(itemId uint32) *ItemRecycleConfig {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.itemRecycleConfigs[itemId]
-	return cfg, ok
+	return cm.itemRecycleConfigs[itemId]
 }
 
-// GetShopConfig 获取商城配置（通过itemId）
-func (cm *ConfigManager) GetShopConfig(itemId uint32) (*ShopConfig, bool) {
+// GetShopConfig 获取商城配置（通过itemId），未找到返回 nil
+func (cm *ConfigManager) GetShopConfig(itemId uint32) *ShopConfig {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.shopConfigs[itemId]
-	return cfg, ok
+	return cm.shopConfigs[itemId]
 }
 
 // loadJobConfigs 加载职业配置
@@ -1052,32 +1059,38 @@ func (cm *ConfigManager) loadTeleportConfigs() error {
 	return nil
 }
 
-// GetJobConfig 获取职业配置
-func (cm *ConfigManager) GetJobConfig(jobId uint32) (*JobConfig, bool) {
+// GetJobConfig 获取职业配置，未找到返回 nil
+func (cm *ConfigManager) GetJobConfig(jobId uint32) *JobConfig {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.jobConfigs[jobId]
-	return cfg, ok
+	return cm.jobConfigs[jobId]
 }
 
 // GetSceneConfig 获取场景配置
-func (cm *ConfigManager) GetSceneConfig(sceneId uint32) (*SceneConfig, bool) {
+func (cm *ConfigManager) GetSceneConfig(sceneId uint32) *SceneConfig {
+	if cm == nil || cm.sceneConfigs == nil {
+		return nil
+	}
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.sceneConfigs[sceneId]
-	return cfg, ok
+	return cm.sceneConfigs[sceneId]
 }
 
 // GetMapConfig 获取地图配置
-func (cm *ConfigManager) GetMapConfig(mapId uint32) (*MapConfig, bool) {
+func (cm *ConfigManager) GetMapConfig(mapId uint32) *MapConfig {
+	if cm == nil || cm.mapConfigs == nil {
+		return nil
+	}
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.mapConfigs[mapId]
-	return cfg, ok
+	return cm.mapConfigs[mapId]
 }
 
 // GetMonsterSceneConfigs 获取指定场景的怪物配置列表
 func (cm *ConfigManager) GetMonsterSceneConfigs(sceneId uint32) []*MonsterSceneConfig {
+	if cm == nil || cm.monsterSceneConfigs == nil {
+		return nil
+	}
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
 
@@ -1117,11 +1130,10 @@ func (cm *ConfigManager) GetNPCSceneConfigs(sceneId uint32) []*NPCSceneConfig {
 }
 
 // GetTeleportConfig 获取传送点配置
-func (cm *ConfigManager) GetTeleportConfig(teleportId uint32) (*TeleportConfig, bool) {
+func (cm *ConfigManager) GetTeleportConfig(teleportId uint32) *TeleportConfig {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.teleportConfigs[teleportId]
-	return cfg, ok
+	return cm.teleportConfigs[teleportId]
 }
 
 // GetTeleportConfigsByScene 获取指定场景的传送点配置列表
@@ -1168,12 +1180,11 @@ func (cm *ConfigManager) loadDailyActivityRewardConfigs() error {
 	return nil
 }
 
-// GetDailyActivityRewardConfig 获取日常活跃奖励配置
-func (cm *ConfigManager) GetDailyActivityRewardConfig(rewardId uint32) (*DailyActivityRewardConfig, bool) {
+// GetDailyActivityRewardConfig 获取日常活跃奖励配置，未找到返回 nil
+func (cm *ConfigManager) GetDailyActivityRewardConfig(rewardId uint32) *DailyActivityRewardConfig {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.dailyActivityRewardConfigs[rewardId]
-	return cfg, ok
+	return cm.dailyActivityRewardConfigs[rewardId]
 }
 
 // GetAllDailyActivityRewardConfigs 获取所有日常活跃奖励配置
@@ -1352,12 +1363,11 @@ func (cm *ConfigManager) loadEquipSetConfigs() error {
 	return nil
 }
 
-// GetEquipSetConfig 获取装备套装配置
-func (cm *ConfigManager) GetEquipSetConfig(setId uint32) (*EquipSetConfig, bool) {
+// GetEquipSetConfig 获取装备套装配置，未找到返回 nil
+func (cm *ConfigManager) GetEquipSetConfig(setId uint32) *EquipSetConfig {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.equipSetConfigs[setId]
-	return cfg, ok
+	return cm.equipSetConfigs[setId]
 }
 
 // loadBagConfigs 加载背包配置
@@ -1392,10 +1402,9 @@ func (cm *ConfigManager) loadBagConfigs() error {
 	return nil
 }
 
-// GetBagConfig 获取背包配置（通过bagType）
-func (cm *ConfigManager) GetBagConfig(bagType uint32) (*BagConfig, bool) {
+// GetBagConfig 获取背包配置（通过bagType），未找到返回 nil
+func (cm *ConfigManager) GetBagConfig(bagType uint32) *BagConfig {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()
-	cfg, ok := cm.bagConfigs[bagType]
-	return cfg, ok
+	return cm.bagConfigs[bagType]
 }

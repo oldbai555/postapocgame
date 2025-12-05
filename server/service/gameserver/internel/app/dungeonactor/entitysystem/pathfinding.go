@@ -240,18 +240,27 @@ type astarPriorityQueue []*astarNode
 func (pq astarPriorityQueue) Len() int { return len(pq) }
 
 func (pq astarPriorityQueue) Less(i, j int) bool {
+	if pq[i] == nil || pq[j] == nil {
+		return false
+	}
 	return pq[i].f < pq[j].f
 }
 
 func (pq astarPriorityQueue) Swap(i, j int) {
+	if pq[i] == nil || pq[j] == nil {
+		return
+	}
 	pq[i], pq[j] = pq[j], pq[i]
 	pq[i].index = i
 	pq[j].index = j
 }
 
 func (pq *astarPriorityQueue) Push(x interface{}) {
+	node, ok := x.(*astarNode)
+	if !ok || node == nil {
+		panic("astarPriorityQueue: attempt to push nil node")
+	}
 	n := len(*pq)
-	node := x.(*astarNode)
 	node.index = n
 	*pq = append(*pq, node)
 }
@@ -259,9 +268,15 @@ func (pq *astarPriorityQueue) Push(x interface{}) {
 func (pq *astarPriorityQueue) Pop() interface{} {
 	old := *pq
 	n := len(old)
+	if n == 0 {
+		return nil
+	}
 	node := old[n-1]
-	old[n-1] = nil
+	if node == nil {
+		return nil
+	}
 	node.index = -1
+	old[n-1] = nil
 	*pq = old[0 : n-1]
 	return node
 }

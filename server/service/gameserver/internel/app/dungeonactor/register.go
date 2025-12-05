@@ -9,8 +9,8 @@ import (
 	"postapocgame/server/service/gameserver/internel/app/dungeonactor/entity"
 	"postapocgame/server/service/gameserver/internel/app/dungeonactor/entitysystem"
 	"postapocgame/server/service/gameserver/internel/app/dungeonactor/fuben"
-	"postapocgame/server/service/gameserver/internel/core/gshare"
-	"postapocgame/server/service/gameserver/internel/infrastructure/gevent"
+	"postapocgame/server/service/gameserver/internel/gevent"
+	"postapocgame/server/service/gameserver/internel/gshare"
 )
 
 // 在服务器启动事件中注册 DungeonActor 内部消息处理器

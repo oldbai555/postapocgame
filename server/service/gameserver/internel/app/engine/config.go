@@ -7,7 +7,6 @@
 package engine
 
 import (
-	"fmt"
 	"net"
 	"os"
 	"path"
@@ -55,35 +54,35 @@ func (c *ServerConfig) applyDefaults() {
 
 func (c *ServerConfig) Validate() error {
 	if c.AppID == 0 {
-		return fmt.Errorf("app_id must be greater than 0")
+		return customerr.NewError("app_id must be greater than 0")
 	}
 	if c.PlatformID == 0 {
-		return fmt.Errorf("platform_id must be greater than 0")
+		return customerr.NewError("platform_id must be greater than 0")
 	}
 	if c.SrvId == 0 {
-		return fmt.Errorf("srv_id must be greater than 0")
+		return customerr.NewError("srv_id must be greater than 0")
 	}
 	if c.ActorMailboxSize <= 0 {
-		return fmt.Errorf("actor_mailbox_size must be greater than 0")
+		return customerr.NewError("actor_mailbox_size must be greater than 0")
 	}
 	if c.ActorPoolSize <= 0 {
-		return fmt.Errorf("actor_pool_size must be greater than 0")
+		return customerr.NewError("actor_pool_size must be greater than 0")
 	}
 	// InProcess DungeonActor 模式下，DungeonServerAddrMap 可为空；
 	// 如需远程 DungeonServer，可在配置中补充并复用现有校验逻辑。
 	if len(c.DungeonServerAddrMap) > 0 {
 		for srvType, addr := range c.DungeonServerAddrMap {
 			if addr == "" {
-				return fmt.Errorf("dungeon_server_addr_map[%d] is empty", srvType)
+				return customerr.NewError("dungeon_server_addr_map[%d] is empty", srvType)
 			}
 			if err := validateAddr(addr); err != nil {
-				return fmt.Errorf("invalid dungeon server addr for srvType=%d: %w", srvType, err)
+				return customerr.NewError("invalid dungeon server addr for srvType=%d: %v", srvType, err)
 			}
 		}
 	}
 	if c.TCPAddr != "" {
 		if err := validateAddr(c.TCPAddr); err != nil {
-			return fmt.Errorf("invalid tcp_addr: %w", err)
+			return customerr.NewError("invalid tcp_addr: %v", err)
 		}
 	}
 	return nil
@@ -91,7 +90,7 @@ func (c *ServerConfig) Validate() error {
 
 func validateAddr(addr string) error {
 	if addr == "" {
-		return fmt.Errorf("address is empty")
+		return customerr.NewError("address is empty")
 	}
 	_, _, err := net.SplitHostPort(addr)
 	return err

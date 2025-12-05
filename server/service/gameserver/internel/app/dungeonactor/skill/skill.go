@@ -37,8 +37,8 @@ func NewSkill(id, level uint32) *Skill {
 
 func (s *Skill) GetConfig() *jsonconf.SkillConfig {
 	configMgr := jsonconf.GetConfigManager()
-	skillCfg, ok := configMgr.GetSkillConfig(s.Id)
-	if !ok {
+	skillCfg := configMgr.GetSkillConfig(s.Id)
+	if skillCfg == nil {
 		return nil
 	}
 	return skillCfg
@@ -47,7 +47,10 @@ func (s *Skill) GetConfig() *jsonconf.SkillConfig {
 // FindSkillTargets 寻找技能释放目标
 func (s *Skill) FindSkillTargets(ctx *argsdef.SkillCastContext, caster iface.IEntity) ([]iface.IEntity, int) {
 	configMgr := jsonconf.GetConfigManager()
-	skillCfg, _ := configMgr.GetSkillConfig(ctx.SkillId)
+	skillCfg := configMgr.GetSkillConfig(ctx.SkillId)
+	if skillCfg == nil {
+		return nil, int(protocol.SkillUseErr_ErrSkillNotLearned)
+	}
 
 	var targets []iface.IEntity
 	entityMgr := entitymgr.GetEntityMgr()
@@ -56,7 +59,7 @@ func (s *Skill) FindSkillTargets(ctx *argsdef.SkillCastContext, caster iface.IEn
 	case uint32(protocol.SkillTargetType_SkillTargetTypeSingle):
 		// 单体指向性技能
 		target, ok := entityMgr.GetByHdl(ctx.TargetHdl)
-		if !ok {
+		if !ok || target == nil {
 			return nil, int(protocol.SkillUseErr_ErrSkillTargetInvalId)
 		}
 

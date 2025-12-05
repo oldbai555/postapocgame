@@ -4,7 +4,7 @@ import (
 	"context"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/service/gameserver/internel/core/gshare"
+	"postapocgame/server/service/gameserver/internel/gshare"
 )
 
 // getPublicRole 通过 PublicActorFacade 反查当前 PublicRole 实例

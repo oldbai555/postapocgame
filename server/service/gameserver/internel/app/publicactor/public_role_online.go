@@ -6,7 +6,7 @@ import (
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/service/gameserver/internel/core/gshare"
+	"postapocgame/server/service/gameserver/internel/gshare"
 )
 
 // 在线状态管理相关逻辑
@@ -85,12 +85,7 @@ func handleRegisterOnline(ctx context.Context, msg actor.IActorMessage, publicRo
 			broadcastMsg := &protocol.ChatBroadcastMsg{
 				ChatMsg: chatMsg,
 			}
-			broadcastData, err := proto.Marshal(broadcastMsg)
-			if err != nil {
-				log.Errorf("Failed to marshal offline message: %v", err)
-				continue
-			}
-			if err := sendClientMessageViaPlayerActor(registerMsg.SessionId, uint16(protocol.S2CProtocol_S2CChatMessage), broadcastData); err != nil {
+			if err := sendClientProtoViaPlayerActor(registerMsg.SessionId, uint16(protocol.S2CProtocol_S2CChatMessage), broadcastMsg); err != nil {
 				logSendFailure(registerMsg.SessionId, uint16(protocol.S2CProtocol_S2CChatMessage), err)
 			}
 		}

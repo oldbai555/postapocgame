@@ -8,6 +8,7 @@ package fuben
 
 import (
 	"context"
+	"postapocgame/server/service/gameserver/internel/gshare"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -19,7 +20,6 @@ import (
 	"postapocgame/server/service/gameserver/internel/app/dungeonactor/entity"
 	"postapocgame/server/service/gameserver/internel/app/dungeonactor/entitymgr"
 	"postapocgame/server/service/gameserver/internel/app/dungeonactor/iface"
-	gshare "postapocgame/server/service/gameserver/internel/core/gshare"
 )
 
 // HandleG2DEnterDungeon 处理进入副本请求（GameServer → DungeonActor 内部消息）
@@ -67,8 +67,8 @@ func HandleG2DEnterDungeon(msg actor.IActorMessage) error {
 			// 创建新的限时副本
 			// 获取副本配置
 			configMgr := jsonconf.GetConfigManager()
-			dungeonCfg, ok := configMgr.GetDungeonConfig(req.DungeonId)
-			if !ok || dungeonCfg == nil {
+			dungeonCfg := configMgr.GetDungeonConfig(req.DungeonId)
+			if dungeonCfg == nil {
 				return customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "dungeon config not found")
 			}
 
@@ -91,8 +91,8 @@ func HandleG2DEnterDungeon(msg actor.IActorMessage) error {
 			// 初始化场景（根据配置）
 			sceneConfigs := make([]jsonconf.SceneConfig, 0)
 			for _, sceneId := range dungeonCfg.SceneIds {
-				sceneCfg, ok := configMgr.GetSceneConfig(sceneId)
-				if ok && sceneCfg != nil {
+				sceneCfg := configMgr.GetSceneConfig(sceneId)
+				if sceneCfg != nil {
 					sceneConfigs = append(sceneConfigs, *sceneCfg)
 				}
 			}
@@ -127,9 +127,7 @@ func HandleG2DEnterDungeon(msg actor.IActorMessage) error {
 	}
 
 	entitymgr.GetEntityMgr().BindSession(sessionId, roleEntity.GetHdl())
-	if moveSys := roleEntity.GetMoveSys(); moveSys != nil {
-		moveSys.ResetState()
-	}
+	roleEntity.GetMoveSys().ResetState()
 
 	resp := &protocol.S2CEnterSceneReq{
 		EntityData: roleEntity.BuildProtoEntitySt(),

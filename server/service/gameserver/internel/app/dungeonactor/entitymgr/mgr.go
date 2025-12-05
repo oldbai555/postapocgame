@@ -1,7 +1,7 @@
 package entitymgr
 
 import (
-	"fmt"
+	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/service/gameserver/internel/app/dungeonactor/iface"
 	"time"
 )
@@ -33,7 +33,7 @@ func GetEntityMgr() *EntityMgr {
 func (m *EntityMgr) Register(entity iface.IEntity) error {
 	hdl := entity.GetHdl()
 	if _, exists := m.entities[hdl]; exists {
-		return fmt.Errorf("entity already registered: hdl=%d", hdl)
+		return customerr.NewError("entity already registered: hdl=%d", hdl)
 	}
 
 	m.entities[hdl] = entity

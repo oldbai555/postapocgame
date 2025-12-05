@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"postapocgame/server/service/gameserver/internel/core/iface"
+	"postapocgame/server/service/gameserver/internel/iface"
 	"sync"
 
 	"google.golang.org/protobuf/proto"

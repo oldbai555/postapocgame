@@ -7,9 +7,9 @@
 package fbmgr
 
 import (
-	"fmt"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/app/dungeonactor/fuben"
 	"postapocgame/server/service/gameserver/internel/app/dungeonactor/iface"
@@ -54,7 +54,7 @@ func (m *FuBenMgr) CreateDefaultFuBen() error {
 	sceneConfigs := make([]jsonconf.SceneConfig, 0, len(defaultSceneIds))
 	configMgr := jsonconf.GetConfigManager()
 	for _, sceneId := range defaultSceneIds {
-		if cfg, ok := configMgr.GetSceneConfig(sceneId); ok && cfg != nil {
+		if cfg := configMgr.GetSceneConfig(sceneId); cfg != nil {
 			if cfg.GameMap == nil {
 				log.Warnf("scene %d missing GameMap, fallback to random map", sceneId)
 			}
@@ -103,7 +103,7 @@ func (m *FuBenMgr) GetFuBen(fbId uint32) (iface.IFuBen, bool) {
 func (m *FuBenMgr) CreateTimedFuBenForPlayer(sessionId string, name string, maxDuration time.Duration) (*fuben.FuBenSt, error) {
 	// 检查是否已存在
 	if _, exists := m.timedFubens[sessionId]; exists {
-		return nil, fmt.Errorf("timed fuben already exists for player")
+		return nil, customerr.NewError("timed fuben already exists for player")
 	}
 
 	// 生成副本Id

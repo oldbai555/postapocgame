@@ -16,9 +16,6 @@ type PublicRole struct {
 	// 离线消息：roleId -> []ChatMessage
 	offlineMessagesMap sync.Map // map[uint64][]*protocol.ChatMessage
 
-	// 上次清理离线消息的时间（毫秒）
-	lastCleanOfflineMessagesTime int64
-
 	// OfflineData 管理器
 	offlineDataMgr           *offlinedata.Manager
 	lastOfflineDataFlushTime int64

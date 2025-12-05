@@ -1,10 +1,10 @@
 package scene
 
 import (
-	"fmt"
 	"math/rand"
 	"postapocgame/server/internal/argsdef"
 	"postapocgame/server/internal/jsonconf"
+	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/app/dungeonactor/entity"
 	"postapocgame/server/service/gameserver/internel/app/dungeonactor/entitymgr"
@@ -178,9 +178,12 @@ func (s *SceneSt) randomWalkableInBornArea() (uint32, uint32, bool) {
 
 // AddEntity 添加实体到场景
 func (s *SceneSt) AddEntity(e iface.IEntity) error {
+	if e == nil {
+		return customerr.NewError("entity is nil")
+	}
 	hdl := e.GetHdl()
 	if _, exists := s.entities[hdl]; exists {
-		return fmt.Errorf("entity already exists in scene: hdl=%d", hdl)
+		return customerr.NewError("entity already exists in scene: hdl=%d", hdl)
 	}
 
 	s.entities[hdl] = e
@@ -213,7 +216,7 @@ func (s *SceneSt) AddEntity(e iface.IEntity) error {
 func (s *SceneSt) RemoveEntity(hdl uint64) error {
 	e, exists := s.entities[hdl]
 	if !exists {
-		return fmt.Errorf("entity not found in scene: hdl=%d", hdl)
+		return customerr.NewError("entity not found in scene: hdl=%d", hdl)
 	}
 
 	// 从AOI管理器移除
@@ -257,13 +260,13 @@ func (s *SceneSt) GetAllEntities() []iface.IEntity {
 // 注意：newX, newY 是格子坐标（不是像素坐标）
 func (s *SceneSt) EntityMove(hdl uint64, newX, newY uint32) error {
 	e, ok := s.GetEntity(hdl)
-	if !ok {
-		return fmt.Errorf("entity not found: hdl=%d", hdl)
+	if !ok || e == nil {
+		return customerr.NewError("entity not found: hdl=%d", hdl)
 	}
 
 	// 检查目标位置是否可行走（格子坐标）
 	if !s.IsWalkable(int(newX), int(newY)) {
-		return fmt.Errorf("position not walkable: (%d, %d)", newX, newY)
+		return customerr.NewError("position not walkable: (%d, %d)", newX, newY)
 	}
 
 	oldPos := e.GetPosition()
@@ -281,9 +284,9 @@ func (s *SceneSt) EntityMove(hdl uint64, newX, newY uint32) error {
 // 注意：x, y 是格子坐标（不是像素坐标）
 func (s *SceneSt) SpawnMonster(monsterId uint32, x, y uint32) (*entity.MonsterEntity, error) {
 	cfgMgr := jsonconf.GetConfigManager()
-	monsterCfg, ok := cfgMgr.GetMonsterConfig(monsterId)
-	if !ok {
-		return nil, fmt.Errorf("monster config not found: %d", monsterId)
+	monsterCfg := cfgMgr.GetMonsterConfig(monsterId)
+	if monsterCfg == nil {
+		return nil, customerr.NewError("monster config not found: %d", monsterId)
 	}
 
 	monster := entity.NewMonsterEntity(monsterCfg)
@@ -338,9 +341,14 @@ func (s *SceneSt) InitMonsters() {
 		log.Infof("Scene %d: Spawned %d monsters (monsterId=%d)", s.sceneId, cfg.Count, cfg.MonsterId)
 	}
 
-	// 如果没有找到配置，记录日志
+	// 如果没有找到配置，使用 fallback 逻辑
 	if s.GetMonsterCount() == 0 {
 		log.Infof("Scene %d: No monster configuration found", s.sceneId)
+		// 场景2使用硬编码的怪物生成逻辑作为 fallback
+		if s.sceneId == 2 {
+			log.Infof("Scene 2: Using fallback monster spawn logic")
+			s.spawnScene2Monsters()
+		}
 	}
 }
 

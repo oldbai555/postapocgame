@@ -5,7 +5,7 @@ import (
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/routine"
-	"postapocgame/server/service/gameserver/internel/core/gshare"
+	"postapocgame/server/service/gameserver/internel/gshare"
 )
 
 // PublicActor 公共Actor适配器

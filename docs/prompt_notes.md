@@ -22,8 +22,6 @@
 核心参考文档（按重要程度排序）：
 - docs\服务端开发进度文档.md                —— 精简版权威版（当前架构、已完成功能、TODO、关键约束、关键代码入口）
 - docs\服务端开发进度文档_full.md           —— 完整权威版（详细实现、阶段拆分、版本记录）
-- docs\gameserver_CleanArchitecture重构文档.md
-- docs\gameserver_adapter_system演进规划.md
 
 ### 你的默认行为
 

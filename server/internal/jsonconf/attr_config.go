@@ -139,27 +139,43 @@ func (cm *ConfigManager) loadAttrConfigs() {
 }
 
 func (cm *ConfigManager) ensureAttrConfig() {
+	if cm == nil {
+		return
+	}
 	if cm.attrConfig == nil {
+		cm.attrConfig = &AttrConfig{}
 		cm.loadAttrConfigs()
 	}
 }
 
 func (cm *ConfigManager) GetAttrPushConfig() *AttrPushConfig {
 	cm.ensureAttrConfig()
+	if cm == nil || cm.attrConfig == nil {
+		return nil
+	}
 	return &cm.attrConfig.Push
 }
 
 func (cm *ConfigManager) GetAttrPowerConfig() *AttrPowerConfig {
 	cm.ensureAttrConfig()
+	if cm == nil || cm.attrConfig == nil {
+		return nil
+	}
 	return &cm.attrConfig.Power
 }
 
 func (cm *ConfigManager) GetAttrAddRateConfig() *AttrAddRateConfig {
 	cm.ensureAttrConfig()
+	if cm == nil || cm.attrConfig == nil {
+		return nil
+	}
 	return &cm.attrConfig.AddRate
 }
 
 func (cm *ConfigManager) GetAttrFormulaConfig() *AttrFormulaConfig {
 	cm.ensureAttrConfig()
+	if cm == nil || cm.attrConfig == nil {
+		return nil
+	}
 	return &cm.attrConfig.Formula
 }

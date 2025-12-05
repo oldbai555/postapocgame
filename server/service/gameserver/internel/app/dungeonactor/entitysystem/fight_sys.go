@@ -48,7 +48,8 @@ func (s *FightSys) SetEntity(et iface.IEntity) {
 
 func (s *FightSys) LearnSkill(skillId, skillLv uint32) error {
 	configMgr := jsonconf.GetConfigManager()
-	if _, ok := configMgr.GetSkillConfig(skillId); !ok {
+	skillCfg := configMgr.GetSkillConfig(skillId)
+	if skillCfg == nil {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "skill config not found:%d", skillId)
 	}
 	sk := skill.NewSkill(skillId, skillLv)
@@ -170,8 +171,8 @@ func HandleUseSkill(msg actor.IActorMessage) error {
 	if !ok || entityAny == nil {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "entity not found for session")
 	}
-	entity, ok := entityAny.(iface.IEntity)
-	if !ok {
+	entity := entityAny
+	if entity == nil {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "invalid entity type")
 	}
 

@@ -1,18 +1,17 @@
 package entitysystem
 
 import (
-	"fmt"
-	"postapocgame/server/service/gameserver/internel/app/engine"
-	"postapocgame/server/service/gameserver/internel/core/iface"
-
 	"google.golang.org/protobuf/proto"
+	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/app/engine"
+	"postapocgame/server/service/gameserver/internel/iface"
 )
 
 // DispatchPlayerMessage 用于（在线或离线加载时）分发玩家消息
 func DispatchPlayerMessage(owner iface.IPlayerRole, msgType int32, msgData []byte) error {
 	if owner == nil {
-		return fmt.Errorf("DispatchPlayerMessage: owner is nil")
+		return customerr.NewError("DispatchPlayerMessage: owner is nil")
 	}
 
 	var payload proto.Message
@@ -24,7 +23,7 @@ func DispatchPlayerMessage(owner iface.IPlayerRole, msgType int32, msgData []byt
 		}
 		payload = pb
 	} else if len(msgData) > 0 {
-		return fmt.Errorf("no proto factory registered for msgType=%d", msgType)
+		return customerr.NewError("no proto factory registered for msgType=%d", msgType)
 	}
 
 	callback := engine.GetMessageCallback(msgType)

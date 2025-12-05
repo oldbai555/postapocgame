@@ -8,7 +8,7 @@ import (
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/service/gameserver/internel/core/gshare"
+	"postapocgame/server/service/gameserver/internel/gshare"
 )
 
 // 聊天系统相关 handler 注册
@@ -56,15 +56,10 @@ func handleChatWorld(ctx context.Context, msg actor.IActorMessage, publicRole *P
 	broadcastMsg := &protocol.ChatBroadcastMsg{
 		ChatMsg: chatMessage,
 	}
-	broadcastData, err := proto.Marshal(broadcastMsg)
-	if err != nil {
-		log.Errorf("Failed to marshal ChatBroadcastMsg: %v", err)
-		return
-	}
 
 	// 发送给所有在线玩家
 	for _, sessionId := range sessionIds {
-		if err := sendClientMessageViaPlayerActor(sessionId, uint16(protocol.S2CProtocol_S2CChatMessage), broadcastData); err != nil {
+		if err := sendClientProtoViaPlayerActor(sessionId, uint16(protocol.S2CProtocol_S2CChatMessage), broadcastMsg); err != nil {
 			logSendFailure(sessionId, uint16(protocol.S2CProtocol_S2CChatMessage), err)
 		}
 	}
@@ -116,13 +111,8 @@ func handleChatPrivate(ctx context.Context, msg actor.IActorMessage, publicRole 
 			broadcastMsg := &protocol.ChatBroadcastMsg{
 				ChatMsg: chatMessage,
 			}
-			broadcastData, err := proto.Marshal(broadcastMsg)
-			if err == nil {
-				if err := sendClientMessageViaPlayerActor(senderSessionId, uint16(protocol.S2CProtocol_S2CChatMessage), broadcastData); err != nil {
-					logSendFailure(senderSessionId, uint16(protocol.S2CProtocol_S2CChatMessage), err)
-				}
-			} else {
-				log.Errorf("Failed to marshal ChatBroadcastMsg: %v", err)
+			if err := sendClientProtoViaPlayerActor(senderSessionId, uint16(protocol.S2CProtocol_S2CChatMessage), broadcastMsg); err != nil {
+				logSendFailure(senderSessionId, uint16(protocol.S2CProtocol_S2CChatMessage), err)
 			}
 		}
 		return
@@ -142,13 +132,8 @@ func handleChatPrivate(ctx context.Context, msg actor.IActorMessage, publicRole 
 	broadcastMsg := &protocol.ChatBroadcastMsg{
 		ChatMsg: chatMessage,
 	}
-	broadcastData, err := proto.Marshal(broadcastMsg)
-	if err != nil {
-		log.Errorf("Failed to marshal ChatBroadcastMsg: %v", err)
-		return
-	}
 
-	if err := sendClientMessageViaPlayerActor(targetSessionId, uint16(protocol.S2CProtocol_S2CChatMessage), broadcastData); err != nil {
+	if err := sendClientProtoViaPlayerActor(targetSessionId, uint16(protocol.S2CProtocol_S2CChatMessage), broadcastMsg); err != nil {
 		logSendFailure(targetSessionId, uint16(protocol.S2CProtocol_S2CChatMessage), err)
 		return
 	}
@@ -156,7 +141,7 @@ func handleChatPrivate(ctx context.Context, msg actor.IActorMessage, publicRole 
 	// 同时发送给发送者（确认消息已发送）
 	senderSessionId, ok := publicRole.GetSessionId(chatMsg.SenderId)
 	if ok {
-		if err := sendClientMessageViaPlayerActor(senderSessionId, uint16(protocol.S2CProtocol_S2CChatMessage), broadcastData); err != nil {
+		if err := sendClientProtoViaPlayerActor(senderSessionId, uint16(protocol.S2CProtocol_S2CChatMessage), broadcastMsg); err != nil {
 			logSendFailure(senderSessionId, uint16(protocol.S2CProtocol_S2CChatMessage), err)
 		}
 	}

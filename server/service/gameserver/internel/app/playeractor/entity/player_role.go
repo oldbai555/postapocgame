@@ -2,7 +2,6 @@ package entity
 
 import (
 	"context"
-	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/database"
 	"postapocgame/server/internal/event"
@@ -11,14 +10,17 @@ import (
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
-	"postapocgame/server/service/gameserver/internel/adapter/system"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/system"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/deps"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/entitysystem"
-	"postapocgame/server/service/gameserver/internel/core/gshare"
-	"postapocgame/server/service/gameserver/internel/core/iface"
-	"postapocgame/server/service/gameserver/internel/di"
-	"postapocgame/server/service/gameserver/internel/infrastructure/gatewaylink"
-	"postapocgame/server/service/gameserver/internel/infrastructure/gevent"
+	interfaces2 "postapocgame/server/service/gameserver/internel/app/playeractor/usecase/interfaces"
+	"postapocgame/server/service/gameserver/internel/gatewaylink"
+	"postapocgame/server/service/gameserver/internel/gevent"
+	"postapocgame/server/service/gameserver/internel/gshare"
+	"postapocgame/server/service/gameserver/internel/iface"
 	"time"
+
+	"google.golang.org/protobuf/proto"
 )
 
 // PlayerRole 玩家角色
@@ -66,8 +68,8 @@ func NewPlayerRole(sessionId string, roleInfo *protocol.PlayerSimpleData) *Playe
 		SimpleData:   roleInfo,
 		IsOnline:     true,
 		ReconnectKey: generateReconnectKey(sessionId, roleInfo.RoleId),
-		// 从全局模板克隆独立的事件总线
-		eventBus: gevent.ClonePlayerEventBus(),
+		// 为该玩家创建独立的事件总线（按注册表装配）
+		eventBus: gevent.NewPlayerEventBus(),
 	}
 	// 创建系统管理器
 	pr.sysMgr = entitysystem.NewSysMgr()
@@ -77,24 +79,22 @@ func NewPlayerRole(sessionId string, roleInfo *protocol.PlayerSimpleData) *Playe
 
 	// 订阅升级事件，自动更新排行榜（订阅到玩家自己的事件总线）
 	pr.eventBus.Subscribe(gevent.OnPlayerLevelUp, 3, func(evCtx context.Context, ev *event.Event) {
-		pr.UpdateRankSnapshot(pr.WithContext(nil))
+		pr.UpdateRankSnapshot(pr.WithContext(context.TODO()))
 	})
 
 	// 从数据库加载BinaryData
 	binaryData, err := database.GetPlayerBinaryData(uint(roleInfo.RoleId))
 	if err != nil {
 		log.Errorf("load player binary data failed: %v", err)
-		// 如果加载失败，创建空的BinaryData
-		binaryData = &protocol.PlayerRoleBinaryData{
-			SysOpenStatus: make(map[uint32]uint32),
-		}
 	}
 	// 确保BinaryData不为nil
 	if binaryData == nil {
-		binaryData = &protocol.PlayerRoleBinaryData{
-			SysOpenStatus: make(map[uint32]uint32),
-		}
+		binaryData = &protocol.PlayerRoleBinaryData{}
 	}
+	if binaryData.SysOpenStatus == nil {
+		binaryData.SysOpenStatus = make(map[uint32]uint32)
+	}
+
 	pr.BinaryData = binaryData
 
 	mainData, err := database.GetPlayerMainData(uint(roleInfo.RoleId))
@@ -114,15 +114,14 @@ func NewPlayerRole(sessionId string, roleInfo *protocol.PlayerSimpleData) *Playe
 	}
 	pr.MainData = mainData
 
-	err = pr.sysMgr.OnInit(pr.WithContext(nil))
+	err = pr.sysMgr.OnInit(pr.WithContext(context.TODO()))
 	if err != nil {
 		log.Errorf("sys mgr on init failed, err:%v", err)
-		return nil
 	}
 
 	// 初始化属性计算工具类
 	if pr.attrCalculator != nil {
-		pr.attrCalculator.Init(pr.WithContext(nil))
+		pr.attrCalculator.Init(pr.WithContext(context.TODO()))
 	}
 
 	pr._1sChecker = tool.NewTimeChecker(time.Second)
@@ -151,7 +150,7 @@ func (pr *PlayerRole) OnLogin() error {
 	}
 	registerData, err := proto.Marshal(registerMsg)
 	if err == nil {
-		if err := pr.sendPublicActorMessage(nil, uint16(protocol.PublicActorMsgId_PublicActorMsgIdRegisterOnline), registerData); err != nil {
+		if err := pr.sendPublicActorMessage(context.TODO(), uint16(protocol.PublicActorMsgId_PublicActorMsgIdRegisterOnline), registerData); err != nil {
 			log.Errorf("register online failed: %v", err)
 		}
 	}
@@ -160,7 +159,7 @@ func (pr *PlayerRole) OnLogin() error {
 	pr.Publish(gevent.OnPlayerLogin)
 
 	// 更新排行榜快照（玩家上线时）
-	pr.UpdateRankSnapshot(pr.WithContext(nil))
+	pr.UpdateRankSnapshot(pr.WithContext(context.TODO()))
 
 	var resp protocol.S2CLoginSuccessReq
 	resp.ReconnectKey = pr.ReconnectKey
@@ -295,7 +294,7 @@ func (pr *PlayerRole) OnLogout() error {
 	}
 	unregisterData, err := proto.Marshal(unregisterMsg)
 	if err == nil {
-		if err := pr.sendPublicActorMessage(nil, uint16(protocol.PublicActorMsgId_PublicActorMsgIdUnregisterOnline), unregisterData); err != nil {
+		if err := pr.sendPublicActorMessage(context.TODO(), uint16(protocol.PublicActorMsgId_PublicActorMsgIdUnregisterOnline), unregisterData); err != nil {
 			log.Errorf("send unregister online message failed: %v", err)
 		}
 	}
@@ -318,14 +317,20 @@ func (pr *PlayerRole) OnReconnect(newSessionId string) error {
 	log.Infof("[PlayerRole] OnReconnect: RoleId=%d, OldSession=%s, NewSession=%s",
 		pr.SimpleData.RoleId, pr.SessionId, newSessionId)
 
+	// 更新 PlayerRoleManager 的 sessionIndex（通过 DI 容器获取）
+	oldSessionId := pr.SessionId
 	pr.SessionId = newSessionId
+	if oldSessionId != newSessionId {
+		deps.PlayerRoleManager().UpdateSession(pr.SimpleData.RoleId, oldSessionId, newSessionId)
+	}
+
 	pr.IsOnline = true
 	pr.DisconnectAt = time.Time{}
 
 	// 发布玩家重连事件
 	pr.Publish(gevent.OnPlayerReconnect)
 	if pr.attrCalculator != nil {
-		pr.attrCalculator.PushFullAttrData(pr.WithContext(nil))
+		pr.attrCalculator.PushFullAttrData(pr.WithContext(context.TODO()))
 	}
 
 	var resp protocol.S2CReconnectSuccessReq
@@ -354,10 +359,6 @@ func (pr *PlayerRole) Close() error {
 		log.Errorf("err:%v", err)
 	}
 	return nil
-}
-
-func (pr *PlayerRole) GetBinaryData() *protocol.PlayerRoleBinaryData {
-	return pr.BinaryData
 }
 
 func (pr *PlayerRole) GetPlayerRoleId() uint64 {
@@ -417,9 +418,8 @@ func (pr *PlayerRole) SendProtoMessage(protoId uint16, v proto.Message) error {
 
 func (pr *PlayerRole) Publish(typ event.Type, args ...interface{}) {
 	ev := event.NewEvent(typ, args...)
-	ctx := pr.WithContext(nil)
+	ctx := pr.WithContext(context.TODO())
 	pr.eventBus.Publish(ctx, ev)
-	return
 }
 
 func (pr *PlayerRole) WithContext(parentCtx context.Context) context.Context {
@@ -434,7 +434,7 @@ func (pr *PlayerRole) WithContext(parentCtx context.Context) context.Context {
 func (pr *PlayerRole) sendPublicActorMessage(ctx context.Context, msgID uint16, data []byte) error {
 	msgCtx := pr.WithContext(ctx)
 	actorMsg := actor.NewBaseMessage(msgCtx, msgID, data)
-	return di.GetContainer().PublicActorGateway().SendMessageAsync(msgCtx, "global", actorMsg)
+	return deps.PublicActorGateway().SendMessageAsync(msgCtx, "global", actorMsg)
 }
 func (pr *PlayerRole) GetSysStatus(sysId uint32) bool {
 	idxInt := sysId / 32
@@ -466,13 +466,19 @@ func (pr *PlayerRole) GetSysMgr() iface.ISystemMgr {
 }
 
 // GetAttrCalculator 获取属性计算工具类（实现 IPlayerRole 接口）
-func (pr *PlayerRole) GetAttrCalculator() interface{} {
+func (pr *PlayerRole) GetAttrCalculator() interfaces2.IAttrCalculator {
+	if pr == nil {
+		return nil
+	}
+	if pr.attrCalculator == nil {
+		return nil
+	}
 	return pr.attrCalculator
 }
 
 // CallDungeonServer 异步调用DungeonServer（用于解耦，避免循环依赖）
 func (pr *PlayerRole) CallDungeonServer(ctx context.Context, msgId uint16, data []byte) error {
-	return di.GetContainer().DungeonServerGateway().AsyncCall(ctx, pr.GetSessionId(), msgId, data)
+	return deps.DungeonServerGateway().AsyncCall(ctx, pr.GetSessionId(), msgId, data)
 }
 
 func (pr *PlayerRole) timeSync() {
@@ -493,7 +499,7 @@ func (pr *PlayerRole) RunOne() {
 
 	pr.handleTimeEvents()
 
-	ctx := pr.WithContext(nil)
+	ctx := pr.WithContext(context.TODO())
 
 	if pr._1sChecker.CheckAndSet(true) {
 		pr.timeSync()
@@ -513,35 +519,35 @@ func (pr *PlayerRole) RunOne() {
 
 func (pr *PlayerRole) OnNewHour(ctx context.Context) {
 	if ctx == nil {
-		ctx = pr.WithContext(nil)
+		ctx = pr.WithContext(context.TODO())
 	}
 	pr.sysMgr.OnNewHour(ctx)
 }
 
 func (pr *PlayerRole) OnNewDay(ctx context.Context) {
 	if ctx == nil {
-		ctx = pr.WithContext(nil)
+		ctx = pr.WithContext(context.TODO())
 	}
 	pr.sysMgr.OnNewDay(ctx)
 }
 
 func (pr *PlayerRole) OnNewWeek(ctx context.Context) {
 	if ctx == nil {
-		ctx = pr.WithContext(nil)
+		ctx = pr.WithContext(context.TODO())
 	}
 	pr.sysMgr.OnNewWeek(ctx)
 }
 
 func (pr *PlayerRole) OnNewMonth(ctx context.Context) {
 	if ctx == nil {
-		ctx = pr.WithContext(nil)
+		ctx = pr.WithContext(context.TODO())
 	}
 	pr.sysMgr.OnNewMonth(ctx)
 }
 
 func (pr *PlayerRole) OnNewYear(ctx context.Context) {
 	if ctx == nil {
-		ctx = pr.WithContext(nil)
+		ctx = pr.WithContext(context.TODO())
 	}
 	pr.sysMgr.OnNewYear(ctx)
 }
@@ -556,7 +562,7 @@ func (pr *PlayerRole) handleTimeEvents() {
 	}
 
 	now := servertime.Now().In(time.Local)
-	ctx := pr.WithContext(nil)
+	ctx := pr.WithContext(context.TODO())
 
 	if pr.timeCursor.year != now.Year() {
 		pr.timeCursor.year = now.Year()
@@ -635,7 +641,7 @@ func (pr *PlayerRole) handleOfflineRollover(now time.Time) {
 	}
 	last := time.Unix(pr.MainData.LastLogoutTime, 0).In(time.Local)
 	now = now.In(time.Local)
-	ctx := pr.WithContext(nil)
+	ctx := pr.WithContext(context.TODO())
 
 	if last.Year() != now.Year() {
 		pr.OnNewYear(ctx)

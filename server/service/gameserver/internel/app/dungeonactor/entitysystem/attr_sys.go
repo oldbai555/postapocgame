@@ -8,6 +8,7 @@ package entitysystem
 
 import (
 	"context"
+	"postapocgame/server/service/gameserver/internel/gshare"
 
 	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/actor"
@@ -18,7 +19,6 @@ import (
 	"postapocgame/server/pkg/log"
 	dungeonattrcalc "postapocgame/server/service/gameserver/internel/app/dungeonactor/entitysystem/attrcalc"
 	"postapocgame/server/service/gameserver/internel/app/dungeonactor/iface"
-	gshare "postapocgame/server/service/gameserver/internel/core/gshare"
 )
 
 var _ iface.IAttrSys = (*AttrSys)(nil)
@@ -59,6 +59,9 @@ func (as *AttrSys) ApplySyncData(syncData *protocol.SyncAttrData) {
 	if syncData.AttrData != nil {
 		for sysID, attrVec := range syncData.AttrData {
 			calc := as.attrSet.GetIncAttr(sysID, true, true)
+			if calc == nil {
+				continue
+			}
 			if attrVec == nil {
 				continue
 			}

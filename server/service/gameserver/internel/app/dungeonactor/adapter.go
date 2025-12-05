@@ -4,7 +4,7 @@ import (
 	"context"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/service/gameserver/internel/core/gshare"
+	"postapocgame/server/service/gameserver/internel/gshare"
 )
 
 // DungeonActor GameServer 进程内的战斗/副本 Actor（单例）
@@ -83,7 +83,7 @@ func (d *DungeonActor) Stop(ctx context.Context) error {
 
 // AsyncCall 将消息封装为 Actor 消息，投递到 DungeonActor 的单线程 Loop 中处理
 func (d *DungeonActor) AsyncCall(ctx context.Context, sessionId string, msgId uint16, data []byte) error {
-	ctxWithSession := context.WithValue(ctx, "session", sessionId)
+	ctxWithSession := context.WithValue(ctx, gshare.ContextKeySession, sessionId)
 	msg := &DungeonActorMessage{
 		ctx:       ctxWithSession,
 		msgId:     msgId,

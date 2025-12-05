@@ -4,7 +4,7 @@ import (
 	"context"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/protocol"
-	"postapocgame/server/service/gameserver/internel/core/gshare"
+	"postapocgame/server/service/gameserver/internel/gshare"
 )
 
 var _ actor.IActorHandler = (*PlayerHandler)(nil)

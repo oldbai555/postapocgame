@@ -39,8 +39,8 @@ func (dc *DamageCalculator) Calculate(attacker, defender iface.IEntity, skillId 
 	// 技能伤害加成
 	skillMultiplier := 1.0
 	if skillId > 0 {
-		skillConfig, ok := jsonconf.GetConfigManager().GetSkillConfig(skillId)
-		if ok {
+		skillConfig := jsonconf.GetConfigManager().GetSkillConfig(skillId)
+		if skillConfig != nil {
 			// 技能基础伤害 + 攻击力百分比
 			skillBaseDamage := float64(skillConfig.Damage)
 			skillMultiplier = 1.0 + float64(skillConfig.Damage)/100.0 // 假设Damage是百分比
@@ -164,8 +164,8 @@ func (dc *DamageCalculator) CalculateHeal(caster iface.IEntity, target iface.IEn
 
 	// 技能加成
 	if skillId > 0 {
-		skillConfig, ok := jsonconf.GetConfigManager().GetSkillConfig(skillId)
-		if ok {
+		skillConfig := jsonconf.GetConfigManager().GetSkillConfig(skillId)
+		if skillConfig != nil {
 			// 从技能效果中查找治疗效果
 			for _, effect := range skillConfig.Effects {
 				if effect.Type == 2 { // 治疗效果

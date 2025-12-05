@@ -601,8 +601,8 @@ func (c *Core) updateObserved(view *EntityView) {
 }
 
 func (c *Core) lookupSceneMap(sceneID uint32) *jsonconf.GameMap {
-	sceneCfg, ok := jsonconf.GetConfigManager().GetSceneConfig(sceneID)
-	if !ok || sceneCfg == nil {
+	sceneCfg := jsonconf.GetConfigManager().GetSceneConfig(sceneID)
+	if sceneCfg == nil {
 		return nil
 	}
 	return sceneCfg.GameMap

@@ -2,50 +2,42 @@ package entitysystem
 
 import (
 	"context"
-	"fmt"
-	"postapocgame/server/service/gameserver/internel/core/gshare"
-	"postapocgame/server/service/gameserver/internel/core/iface"
-	"postapocgame/server/service/gameserver/internel/infrastructure/gevent"
-
 	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/gshare"
+	"postapocgame/server/service/gameserver/internel/iface"
+
+	"postapocgame/server/service/gameserver/internel/gevent"
 )
 
 // SysMgr 系统管理器
 type SysMgr struct {
-	factories map[uint32]iface.SystemFactory // 系统工厂
-	sysList   []iface.ISystem                // 系统列表（按系统ID索引）
+	systemIds []uint32        // 显式配置的系统ID列表
+	sysList   []iface.ISystem // 系统列表（按系统ID索引）
 }
 
-var (
-	globalFactories = make(map[uint32]iface.SystemFactory)
-)
-
-// RegisterSystemFactory 注册系统工厂（全局注册）
-func RegisterSystemFactory(sysId uint32, factory iface.SystemFactory) {
-	globalFactories[sysId] = factory
-}
-
-// NewSysMgr 创建系统管理器
+// NewSysMgr 创建系统管理器（使用默认系统列表）
 func NewSysMgr() iface.ISystemMgr {
+	return NewSysMgrWithSystems(GetDefaultSystemIds())
+}
+
+// NewSysMgrWithSystems 创建系统管理器（显式指定系统列表）
+func NewSysMgrWithSystems(systemIds []uint32) iface.ISystemMgr {
 	mgr := &SysMgr{
+		systemIds: systemIds,
 		sysList:   make([]iface.ISystem, protocol.SystemId_SysIdMax),
-		factories: make(map[uint32]iface.SystemFactory),
-	}
-	// 复制全局工厂
-	for sysId, factory := range globalFactories {
-		mgr.factories[sysId] = factory
 	}
 	return mgr
 }
 
 func (m *SysMgr) OnInit(ctx context.Context) error {
-	// 按照依赖顺序初始化系统
-	for sysId := protocol.SystemId_SysLevel; sysId < protocol.SystemId_SysIdMax; sysId++ {
-		factory := m.factories[uint32(sysId)]
+	// 只初始化显式配置的系统，不再遍历所有枚举值
+	for _, sysId := range m.systemIds {
+		factory := globalRegistry.GetSystemFactory(sysId)
 		if factory == nil {
-			log.Errorf("sys:%d not found system factory", sysId)
+			log.Warnf("System factory not found for SysId=%d, skipping", sysId)
 			continue
 		}
 		system := factory()
@@ -124,7 +116,6 @@ func (m *SysMgr) CheckAllSysOpen(ctx context.Context) {
 		iPlayerRole.SetSysStatus(system.GetId(), true)
 		system.SetOpened(true)
 	}
-	return
 }
 
 func (m *SysMgr) EachOpenSystem(f func(system iface.ISystem)) {
@@ -141,6 +132,30 @@ func (m *SysMgr) EachOpenSystem(f func(system iface.ISystem)) {
 		// 串行执行，不创建新协程，保持单Actor模型
 		f(system)
 	}
+}
+
+// ListMountedSystems 列出已挂载的系统（调试函数）
+func (m *SysMgr) ListMountedSystems() []SystemInfo {
+	infos := make([]SystemInfo, 0)
+	for _, sysId := range m.systemIds {
+		system := m.sysList[sysId]
+		if system == nil {
+			continue
+		}
+		infos = append(infos, SystemInfo{
+			SysId:   sysId,
+			Opened:  system.IsOpened(),
+			HasImpl: true,
+		})
+	}
+	return infos
+}
+
+// SystemInfo 系统信息（用于调试）
+type SystemInfo struct {
+	SysId   uint32
+	Opened  bool
+	HasImpl bool
 }
 
 func handleSysMgrOnPlayerLogin(ctx context.Context, _ *event.Event) {
@@ -171,15 +186,15 @@ func init() {
 // GetIPlayerRoleByContext 从上下文中解析玩家角色（兼容旧 EntitySystem 代码）
 func GetIPlayerRoleByContext(ctx context.Context) (iface.IPlayerRole, error) {
 	if ctx == nil {
-		return nil, fmt.Errorf("context is nil")
+		return nil, customerr.NewError("context is nil")
 	}
 	val := ctx.Value(gshare.ContextKeyRole)
 	if val == nil {
-		return nil, fmt.Errorf("no player role in context")
+		return nil, customerr.NewError("no player role in context")
 	}
 	playerRole, ok := val.(iface.IPlayerRole)
 	if !ok {
-		return nil, fmt.Errorf("context value is not iface.IPlayerRole")
+		return nil, customerr.NewError("context value is not iface.IPlayerRole")
 	}
 	return playerRole, nil
 }

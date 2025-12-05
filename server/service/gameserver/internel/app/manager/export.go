@@ -7,9 +7,10 @@
 package manager
 
 import (
-	"postapocgame/server/service/gameserver/internel/core/iface"
+	"postapocgame/server/service/gameserver/internel/iface"
 )
 
+// GetPlayerRole 获取玩家角色（保持向后兼容，内部仍使用 GetPlayerRoleManager）
 func GetPlayerRole(playerRoleId uint64) iface.IPlayerRole {
 	manager := GetPlayerRoleManager()
 	playerRole, ok := manager.Get(playerRoleId)

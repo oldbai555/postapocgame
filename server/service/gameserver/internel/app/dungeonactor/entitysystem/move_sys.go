@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"postapocgame/server/service/gameserver/internel/gshare"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -18,7 +19,6 @@ import (
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/app/dungeonactor/entitymgr"
 	"postapocgame/server/service/gameserver/internel/app/dungeonactor/iface"
-	gshare "postapocgame/server/service/gameserver/internel/core/gshare"
 )
 
 // move_sys.go 处理客户端移动协议和位置校验
@@ -373,6 +373,8 @@ func (ms *MoveSys) LocationUpdate(cPx, cPy int32) bool {
 		}
 		log.Infof("[MoveSys] %s location update accepted -> tile=(%d,%d) clientPx=(%d,%d)",
 			ms.logContext(), gridX, gridY, cPx, cPy)
+		// 位置更新后，刷新 AOI 变化（通知客户端实体出现/消失）
+		ms.flushAOIChanges()
 		return true
 	}
 
@@ -449,6 +451,9 @@ func (ms *MoveSys) HandleUpdateMove(scene iface.IScene, req *protocol.C2SUpdateM
 		return nil
 	}
 
+	// 位置更新后，刷新 AOI 变化（通知客户端实体出现/消失）
+	ms.flushAOIChanges()
+
 	return nil
 }
 
@@ -466,6 +471,9 @@ func (ms *MoveSys) HandleEndMove(scene iface.IScene, req *protocol.C2SEndMoveReq
 
 	// 广播 S2CEndMove，通知客户端结束移动
 	ms.BroadcastEndMove(int32(req.PosX), int32(req.PosY))
+
+	// 停止移动后，刷新 AOI 变化（通知客户端实体出现/消失）
+	ms.flushAOIChanges()
 
 	// 如果是角色实体，同步坐标到GameServer
 	ms.syncPositionToGameServer(scene, &argsdef.Position{X: tileX, Y: tileY})
@@ -623,7 +631,6 @@ func (ms *MoveSys) sendStop() {
 		EntityHdl: ms.entity.GetHdl(),
 		PosX:      px,
 		PosY:      py,
-		// Seq 字段已移除：客户端不使用，参考代码也没有序列号
 	})
 }
 
@@ -684,7 +691,7 @@ func (ms *MoveSys) notifyDisappearByHandle(receiverHdl uint64, subjectHdl uint64
 		return
 	}
 	target, ok := ms.scene.GetEntity(receiverHdl)
-	if !ok || target.GetEntityType() != uint32(protocol.EntityType_EtRole) {
+	if !ok || target == nil || target.GetEntityType() != uint32(protocol.EntityType_EtRole) {
 		return
 	}
 	_ = target.SendProtoMessage(uint16(protocol.S2CProtocol_S2CEntityDisappear), &protocol.S2CEntityDisappearReq{
@@ -738,12 +745,8 @@ func HandleStartMove(msg actor.IActorMessage) error {
 		return nil
 	}
 
-	entityAny, ok := entitymgr.GetEntityMgr().GetBySession(sessionId)
-	if !ok || entityAny == nil {
-		return nil
-	}
-	entity, ok := entityAny.(iface.IEntity)
-	if !ok {
+	entity, ok := entitymgr.GetEntityMgr().GetBySession(sessionId)
+	if !ok || entity == nil {
 		return nil
 	}
 
@@ -777,12 +780,8 @@ func HandleUpdateMove(msg actor.IActorMessage) error {
 		return nil
 	}
 
-	entityAny, ok := entitymgr.GetEntityMgr().GetBySession(sessionId)
-	if !ok || entityAny == nil {
-		return nil
-	}
-	entity, ok := entityAny.(iface.IEntity)
-	if !ok {
+	entity, ok := entitymgr.GetEntityMgr().GetBySession(sessionId)
+	if !ok || entity == nil {
 		return nil
 	}
 
@@ -816,12 +815,8 @@ func HandleEndMove(msg actor.IActorMessage) error {
 		return nil
 	}
 
-	entityAny, ok := entitymgr.GetEntityMgr().GetBySession(sessionId)
-	if !ok || entityAny == nil {
-		return nil
-	}
-	entity, ok := entityAny.(iface.IEntity)
-	if !ok {
+	entity, ok := entitymgr.GetEntityMgr().GetBySession(sessionId)
+	if !ok || entity == nil {
 		return nil
 	}
 
@@ -856,12 +851,8 @@ func HandleGetNearestMonster(msg actor.IActorMessage) error {
 		return nil
 	}
 
-	entityAny, ok := entitymgr.GetEntityMgr().GetBySession(sessionId)
-	if !ok || entityAny == nil {
-		return nil
-	}
-	role, ok := entityAny.(iface.IEntity)
-	if !ok {
+	role, ok := entitymgr.GetEntityMgr().GetBySession(sessionId)
+	if !ok || role == nil {
 		return nil
 	}
 
@@ -871,7 +862,7 @@ func HandleGetNearestMonster(msg actor.IActorMessage) error {
 	}
 
 	scene, err := getSceneByEntity(role)
-	if err != nil {
+	if err != nil || scene == nil {
 		return err
 	}
 
@@ -958,12 +949,8 @@ func HandleChangeScene(msg actor.IActorMessage) error {
 		return nil
 	}
 
-	entityAny, ok := entitymgr.GetEntityMgr().GetBySession(sessionId)
-	if !ok || entityAny == nil {
-		return nil
-	}
-	entity, ok := entityAny.(iface.IEntity)
-	if !ok {
+	entity, ok := entitymgr.GetEntityMgr().GetBySession(sessionId)
+	if !ok || entity == nil {
 		return nil
 	}
 
@@ -973,7 +960,7 @@ func HandleChangeScene(msg actor.IActorMessage) error {
 	}
 
 	scene, err := getSceneByEntity(entity)
-	if err != nil {
+	if err != nil || scene == nil {
 		return err
 	}
 
@@ -1028,7 +1015,7 @@ func HandleChangeScene(msg actor.IActorMessage) error {
 	// 将实体添加到目标场景
 	// 从场景配置获取出生点
 	configMgr := jsonconf.GetConfigManager()
-	sceneConfig, _ := configMgr.GetSceneConfig(targetSceneId)
+	sceneConfig := configMgr.GetSceneConfig(targetSceneId)
 	var x, y uint32
 	if sceneConfig != nil && sceneConfig.BornArea != nil {
 		// 从出生点范围随机选择

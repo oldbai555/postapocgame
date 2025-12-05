@@ -2,10 +2,11 @@ package engine
 
 import (
 	"context"
-	"fmt"
 	"postapocgame/server/internal/network"
+	"postapocgame/server/internal/protocol"
+	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
-	"postapocgame/server/service/gameserver/internel/infrastructure/gatewaylink"
+	"postapocgame/server/service/gameserver/internel/gatewaylink"
 	"sync"
 )
 
@@ -42,7 +43,7 @@ func (gs *GameServer) Start(ctx context.Context) error {
 		network.WithTCPServerOptionAllowedIPs(gs.config.GatewayAllowIPs),
 	)
 	if err := gs.tcpServer.Start(ctx); err != nil {
-		return fmt.Errorf("start tcp service failed: %w", err)
+		return customerr.Wrap(err, int32(protocol.ErrorCode_Internal_Error))
 	}
 	log.Infof("GameServer started successfully")
 	return nil

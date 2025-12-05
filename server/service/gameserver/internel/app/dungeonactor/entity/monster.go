@@ -115,9 +115,6 @@ func (m *MonsterEntity) RunOne(now time.Time) {
 
 // ResetProperty 重置怪物属性（重新计算基础属性并触发属性汇总）
 func (m *MonsterEntity) ResetProperty() {
-	if m.GetAttrSys() == nil {
-		return
-	}
 	// 1. 重新计算怪物基础属性
 	m.GetAttrSys().ResetSysAttr(uint32(protocol.SaAttrSys_MonsterBaseProperty))
 	// 2. 触发属性汇总、转换、百分比加成和广播

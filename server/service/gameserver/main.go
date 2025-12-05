@@ -13,11 +13,11 @@ import (
 	"postapocgame/server/pkg/tool"
 	"postapocgame/server/service/gameserver/internel/app/dungeonactor"
 	"postapocgame/server/service/gameserver/internel/app/engine"
-	"postapocgame/server/service/gameserver/internel/app/manager"
 	"postapocgame/server/service/gameserver/internel/app/playeractor"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/deps"
 	"postapocgame/server/service/gameserver/internel/app/publicactor"
-	"postapocgame/server/service/gameserver/internel/core/gshare"
-	"postapocgame/server/service/gameserver/internel/infrastructure/gevent"
+	"postapocgame/server/service/gameserver/internel/gevent"
+	"postapocgame/server/service/gameserver/internel/gshare"
 	"syscall"
 	"time"
 )
@@ -45,14 +45,26 @@ func main() {
 	serverConfig, err := engine.LoadServerConfig("")
 	if err != nil {
 		log.Fatalf("err:%v", err)
+		return
+	}
+	if serverConfig == nil {
+		log.Fatalf("server config is nil")
+		return
 	}
 
-	gshare.SetPlatformId(serverConfig.PlatformID)
-	gshare.SetSrvId(serverConfig.SrvId)
+	platformID := serverConfig.PlatformID
+	srvID := serverConfig.SrvId
+	gshare.SetPlatformId(platformID)
+	gshare.SetSrvId(srvID)
 
-	serverInfo, err := database.EnsureServerInfo(serverConfig.PlatformID, serverConfig.SrvId)
+	serverInfo, err := database.EnsureServerInfo(platformID, srvID)
 	if err != nil {
 		log.Fatalf("ensure server info failed: %v", err)
+		return
+	}
+	if serverInfo == nil {
+		log.Fatalf("server info is nil")
+		return
 	}
 	gshare.SetOpenSrvTime(serverInfo.ServerOpenTimeAt)
 
@@ -115,7 +127,10 @@ func main() {
 	if err := dActor.Stop(shutdownCtx); err != nil {
 		log.Errorf("Stop DungeonActor failed: %v", err)
 	}
-	manager.GetPlayerRoleManager().FlushAndSave(shutdownCtx)
+	// 使用 DI 容器获取 PlayerRoleManager，并指定批次大小（每批 100 个角色）
+	if err := deps.GetContainer().PlayerRoleManager().FlushAndSave(shutdownCtx, 100); err != nil {
+		log.Errorf("FlushAndSave failed: %v", err)
+	}
 	if err := gs.Stop(shutdownCtx); err != nil {
 		log.Fatalf("Stop GameServer failed: %v", err)
 	}

@@ -2,13 +2,12 @@ package publicactor
 
 import (
 	"context"
-	"postapocgame/server/service/gameserver/internel/core/gshare"
-
 	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/gshare"
 )
 
 // 排行榜相关逻辑
@@ -204,14 +203,9 @@ func handleQueryRank(ctx context.Context, msg actor.IActorMessage, publicRole *P
 		RequesterRank:  requesterRank,
 		RequesterValue: requesterValue,
 	}
-	respData, err := proto.Marshal(resp)
-	if err != nil {
-		log.Errorf("Failed to marshal S2CQueryRankResultReq: %v", err)
-		return
-	}
 
 	// 发送给请求者
-	if err := sendClientMessageViaPlayerActor(queryMsg.RequesterSessionId, uint16(protocol.S2CProtocol_S2CQueryRankResult), respData); err != nil {
+	if err := sendClientProtoViaPlayerActor(queryMsg.RequesterSessionId, uint16(protocol.S2CProtocol_S2CQueryRankResult), resp); err != nil {
 		logSendFailure(queryMsg.RequesterSessionId, uint16(protocol.S2CProtocol_S2CQueryRankResult), err)
 		return
 	}

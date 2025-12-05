@@ -1,7 +1,6 @@
 package entitysystem
 
 import (
-	"fmt"
 	"postapocgame/server/internal/argsdef"
 	icalc "postapocgame/server/internal/attrcalc"
 	"postapocgame/server/internal/attrdef"
@@ -38,9 +37,9 @@ func NewBuffSystem(owner iface.IEntity) *BuffSys {
 
 // AddBuff 添加Buff
 func (bs *BuffSys) AddBuff(buffId uint32, caster iface.IEntity) error {
-	buffInfo, ok := jsonconf.GetConfigManager().GetBuffConfig(buffId)
-	if !ok {
-		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), fmt.Sprintf("buff %d not found", buffId))
+	buffInfo := jsonconf.GetConfigManager().GetBuffConfig(buffId)
+	if buffInfo == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "buff %d not found", buffId)
 	}
 
 	existingBuff, exists := bs.buffs[buffId]
@@ -202,8 +201,8 @@ func (bs *BuffSys) tickDots(now time.Time) {
 }
 
 func (bs *BuffSys) cleanupBuff(buffId uint32) {
-	buffConfig, ok := jsonconf.GetConfigManager().GetBuffConfig(buffId)
-	if !ok {
+	buffConfig := jsonconf.GetConfigManager().GetBuffConfig(buffId)
+	if buffConfig == nil {
 		return
 	}
 	for _, effect := range buffConfig.Effects {
@@ -235,8 +234,8 @@ func buffAttrCalc(owner iface.IEntity, calc *icalc.FightAttrCalc) {
 		if buffInstance == nil {
 			continue
 		}
-		buffConfig, ok := jsonconf.GetConfigManager().GetBuffConfig(buffInstance.BuffId)
-		if !ok {
+		buffConfig := jsonconf.GetConfigManager().GetBuffConfig(buffInstance.BuffId)
+		if buffConfig == nil {
 			continue
 		}
 

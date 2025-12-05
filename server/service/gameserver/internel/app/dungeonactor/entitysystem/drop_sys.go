@@ -8,15 +8,14 @@ package entitysystem
 
 import (
 	"context"
+	"postapocgame/server/service/gameserver/internel/gshare"
 
+	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/app/dungeonactor/entitymgr"
 	"postapocgame/server/service/gameserver/internel/app/dungeonactor/iface"
-	gshare "postapocgame/server/service/gameserver/internel/core/gshare"
-
-	"google.golang.org/protobuf/proto"
 )
 
 // HandlePickupItem 处理拾取物品请求（Actor 消息版本）
@@ -40,8 +39,8 @@ func HandlePickupItem(msg actor.IActorMessage) error {
 	if !ok || entityAny == nil {
 		return nil
 	}
-	picker, ok := entityAny.(iface.IEntity)
-	if !ok {
+	picker := entityAny
+	if picker == nil {
 		return nil
 	}
 

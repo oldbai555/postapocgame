@@ -1,6 +1,6 @@
 # 游戏服务器开发进度文档（单一权威版本）
 
-更新时间：2025-12-03  
+更新时间：2025-12-10  
 责任人：个人独立开发  
 
 > ⚠️ 自本次更新起，原 `docs/Phase3社交经济架构设计方案.md` 已完全整合到本文，未来所有开发、评审与交接均以本文件为唯一权威信息源。请在每次开发前完整阅读第 0 章与第 7 章，完成新功能后同步"已完成功能 / 待实现 / 注意事项 / 关键代码位置"四个章节。
@@ -109,6 +109,8 @@ GameServer (per-player Actor + PublicActor + DungeonActor)
 - ✅ `AntiCheatSys`：基于 `SiAntiCheatData` 维护操作计数与每日重置，支持 10 秒窗口 100 次的频率限制、可疑计数与 1 小时临时封禁/永久封禁（`CheckOperationFrequency/RecordSuspiciousBehavior/BanPlayer`）
 - ✅ `GMSys`：玩家级 GM 系统，支持通过 `C2SGMCommand` 协议下发 GM 指令，由 `GMManager` 执行业务逻辑；GM 执行结果通过 `S2CGMCommandResult` 回传客户端
 - ✅ 系统广播与系统邮件：`SendSystemNotification* / SendSystemMail* / SendSystemMailByTemplate* / GrantRewardsByMail` 支持单人/全服广播与系统邮件发放，可复用为运营活动工具
+- 🆕 2025-12-10：修复 GM 邮件用临时仓储实现，接口签名改为携带 `context.Context`，与 `PlayerRepository` 规范一致，避免编译报错并确保通过 Context 注入 PlayerRole。
+- 🆕 2025-12-10：nilaway 全量通过，配置读取与实体访问统一判空并返回明确错误码，GM 工具仓储在玩家缺失时返回空结构，gatewaylink/deps/playerRoleManager 全局依赖安全初始化，寻路优先队列拒绝 nil 节点。
 
 **副本协作**
 - `FubenSys`、`SkillSys` 负责副本进入、技能同步、掉落拾取
@@ -152,6 +154,8 @@ GameServer (per-player Actor + PublicActor + DungeonActor)
   - ✅ 实现了所有 Gateway 和 Adapter（NetworkGateway、PublicActorGateway、DungeonServerGateway、EventAdapter、ConfigGateway、PlayerGateway）
   - ✅ 实现了 BaseSystemAdapter 和 Context Helper
   - ✅ 实现了依赖注入容器基础框架
+- 🆕 **2025-12-10 瘦身动作（P0）**：删除 `di/` 与 `adapter/context/`，统一依赖装配到 `adapter/deps`，Context 取值收敛到 `core/gshare/context_helper.go`，`go test ./service/gameserver/internel/app/playeractor/...` 通过
+- 🆕 **2025-12-10 UseCase 精简**：删除 Equip/ItemUse/Fuben 的 Init*UseCase 空实现，Equip 用例去掉 BagSys 旧兼容分支，SystemAdapter OnInit 只保留必要调度，避免无意义空调用。
 - 🆕 **试点系统重构（LevelSys）**：已完成 LevelSys 的 Clean Architecture 重构
   - ✅ 创建了 `usecase/level/add_exp.go` 和 `usecase/level/level_up.go`（提取业务逻辑）
   - ✅ 创建了 `adapter/system/level_system_adapter.go`（系统生命周期适配器）
@@ -292,7 +296,7 @@ GameServer (per-player Actor + PublicActor + DungeonActor)
 - 🆕 **阶段三：玩法系统重构（RPC 调用链路）**：已完成 GameServer ↔ DungeonServer RPC 管理重构
 - 🆕 **阶段六：Legacy EntitySystem 清理**：删除 `server/service/gameserver/internel/app/playeractor/entitysystem` 下 Bag/Money/Level/Skill/Quest/Fuben/ItemUse/Shop/Attr/Equip 等旧实现，仅保留 `sys_mgr.go` 与 `message_dispatcher.go`；所有调用统一改用 `adapter/system` + UseCase/Controller，避免 Legacy 入口与循环依赖
   - ✅ 新增 `adapter/controller/protocol_router_controller.go`，集中处理 `C2S` 协议解析、上下文注入与 DungeonActor 转发
-  - ✅ `player_network.go` 仅保留 gshare Handler 注册，原 `handleDoNetWorkMsg` 逻辑全部迁移至 Controller 层
+  - ✅ `player_network_controller.go` 承接 EnterGame/QueryRank/PlayerActorMsg 处理，注册统一收敛到 `adapter/controller/register_all.go`
   - ✅ `DungeonServerGateway` 扩展 `RegisterProtocols/UnregisterProtocols`、`GetSrvTypeForProtocol` 返回自定义枚举，统一 RPC 入口
   - ✅ `adapter/system/bag_system_adapter_init.go` 等路径均改为通过 `DungeonServerGateway.RegisterRPCHandler` 注册回调
   - ✅ `docs/服务端开发进度文档.md` 第 7.8 节与 `docs/gameserver_CleanArchitecture重构文档.md` 19.3.2 节记录最新架构决策
@@ -636,7 +640,7 @@ PlayerActor（通知/回写）
   - ✅ 删除所有 AttrSystemAdapter 相关文件（`attr_system_adapter.go`、`attr_system_adapter_init.go`、`attr_system_adapter_helper.go`）
   - ✅ 从系统管理器移除 SysAttr 注册和依赖关系（包括从 Quest、FuBen、ItemUse、Rank 的依赖列表中移除）
   - ✅ 修改所有使用 `GetAttrSys` 的地方，改为使用 `GetAttrCalculator` 或直接访问 `PlayerRole.attrCalculator`
-  - ✅ 修改 `player_role.go`、`player_network.go`、`fuben_controller.go`、`equip_system_adapter_init.go`、`attr_use_case_adapter.go` 等文件
+  - ✅ 修改 `player_role.go`、`adapter/controller/player_network_controller.go`、`fuben_controller.go`、`equip_system_adapter_init.go`、`attr_use_case_adapter.go` 等文件
   - ✅ 验证编译和 lint 检查通过
   - **关键代码位置**：
     - Proto 修改：`proto/csproto/system.proto`
@@ -674,7 +678,7 @@ PlayerActor（通知/回写）
 1. 明确 DungeonActor 只作为 GameServer 内部的战斗/副本 Actor，不再直接暴露任何网络协议或 G2D/D2G RPC 枚举；所有客户端 C2S 协议统一由 PlayerActor 侧的 Controller 处理（包括移动、技能、掉落拾取、副本进入/退出等）。  
 2. 为保持 Clean Architecture 依赖方向，UseCase 仍然只依赖 `interfaces.DungeonServerGateway` 接口，Gateway 负责将“进入副本/同步属性/更新技能/拾取掉落”等领域意图转换为 DungeonActor 可理解的内部消息，通过 `gshare.SendDungeonMessageAsync` 发送。  
 3. PlayerActor ↔ DungeonActor 的通信按照 PublicActor 的模式落地：在 `internel/core/gshare/actor_facade.go` 上扩展出 `IDungeonActorFacade` 接口与 `SetDungeonActorFacade/GetDungeonActorFacade/SendDungeonMessageAsync` 等方法，由 `dungeonactor.NewDungeonActor` 在启动时注入具体实现。  
-4. GameServer 侧的 Controller/UseCase 需要驱动 DungeonActor 时，通过 `gshare.SendDungeonMessageAsync` 发送内部消息，使用 `DungeonActorMsgId` 枚举统一内部消息ID；已在 `adapter/controller` 中补齐移动/技能/拾取/复活四条链路，通过 `clientprotocol.Register` + `SendDungeonMessageAsync("global", NewBaseMessage(ctxWithSession, DungeonActorMsgId_*, data))` 将 C2S 请求转发给 DungeonActor。  
+4. GameServer 侧的 Controller/UseCase 需要驱动 DungeonActor 时，通过 `gshare.SendDungeonMessageAsync` 发送内部消息，使用 `DungeonActorMsgId` 枚举统一内部消息ID；已在 `adapter/controller` 中补齐移动/技能/拾取/复活四条链路，通过 `router.RegisterProtocolHandler` + `SendDungeonMessageAsync("global", NewBaseMessage(ctxWithSession, DungeonActorMsgId_*, data))` 将 C2S 请求转发给 DungeonActor。  
 5. DungeonActor 不再注册/处理任何 C2S 协议：已物理删除旧的 `dungeonactor/{clientprotocol,drpcprotocol}` 包，并在 `entitysystem/{move_sys,fight_sys,drop_sys}.go`、`entity/rolest.go` 中移除所有 C2S 注册逻辑，协议注册统一迁移到 GameServer Controller 层。  
 6. DungeonActor 通过 `gshare.IDungeonActorFacade.RegisterHandler` 注册内部消息处理器，在 `register.go` 中按业务模块拆分注册（`RegisterMoveHandlers`、`RegisterFightHandlers`、`RegisterFuBenHandlers`）。  
 7. DungeonActor → PlayerActor 的消息（添加物品、副本结算、坐标同步、属性同步等）统一通过 `gshare.SendMessageAsync` 发送，使用 `PlayerActorMsgId` 枚举，在 `drop_sys.go`、`move_sys.go`、`settlement.go`、`actor_msg.go`、`attr_sys.go` 中实现对应的发送函数。  
@@ -708,7 +712,7 @@ PlayerActor（通知/回写）
    - `actor_msg.go`：进入副本成功后发送 `PlayerActorMsgIdEnterDungeonSuccess` 消息
    - `attr_sys.go`：属性变化时发送 `PlayerActorMsgIdSyncAttrs` 消息
 3. 所有消息统一通过 `gshare.SendMessageAsync` 发送，使用 `PlayerActorMsgId` 枚举，消息体使用对应的 `D2G*Req` Proto 定义（如 `D2GAddItemReq`、`D2GSyncPositionReq` 等）。  
-4. PlayerActor 侧通过 `gshare.RegisterHandler` 注册这些消息的处理器，在 `bag_controller_init.go`、`fuben_controller_init.go`、`player_network.go` 等文件中处理对应的消息。  
+4. PlayerActor 侧通过 `gshare.RegisterHandler` 注册这些消息的处理器，现已集中在 `adapter/controller/register_all.go`（涵盖 Bag/Fuben/PlayerNetwork 等处理器）。  
 
 ### 6.3 Phase 2 核心玩法（进行中）
 
@@ -814,13 +818,18 @@ PlayerActor（通知/回写）
 - 枚举放入 `*_def.proto`；系统数据放入 `system.proto`；玩家数据放入 `player.proto`；协议消息在 `cs.proto/sc.proto`；内部消息在 `rpc.proto`
 - 若数据无法使用 Proto，放入 `server/internal/argsdef/`
 - **协议注册规范（2025-01-XX 更新）**：
-  1. **GameServer**：所有 C2S 协议、RPC、事件入口统一在 `adapter/controller/*_controller_init.go` 注册。`init()` 中使用 `gevent.Subscribe(gevent.OnSrvStart, ...)` 调用 `clientprotocol.Register(protoId, controller.HandleXXX)`；Controller 内部通过 UseCase → Presenter 完成执行业务与回包。禁止在 SystemAdapter、EntitySystem 或 `player_network.go` 新增注册逻辑。
+  1. **GameServer**：所有 C2S 协议、RPC、事件入口统一在 `adapter/controller/register_all.go` 注册（包含 EnterGame/QueryRank/PlayerActor 消息），`gevent.OnSrvStart` 触发一次注册；Controller 内部通过 UseCase → Presenter 完成执行业务与回包。禁止在 SystemAdapter、EntitySystem 或 `player_network_controller.go` 外新增注册逻辑。  
+     - （2025-12-10 更新）账号/角色协议已拆分为 `PlayerAccountController`（注册/登录/验证）与 `PlayerRoleController`（角色列表/创角），EnterGame/QueryRank/PlayerActorMsg 入口迁移至 `player_network_controller.go` 并在 `register_all.go` 统一注册。
   2. **DungeonActor**：不再直接注册或处理任何 C2S 协议，所有客户端协议统一在 PlayerActor Controller 层处理；DungeonActor 通过 `gshare.IDungeonActorFacade.RegisterHandler` 注册内部消息处理器（`DungeonActorMsgId`），在 `register.go` 中按业务模块拆分注册。
   3. **公共约束**：协议处理函数禁止直接访问数据库/网关/RPC，必须经 UseCase/Adapter；注册时需同时声明 Request/Response Proto，并在文档记录关键链路。
+- **Proto 生成文件禁止手工修改（2025-12-04 更新）**：
+  - 任何对 `server/internal/protocol/*.pb.go` 的改动必须来自重新执行 `proto/genproto.sh`；禁止在 PR 中直接编辑生成文件。
+  - CI 增加 “执行 protoc + gofmt + git diff 必须为空” 的检查。发现手工修改视为阻断项。
+  - 推荐在本地配置 pre-commit 钩子，自动运行 `proto/genproto.sh` 并拒绝包含 `.pb.go` 修改的提交。
 - **Controller/Presenter 初始化清单**：
   - Controller 负责：协议注册、Request 解析、上下文注入（SessionId、RoleId）、调用 UseCase。
   - Presenter 负责：将 UseCase 输出转换为 `S2C`/`Rpc`，统一封装错误码/提示语，所有跨服务回包必须走 Presenter。
-  - Controller/Presenter 文件命名统一为 `{system}_controller.go` / `{system}_presenter.go`，并在 `*_controller_init.go` 中完成注册，避免包循环。
+  - Controller/Presenter 文件命名统一为 `{system}_controller.go` / `{system}_presenter.go`，注册集中在 `register_all.go`，避免在各处散落 init。
 
 ### 7.4 网络与安全
 
@@ -830,10 +839,26 @@ PlayerActor（通知/回写）
 - WebSocket/TCP 尚未加 TLS/鉴权，线上前需补齐
 - 防作弊：频率检测、移动测速、伤害验证、CD 校验需逐步接入协议链路
 - GameServer 在 Controller 层处理所有 C2S 协议，需要转发到 DungeonActor 的通过 `gshare.SendDungeonMessageAsync` 发送内部 Actor 消息，使用 `DungeonActorMsgId` 枚举
+- **CI 审查（2025-12-04 更新）**：
+  - ✅ 已实现静态分析检查（2025-12-04）：
+    - 创建 `scripts/ci_check.sh` 和 `scripts/ci_check.ps1` 脚本，集成 `go vet` 和 `staticcheck` 检查
+    - 支持 Windows (PowerShell) 和 Linux/Mac (Bash) 环境
+    - 对 `server/service/gameserver` 目录执行 `go vet ./...` 和 `staticcheck ./...`
+  - ✅ 已实现 gatewaylink 导入检查（2025-12-04）：
+    - 创建 `scripts/check_gatewaylink_imports.sh` 和 `scripts/check_gatewaylink_imports.ps1` 脚本
+    - 白名单包括：PlayerActor 相关文件（`adapter/controller/player_network_controller.go`, `player_role.go`）、Gateway 适配器、gatewaylink 自身、engine/server.go、dungeonserverlink
+    - 已集成到 CI 检查脚本中，违规导入将导致检查失败
+  - ⏳ 待实现：Proto 防护检查（`scripts/check_proto_clean.sh`）
+  - ⏳ 待实现：PR 模板新增检查项：是否运行过 proto 生成脚本、go fmt、go test、静态分析、gatewaylink 使用检查；未通过禁止合入。
 - **S2C 发送链路统一（2025-12-04 更新）**：
   - `DungeonActor`、`PublicActor` 以及其它系统代码禁止直接引用 `gatewaylink`；所有发往客户端的协议必须交由 PlayerActor 统一透传。
   - 发送 S2C 时构造 `PlayerActorMsgIdSendToClient`（`PlayerActorMsgIdSendToClientReq{msg_id,data}`）消息，通过 `gshare.SendMessageAsync` 投递给 PlayerActor，对应 Handler `handleSendToClient` 再调用 `gatewaylink`。
   - 该准则保证 Session 校验、频控、日志注入全部集中在 PlayerActor，维持 Actor 单线程语义并避免跨 Actor 直接操作网络。
+  - **自动审计检查（2025-12-04 新增）**：
+    - ✅ 已提供 `scripts/check_gatewaylink_imports.sh`（Linux/Mac）和 `scripts/check_gatewaylink_imports.ps1`（Windows）脚本，自动检测违规的 `gatewaylink` 直接引用。
+    - ✅ 白名单路径：`app/playeractor/adapter/controller/player_network_controller.go`、`app/playeractor/entity/player_role.go`、`adapter/gateway/*`、`infrastructure/gatewaylink/*`、`app/engine/server.go`、`infrastructure/dungeonserverlink/dungeon_cli.go`。
+    - ✅ 已集成到 `scripts/ci_check.sh` 和 `scripts/ci_check.ps1` 中，CI 流程中应集成此检查，发现违规直接失败；本地开发建议在 pre-commit hook 中运行。
+    - 若确实需要直接使用 `gatewaylink`（如基础设施层），需在文档中登记并更新白名单，避免后续重复讨论。
 
 **接入与权限补充约束**
 - Gateway WebSocket 在生产环境必须开启 IP 白名单与 Origin 校验：`WSServerConfig.AllowedIPs` 需配置为可信网段，`CheckOrigin` 禁止返回常量 true，应校验域名/协议与预期前端一致  
@@ -843,7 +868,7 @@ PlayerActor（通知/回写）
 ### 7.8 RPC 与上下文使用
 
 - 所有 PlayerActor ↔ DungeonActor 调用一律通过 `DungeonServerGateway` 适配层完成，UseCase 层统一通过该接口访问 DungeonActor 能力；PlayerActor → DungeonActor 通过 `gshare.SendDungeonMessageAsync` 发送内部 Actor 消息，DungeonActor → PlayerActor 通过 `gshare.SendMessageAsync` 发送内部 Actor 消息  
-- 客户端协议转发由 `ProtocolRouterController` 托管，`player_network.go` 仅注册 gshare Handler；任何新协议转发逻辑必须集中在 Controller 层，通过 `gshare.SendDungeonMessageAsync` 转发到 DungeonActor  
+- 客户端协议转发由 `ProtocolRouterController` 托管，PlayerActor 消息与 EnterGame/QueryRank 入口集中在 `adapter/controller/register_all.go` + `player_network_controller.go`；任何新协议转发逻辑必须集中在 Controller 层，通过 `gshare.SendDungeonMessageAsync` 转发到 DungeonActor  
 - 在 Actor 消息发送场景中禁止直接使用 `context.Background()` 发起长链路调用，上线前需统一改为携带超时的 `context.WithTimeout` 或服务级别的请求上下文  
 - 对于 fire-and-forget 类通知可以继续使用带超时的短期上下文，但必须保证底层 TCP 客户端在失败时不会无限重试或阻塞 Actor 主线程  
 - 新增 RPC 时需在本节登记调用方/被调方、上下文策略（带/不带超时）、失败重试与降级策略
@@ -878,7 +903,14 @@ PlayerActor（通知/回写）
 - server/example 现已使用 `cmd/example` 入口与 `internal/{client,panel,systems}` 分层，新增能力需按模块拆分；协议等待/回调统一复用 `internal/client/flow.go`
 - 自动寻路、脚本与 AI 必须通过 `systems.Move`/`MoveRunner` 实现，禁止绕过统一容错逻辑；背包/GM/副本等能力需复用 `systems.Inventory/GM/Dungeon` 读写协议
 
-### 7.9 离线数据管理器约束（新）
+### 7.9 系统管理器约束（2025-12-04 新增）
+
+- **系统注册**：所有系统工厂通过 `entitysystem.RegisterSystemFactory` 在模块级注册（`*_system_adapter_init.go` 的 `init()` 函数中），不再使用全局 `globalFactories`。
+- **系统初始化**：`SysMgr` 使用显式配置的系统列表初始化，不再遍历枚举范围；`NewSysMgr()` 默认使用 `GetDefaultSystemIds()` 返回的系统列表，可通过 `NewSysMgrWithSystems(systemIds)` 自定义。
+- **调试支持**：使用 `SysMgr.ListMountedSystems()` 获取已挂载系统的信息（SysId、Opened、HasImpl），便于 UseCase/Controller 定位问题。
+- **新增系统**：新增系统时只需在对应 `*_system_adapter_init.go` 中注册工厂，并在 `GetDefaultSystemIds()` 中添加系统ID（或通过配置/环境变量控制），无需修改枚举范围。
+
+### 7.10 离线数据管理器约束（新）
 
 - PublicActor 是唯一的离线快照写入口，`OfflineDataManager` 内部状态禁止在 PlayerActor 中直接访问。
 - 所有离线数据时间戳、定时器均需使用 `servertime`；禁止 `time.Now()`。
@@ -971,11 +1003,14 @@ PlayerActor（通知/回写）
 
 ### 8.2 GameServer - 玩家 Actor
 - `server/service/gameserver/internel/app/playeractor`：玩家 Actor Handler / 协议注册入口 / `PlayerRole` 实体
-- `server/service/gameserver/internel/app/playeractor/entitysystem/sys_mgr.go`：系统管理器，按 SystemId 顺序初始化系统（不再使用 `systemDependencies` 拓扑排序），目前仅负责挂载各 SystemAdapter
+- `server/service/gameserver/internel/app/manager/role_mgr.go`：玩家角色管理器，使用 `sessionIndex map[string]uint64` 实现 O(1) 的 SessionId 查找，支持分批保存（`FlushAndSave` 支持 `batchSize` 参数），已注册到 DI 容器（2025-12-04 优化）
+- `server/service/gameserver/internel/app/playeractor/deps`：PlayerActor 依赖装配入口（取代 `di/`），暴露 Gateway/Repository/EventPublisher 等依赖以及兼容性的 Container 视图；Network/Session Gateway 合并为 `adapter/gateway/client_gateway.go`，统一由 `deps.ClientGateway()` 提供
+- `server/service/gameserver/internel/app/playeractor/entitysystem/sys_mgr.go`：系统管理器，使用显式配置的系统列表初始化（不再遍历枚举范围），支持 `NewSysMgrWithSystems(systemIds)` 自定义系统列表，提供 `ListMountedSystems()` 调试函数
+- `server/service/gameserver/internel/app/playeractor/entitysystem/system_registry.go`：系统注册表（替代全局 `globalFactories`），使用读写锁保护，提供模块级注册接口
 - `server/service/gameserver/internel/app/playeractor/entitysystem/message_dispatcher.go`：离线消息分发入口，配合 `adapter/system/message_system_adapter.go` 与 `engine/message_registry.go` 完成玩家消息回放
-- `server/service/gameserver/internel/app/playeractor/entity/player_network.go`：客户端协议处理入口（与 `adapter/controller` 共同完成协议路由）
+- `server/service/gameserver/internel/app/playeractor/adapter/controller/player_network_controller.go`：客户端协议与 PlayerActor 消息入口；所有注册集中于 `adapter/controller/register_all.go`
 - `server/service/gameserver/internel/app/playeractor/entity/player_role.go`：PlayerRole 主体逻辑与 `sendPublicActorMessage` 封装，统一通过 `PublicActorGateway` 发送消息
-- `server/service/gameserver/internel/adapter/controller/*_controller_init.go`：所有 GameServer 控制器的协议/RPC 注册入口，SystemAdapter 不再直接依赖 controller 包
+- `server/service/gameserver/internel/adapter/controller/register_all.go`：所有 GameServer 控制器的协议/RPC 注册入口，SystemAdapter 不再直接依赖 controller 包
 - `server/service/gameserver/internel/adapter/controller/protocol_router_controller.go`：协议路由控制器，负责解析 C2S 消息、注入上下文并通过 `gshare.SendDungeonMessageAsync` 转发到 DungeonActor
 - `server/service/gameserver/internel/adapter/controller/friend_controller.go`：好友系统协议入口，负责发送/响应好友申请、查询好友/黑名单
 - `server/service/gameserver/internel/adapter/controller/guild_controller.go`：公会系统协议入口（创建/加入/退出/查询）
@@ -986,6 +1021,7 @@ PlayerActor（通知/回写）
 - `server/service/gameserver/internel/adapter/system/message_system_adapter.go`：MessageSys 适配层，负责登录/重连/初始化时加载离线消息、RunOne 时进行数量限制、OnNewDay 清理过期消息
 - `server/service/gameserver/internel/app/playeractor/entitysystem/message_dispatcher.go`：统一的离线消息分发入口，结合 `engine/message_registry.go` 完成消息回调
 - `server/service/gameserver/internel/gshare/log_helper.go`：日志上下文辅助（自动输出 Session/Role 信息）
+- `server/service/gameserver/internel/core/gshare/context_helper.go`：Context 取值工具（Session/Role），取代 `adapter/context` 包
 
 ### 8.3 GameServer - PublicActor
 - `server/service/gameserver/internel/publicactor/adapter.go`：PublicActor 适配器，单 Actor 模式
@@ -1051,7 +1087,16 @@ PlayerActor（通知/回写）
 - `server/internal/database/transaction_audit.go`：交易审计
 - `server/internal/database/blacklist.go`：黑名单管理
 
-### 8.7 共享基础
+### 8.7 CI 检查脚本（2025-12-04 新增）
+- `scripts/ci_check.sh` 和 `scripts/ci_check.ps1`：CI 检查主脚本，集成 `go vet`、`staticcheck` 和 gatewaylink 导入检查
+  - 支持 Windows (PowerShell) 和 Linux/Mac (Bash) 环境
+  - 对 `server/service/gameserver` 目录执行静态分析检查
+- `scripts/check_gatewaylink_imports.sh` 和 `scripts/check_gatewaylink_imports.ps1`：检查 gatewaylink 导入规则
+  - 禁止除白名单外的包引用 gatewaylink
+- 白名单包括：PlayerActor 相关文件（`adapter/controller/player_network_controller.go`, `player_role.go`）、Gateway 适配器、gatewaylink 自身、engine/server.go、dungeonserverlink
+  - 已集成到 CI 检查脚本中
+
+### 8.8 共享基础
 - `server/internal/actor`：Actor 框架
 - `server/internal/network`：消息编解码、压缩
 - `server/internal/network/codec.go` & `message.go`：前向消息池化、缓冲复用
@@ -1107,6 +1152,8 @@ PlayerActor（通知/回写）
 
 | 日期 | 内容 |
 | ---- | ---- |
+| 2025-12-10 | **PlayerActor 瘦身 P0**：删除 `di/` 与 `adapter/context/`，新增 `adapter/deps` 聚合依赖，合并 Network/Session Gateway 为 `ClientGateway`，Context 取值收敛到 `core/gshare/context_helper.go`，`go test ./service/gameserver/internel/app/playeractor/...` 通过；通用消耗/奖励收敛到 UseCase（新增 `usecase/consume`、`usecase/reward`），删除 `adapter/usecaseadapter` |
+| 2025-12-10 | **Controller 注册收敛 & 事件总线按 Actor 注入**：创建 `adapter/controller/register_all.go` 统一注册 C2S/PlayerActor 消息，`player_network_controller.go` 承接 EnterGame/QueryRank/PlayerActorMsg；玩家事件总线改为 `gevent.NewPlayerEventBus()` 按 Actor 构造，升级奖励改用 RewardUseCase（去除 PlayerRole 直发奖），删除 PlayerRole 直接扣耗/发奖接口（依赖 Consume/Reward UseCase） |
 | 2025-12-03 | **兼容代码清理阶段一**：按《`docs/gameserver_兼容代码清理规划.md`》2.1 小节执行，物理删除 `server/service/gameserver/internel/domain/vip` 与 `server/service/gameserver/internel/domain/dailyactivity` 两个空壳领域目录，仅清理历史残留目录，不改动任何 Go 代码；当前本地环境尚未初始化 Go module，未执行完整 `go build`，但通过文件搜索确认无引用。 |
 | 2025-01-XX | **系统依赖关系清理**：完成 SysRank 和已移除系统的依赖关系清理；已在 `proto/csproto/system.proto` 中为 `SysRank = 19` 添加注释说明（RankSys 是 PublicActor 功能，不参与 PlayerActor 系统管理）；确认 `sys_mgr.go` 不再使用 `systemDependencies`，改为按 SystemId 顺序初始化；确认 proto 中不包含已移除的系统ID（VipSys、DailyActivitySys、FriendSys、GuildSys、AuctionSys） |
 | 2025-01-XX | **MessageSys 功能完善 & 文档更新**：补充 Clean Architecture 分层说明、Controller/Presenter 开发指南、协议注册规范；记录 MessageSys 关键代码位置与运行机制（OnInit/OnRoleLogin/OnNewDay/RunOne）并在 3.1/7.3/8.2 章节同步；版本记录新增此条目，方便后续追溯 |

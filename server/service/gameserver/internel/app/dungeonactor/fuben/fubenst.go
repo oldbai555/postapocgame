@@ -1,10 +1,10 @@
 package fuben
 
 import (
-	"fmt"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/internal/servertime"
+	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/app/dungeonactor/entity"
 	"postapocgame/server/service/gameserver/internel/app/dungeonactor/entitymgr"
@@ -118,11 +118,11 @@ func (fb *FuBenSt) CanEnter() bool {
 // OnPlayerEnter 玩家进入
 func (fb *FuBenSt) OnPlayerEnter(sessionId string) error {
 	if fb.state != uint32(protocol.FuBenState_FuBenStateNormal) {
-		return fmt.Errorf("fuben is not available")
+		return customerr.NewError("fuben is not available")
 	}
 
 	if fb.maxPlayers > 0 && fb.playerCount >= fb.maxPlayers {
-		return fmt.Errorf("fuben is full")
+		return customerr.NewError("fuben is full")
 	}
 
 	fb.playerCount++
@@ -186,7 +186,7 @@ func (fb *FuBenSt) Complete(success bool) {
 		// 从sessionId获取entity和roleId
 		entityMgr := entitymgr.GetEntityMgr()
 		et, ok := entityMgr.GetBySession(sessionId)
-		if !ok {
+		if !ok || et == nil {
 			log.Warnf("Entity not found for session %s", sessionId)
 			continue
 		}
@@ -234,7 +234,7 @@ func (fb *FuBenSt) Close() {
 	entityMgr := entitymgr.GetEntityMgr()
 	for sessionId := range fb.playerSessions {
 		roleEntity, ok := entityMgr.GetBySession(sessionId)
-		if !ok {
+		if !ok || roleEntity == nil {
 			log.Warnf("Entity not found for session %s when closing FuBen", sessionId)
 			continue
 		}

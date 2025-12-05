@@ -14,20 +14,16 @@ enum SystemId {
     SysLevel = 1;// 等级系统
     SysBag = 2;// 背包系统
     SysMoney = 3;// 货币系统
-    SysGM = 4;// GM系统
-    SysSkill = 5;// 技能系统
-    SysAttr = 6;// 属性系统
-    SysEquip = 7;// 装备系统
-    SysQuest = 8;// 任务系统
-    SysMail = 9;// 邮件系统
-    SysShop = 10;// 个人商城系统
-    SysFuBen = 11;// 副本系统
-    SysItemUse = 12;// 物品使用系统
-    SysChat = 13;// 聊天系统
-    SysRank = 14;// 排行榜系统（注意：RankSys 是 PublicActor 功能，不参与 PlayerActor 系统管理，此枚举值仅用于标识）
-    SysMessage = 15;// 玩家消息系统
+    SysSkill = 4;// 技能系统
+    SysEquip = 5;// 装备系统
+    SysQuest = 6;// 任务系统
+    SysShop = 7;// 商城系统
+    SysFuBen = 8;// 副本系统
+    SysItemUse = 9;// 道具使用系统
+    SysChat = 10;// 聊天系统
+    SysMessage = 11;// 玩家消息系统
 
-    SysIdMax = 16;// 最大系统ID 手动递增
+    SysIdMax = 13;// 最大系统ID 手动递增
 }
 
 // 任务系统

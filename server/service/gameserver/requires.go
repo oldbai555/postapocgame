@@ -7,8 +7,8 @@
 package main
 
 import (
-	_ "postapocgame/server/service/gameserver/internel/adapter/controller"
-	_ "postapocgame/server/service/gameserver/internel/adapter/system"
+	_ "postapocgame/server/service/gameserver/internel/app/playeractor/adapter/controller"
+	_ "postapocgame/server/service/gameserver/internel/app/playeractor/adapter/system"
 	_ "postapocgame/server/service/gameserver/internel/app/playeractor/entity"
 	_ "postapocgame/server/service/gameserver/internel/app/playeractor/entitysystem"
 )

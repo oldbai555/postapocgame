@@ -3,13 +3,13 @@ package fuben
 import (
 	"context"
 	"math/rand"
+	"postapocgame/server/service/gameserver/internel/gshare"
 
 	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
-	gshare "postapocgame/server/service/gameserver/internel/core/gshare"
 )
 
 // DungeonSettlement 副本结算
@@ -25,8 +25,8 @@ type DungeonSettlement struct {
 
 // CalculateRewards 计算副本奖励
 func CalculateRewards(settlement *DungeonSettlement) ([]RewardItem, error) {
-	dungeonConfig, ok := jsonconf.GetConfigManager().GetDungeonConfig(settlement.DungeonID)
-	if !ok {
+	dungeonConfig := jsonconf.GetConfigManager().GetDungeonConfig(settlement.DungeonID)
+	if dungeonConfig == nil {
 		log.Warnf("Dungeon config not found: %d", settlement.DungeonID)
 		return nil, nil
 	}

@@ -355,9 +355,6 @@ func (e *BaseEntity) SetName(name string) {
 
 func (e *BaseEntity) buildAttrMap() map[uint32]int64 {
 	attrSys := e.GetAttrSys()
-	if attrSys == nil {
-		return nil
-	}
 	attrTypes := []attrdef.AttrType{
 		attrdef.AttrHP,
 		attrdef.AttrMaxHP,

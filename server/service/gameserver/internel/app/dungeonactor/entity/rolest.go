@@ -9,6 +9,7 @@ package entity
 import (
 	"context"
 	"math/rand"
+	"postapocgame/server/service/gameserver/internel/gshare"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -21,7 +22,6 @@ import (
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/app/dungeonactor/entitymgr"
 	"postapocgame/server/service/gameserver/internel/app/dungeonactor/iface"
-	gshare "postapocgame/server/service/gameserver/internel/core/gshare"
 )
 
 type attrSyncApplier interface {
@@ -126,9 +126,6 @@ func (r *RoleEntity) initSkills(skillMap map[uint32]uint32) {
 
 // UpdateSkill 更新技能（学习或升级）
 func (r *RoleEntity) UpdateSkill(skillId, level uint32) error {
-	if r.GetFightSys() == nil {
-		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "fight system not found")
-	}
 
 	// 如果技能已存在，先移除旧技能
 	if r.GetFightSys().HasSkill(skillId) {
@@ -239,7 +236,7 @@ func (r *RoleEntity) Revive() error {
 
 	// 获取新手村出生点
 	configMgr := jsonconf.GetConfigManager()
-	sceneConfig, _ := configMgr.GetSceneConfig(1)
+	sceneConfig := configMgr.GetSceneConfig(1)
 	var x, y uint32 = 100, 100 // 默认位置
 	if sceneConfig != nil && sceneConfig.BornArea != nil {
 		bornArea := sceneConfig.BornArea
@@ -303,10 +300,7 @@ func HandleRevive(msg actor.IActorMessage) error {
 	if !ok || entityAny == nil {
 		return nil
 	}
-	role, ok := entityAny.(iface.IEntity)
-	if !ok {
-		return nil
-	}
+	role := entityAny
 
 	var req protocol.C2SReviveReq
 	if err := proto.Unmarshal(msg.GetData(), &req); err != nil {
