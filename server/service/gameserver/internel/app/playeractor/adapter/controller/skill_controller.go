@@ -4,15 +4,18 @@ import (
 	"context"
 	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/actor"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/presenter"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/router"
 	system2 "postapocgame/server/service/gameserver/internel/app/playeractor/adapter/system"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/deps"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/usecase/consume"
 	skill2 "postapocgame/server/service/gameserver/internel/app/playeractor/usecase/skill"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
 )
 
@@ -155,4 +158,12 @@ func (c *SkillController) HandleUseSkill(ctx context.Context, msg *network.Clien
 	ctxWithSession := context.WithValue(ctx, gshare.ContextKeySession, sessionID)
 	actorMsg := actor.NewBaseMessage(ctxWithSession, uint16(protocol.DungeonActorMsgId_DungeonActorMsgIdUseSkill), msg.Data)
 	return gshare.SendDungeonMessageAsync("global", actorMsg)
+}
+func init() {
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, _ *event.Event) {
+		skillController := NewSkillController()
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SLearnSkill), skillController.HandleLearnSkill)
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SUpgradeSkill), skillController.HandleUpgradeSkill)
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SUseSkill), skillController.HandleUseSkill)
+	})
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
-	"postapocgame/server/service/gameserver/internel/app/playeractor/deps"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/domain/repository"
 	interfaces2 "postapocgame/server/service/gameserver/internel/app/playeractor/usecase/interfaces"
 	"postapocgame/server/service/gameserver/internel/gevent"
@@ -42,17 +41,9 @@ func (uc *AddItemUseCase) Execute(ctx context.Context, roleID uint64, itemID uin
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "item config not found: %d", itemID)
 	}
 
-	bagData, err := deps.PlayerGateway().GetBagData(ctx)
+	acc, err := newAccessor(ctx, uc.playerRepo)
 	if err != nil {
 		return customerr.Wrap(err)
-	}
-
-	// 构建辅助索引（用于快速查找）
-	itemIndex := make(map[uint32][]*protocol.ItemSt)
-	for _, item := range bagData.Items {
-		if item != nil {
-			itemIndex[item.ItemId] = append(itemIndex[item.ItemId], item)
-		}
 	}
 
 	// 检查是否可以堆叠
@@ -61,40 +52,9 @@ func (uc *AddItemUseCase) Execute(ctx context.Context, roleID uint64, itemID uin
 		maxStack = itemConfig.MaxStack
 	}
 
-	if maxStack > 1 {
-		// 可堆叠物品，尝试合并
-		existing := uc.findItemByKey(bagData.Items, itemIndex, itemID, bind)
-		if existing != nil {
-			// 检查堆叠上限
-			maxAdd := maxStack - existing.Count
-			if maxAdd > 0 {
-				addCount := count
-				if addCount > maxAdd {
-					addCount = maxAdd
-				}
-				existing.Count += addCount
-				count -= addCount
-			}
-		}
-	}
-
-	// 如果还有剩余，创建新物品
-	if count > 0 {
-		// 检查背包容量（从配置读取）
-		bagSize := uc.getBagSize(1) // 默认背包类型为1
-		if len(bagData.Items) >= int(bagSize) {
-			return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "bag is full")
-		}
-
-		// 创建新物品
-		newItem := &protocol.ItemSt{
-			ItemId: itemID,
-			Count:  count,
-			Bind:   bind,
-		}
-		bagData.Items = append(bagData.Items, newItem)
-		// 更新辅助索引
-		itemIndex[itemID] = append(itemIndex[itemID], newItem)
+	bagSize := uc.getBagSize(1) // 默认背包类型为1
+	if err := acc.addItem(itemID, bind, count, maxStack, bagSize); err != nil {
+		return err
 	}
 
 	// 发布事件
@@ -103,22 +63,6 @@ func (uc *AddItemUseCase) Execute(ctx context.Context, roleID uint64, itemID uin
 		"count":   count,
 	})
 
-	return nil
-}
-
-// findItemByKey 根据itemID和bind查找物品（用于堆叠查找）
-func (uc *AddItemUseCase) findItemByKey(items []*protocol.ItemSt, itemIndex map[uint32][]*protocol.ItemSt, itemID uint32, bind uint32) *protocol.ItemSt {
-	if items == nil {
-		return nil
-	}
-	// 使用辅助索引快速定位
-	if indexedItems, exists := itemIndex[itemID]; exists {
-		for _, item := range indexedItems {
-			if item != nil && item.ItemId == itemID && item.Bind == bind {
-				return item
-			}
-		}
-	}
 	return nil
 }
 

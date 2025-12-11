@@ -4,18 +4,22 @@ import (
 	"context"
 	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal"
+	"postapocgame/server/internal/actor"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/presenter"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/router"
 	system2 "postapocgame/server/service/gameserver/internel/app/playeractor/adapter/system"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/deps"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/usecase/consume"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/usecase/fuben"
 	interfaces2 "postapocgame/server/service/gameserver/internel/app/playeractor/usecase/interfaces"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/usecase/reward"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
 )
 
@@ -221,4 +225,24 @@ func (c *FubenController) HandleEnterDungeonSuccess(ctx context.Context, session
 	log.Infof("role entered dungeon successfully: RoleId=%d, SessionId=%s", req.RoleId, req.SessionId)
 	// 这里可以添加后续处理逻辑，比如更新玩家状态等
 	return nil
+}
+func init() {
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, _ *event.Event) {
+		fubenController := NewFubenController()
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SEnterDungeon), fubenController.HandleEnterDungeon)
+		gshare.RegisterHandler(uint16(protocol.PlayerActorMsgId_PlayerActorMsgIdSettleDungeon), func(message actor.IActorMessage) {
+			msgCtx := message.GetContext()
+			sessionID, _ := msgCtx.Value(gshare.ContextKeySession).(string)
+			if err := fubenController.HandleSettleDungeon(msgCtx, sessionID, message.GetData()); err != nil {
+				log.Errorf("[fuben-controller] HandleSettleDungeon failed: %v", err)
+			}
+		})
+		gshare.RegisterHandler(uint16(protocol.PlayerActorMsgId_PlayerActorMsgIdEnterDungeonSuccess), func(message actor.IActorMessage) {
+			msgCtx := message.GetContext()
+			sessionID, _ := msgCtx.Value(gshare.ContextKeySession).(string)
+			if err := fubenController.HandleEnterDungeonSuccess(msgCtx, sessionID, message.GetData()); err != nil {
+				log.Errorf("[fuben-controller] HandleEnterDungeonSuccess failed: %v", err)
+			}
+		})
+	})
 }

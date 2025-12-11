@@ -2,7 +2,10 @@ package controller
 
 import (
 	"context"
+	"postapocgame/server/internal/event"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/router"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/system"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
 
 	"postapocgame/server/internal/actor"
@@ -39,4 +42,10 @@ func (c *ReviveController) HandleRevive(ctx context.Context, msg *network.Client
 	ctxWithSession := context.WithValue(ctx, gshare.ContextKeySession, sessionID)
 	actorMsg := actor.NewBaseMessage(ctxWithSession, uint16(protocol.DungeonActorMsgId_DungeonActorMsgIdRevive), msg.Data)
 	return gshare.SendDungeonMessageAsync("global", actorMsg)
+}
+func init() {
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, _ *event.Event) {
+		reviveController := NewReviveController()
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SRevive), reviveController.HandleRevive)
+	})
 }

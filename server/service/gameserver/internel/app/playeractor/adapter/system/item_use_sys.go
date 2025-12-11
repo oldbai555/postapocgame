@@ -12,14 +12,6 @@ import (
 	"postapocgame/server/service/gameserver/internel/iface"
 )
 
-// ItemUseSystemAdapter 物品使用系统适配器
-//
-// 生命周期职责：
-// - 当前无额外初始化需求
-//
-// 业务逻辑：所有业务逻辑（使用物品、冷却检查）均在 UseCase 层实现
-//
-// ⚠️ 防退化机制：禁止在 SystemAdapter 中编写业务规则逻辑，只允许调用 UseCase 与管理生命周期
 type ItemUseSystemAdapter struct {
 	*BaseSystemAdapter
 	useItemUseCase *item_use2.UseItemUseCase

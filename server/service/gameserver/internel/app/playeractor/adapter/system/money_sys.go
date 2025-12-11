@@ -12,15 +12,6 @@ import (
 	"postapocgame/server/service/gameserver/internel/iface"
 )
 
-// MoneySystemAdapter 货币系统适配器
-//
-// 生命周期职责：
-// - OnInit: 调用 InitMoneyDataUseCase 初始化货币数据结构和默认金币
-// - 其他生命周期: 暂未使用
-//
-// 业务逻辑：所有业务逻辑（加钱、扣钱、余额校验）均在 UseCase 层实现
-//
-// ⚠️ 防退化机制：禁止在 SystemAdapter 中编写业务规则逻辑，只允许调用 UseCase 与管理生命周期
 type MoneySystemAdapter struct {
 	*BaseSystemAdapter
 	addMoneyUseCase        *money2.AddMoneyUseCase

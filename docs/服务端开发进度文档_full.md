@@ -57,6 +57,237 @@ GameServer (per-player Actor + PublicActor + DungeonActor)
 - **数据持久化**：玩家系统数据序列化为 `protocol.PlayerRoleBinaryData`，落库字段 `Player.BinaryData`；全局数据（公会/拍卖行等）将由 PublicActor 驱动持久化。  
 - **公共 Actor**：GameServer 内包含 `PublicActor`（单 Actor）用于社交经济全局数据、在线映射、排行榜等逻辑。
 
+### 2.3 GameServer 文件作用速查（`server/service/gameserver`）
+
+- **顶层入口**
+  - `main.go`：GameServer 进程入口，加载配置与依赖后启动 Engine。
+  - `requires.go`：编译期依赖收敛，保证工具链/模块要求。
+- **进程级基础（`internel/engine`）**
+  - `config.go`：读取/校验 GameServer 配置（端口、数据库、日志等）。
+  - `server.go`：构建 Actor 引擎、注册 PlayerActor/PublicActor/DungeonActor，启动循环。
+  - `message_registry.go`：注册玩家消息回放用的回调映射。
+- **全局管理（`internel/manager`）**
+  - `export.go`：对外导出管理能力（DI 暴露）。
+  - `role_mgr.go`：玩家角色管理（session→role 映射、关服刷盘）。
+- **公共设施（`internel/gatewaylink`）**
+  - `export.go`：GatewayLink 对外导出。
+  - `handler.go`：处理 Gateway → GameServer 的 Session/ForwardMessage 事件。
+  - `sender.go`：封装向客户端发送消息的网关转发。
+- **事件与接口（`internel/gevent`、`internel/iface`）**
+  - `gevent/enum.go`：游戏内事件枚举。
+  - `gevent/event.go`：事件发布/订阅实现。
+  - `iface/iserver.go`：GameServer 抽象接口。
+  - `iface/irole.go`：PlayerRole 抽象接口。
+  - `iface/isystem.go`：SystemAdapter 基础接口。
+- **横切工具（`internel/gshare`）**
+  - `actor_facade.go`：DungeonActor/PlayerActor 公用的 Actor 消息收发门面接口。
+  - `context_helper.go`：从上下文提取 Session/Role/SystemAdapter 入口。
+  - `log_helper.go`：注入 IRequester，统一日志前缀。
+  - `message_sender.go`：玩家消息发送，在线直投 + 离线落库回放。
+  - `protocol.go`：内部协议/消息 ID 定义。
+  - `srv.go`：区服信息、开服日等全局配置访问。
+- **应用组合（`internel/app`）**
+  - `playeractor/adapter.go`：将 PlayerActor 装配为 Actor，可被 Engine 注册。
+  - `playeractor/handler.go`：PlayerActor 主循环与消息分发。
+  - `playeractor/deps/deps.go`：依赖装配入口（Gateway/Repository/EventBus 等）。
+  - `playeractor/domain/chat/chat.go`：聊天领域模型与限频值对象。
+  - `playeractor/domain/model/account.go`：账号领域实体。
+  - `playeractor/domain/model/role.go`：角色领域实体。
+  - `playeractor/domain/repository/account_repository.go`：账号仓储接口定义。
+  - `playeractor/domain/repository/player_repository.go`：玩家数据仓储接口。
+  - `playeractor/domain/repository/role_repository.go`：角色仓储接口。
+  - `playeractor/entity/attr_calculator.go`：属性计算器工具类（加成/战力）。
+  - `playeractor/entity/player_data.go`：玩家运行时数据结构（Session、缓存等）。
+  - `playeractor/entity/player_role.go`：PlayerRole 核心实现，封装公共操作。
+  - `playeractor/entity/reconnect_key.go`：重连 Key 管理。
+  - `playeractor/entitysystem/sys_mgr.go`：系统管理器，生命周期驱动。
+  - `playeractor/entitysystem/system_registry.go`：系统工厂注册表。
+  - `playeractor/entitysystem/message_dispatcher.go`：离线消息回放调度。
+  - `playeractor/adapter/controller/player_network_controller.go`：入口控制器，处理 ForwardMessage/PlayerActorMsg。
+  - `playeractor/adapter/controller/register_all.go`：统一注册全部业务控制器与消息。
+  - `playeractor/adapter/controller/bag_controller.go`：背包协议解析与 UseCase 调用。
+  - `playeractor/adapter/controller/chat_controller.go`：聊天协议入口与限频检查。
+  - `playeractor/adapter/controller/dungeon_item_controller.go`：副本内拾取等物品协议转发。
+  - `playeractor/adapter/controller/equip_controller.go`：装备穿脱协议入口。
+  - `playeractor/adapter/controller/fuben_controller.go`：副本进入/结算协议入口。
+  - `playeractor/adapter/controller/item_use_controller.go`：物品使用协议入口。
+  - `playeractor/adapter/controller/money_controller.go`：货币查看/变更协议入口。
+  - `playeractor/adapter/controller/move_controller.go`：移动协议路由到 DungeonActor。
+  - `playeractor/adapter/controller/player_account_controller.go`：注册/登录协议入口。
+  - `playeractor/adapter/controller/player_role_controller.go`：角色创建/列表/进入游戏协议。
+  - `playeractor/adapter/controller/quest_controller.go`：任务协议入口。
+  - `playeractor/adapter/controller/recycle_controller.go`：回收协议入口。
+  - `playeractor/adapter/controller/revive_controller.go`：复活协议入口。
+  - `playeractor/adapter/controller/shop_controller.go`：商城购买协议入口。
+  - `playeractor/adapter/controller/skill_controller.go`：技能学习/升级协议入口。
+  - `playeractor/adapter/event/event_adapter.go`：事件发布适配器。
+  - `playeractor/adapter/gateway/account_gateway.go`：账号仓储实现（DB/GORM）。
+  - `playeractor/adapter/gateway/blacklist_repository.go`：黑名单仓储实现。
+  - `playeractor/adapter/gateway/client_gateway.go`：客户端 Session 访问/发包封装。
+  - `playeractor/adapter/gateway/config_gateway.go`：配置读取实现。
+  - `playeractor/adapter/gateway/dungeon_server_gateway.go`：DungeonActor 调用适配（内部 Actor 消息）。
+  - `playeractor/adapter/gateway/interfaces.go`：Gateway 抽象接口集合。
+  - `playeractor/adapter/gateway/player_gateway.go`：玩家数据仓储实现。
+  - `playeractor/adapter/gateway/public_actor_gateway.go`：与 PublicActor 交互的发送封装。
+  - `playeractor/adapter/gateway/role_gateway.go`：角色数据访问实现。
+  - `playeractor/adapter/gateway/token_generator.go`：登录 Token 生成工具。
+  - `playeractor/adapter/presenter/push_helpers.go`：下行推送公共辅助。
+  - `playeractor/adapter/presenter/player_auth_presenter.go`：注册/登录结果回包。
+  - `playeractor/adapter/presenter/player_role_presenter.go`：角色列表/进入游戏回包。
+  - `playeractor/adapter/presenter/bag_presenter.go`：背包相关 S2C 构建。
+  - `playeractor/adapter/presenter/chat_presenter.go`：聊天回包构建。
+  - `playeractor/adapter/presenter/equip_presenter.go`：装备回包构建。
+  - `playeractor/adapter/presenter/fuben_presenter.go`：副本回包构建。
+  - `playeractor/adapter/presenter/item_use_presenter.go`：物品使用回包。
+  - `playeractor/adapter/presenter/money_presenter.go`：货币回包。
+  - `playeractor/adapter/presenter/quest_presenter.go`：任务回包。
+  - `playeractor/adapter/presenter/recycle_presenter.go`：回收回包。
+  - `playeractor/adapter/presenter/shop_presenter.go`：商城回包。
+  - `playeractor/adapter/presenter/skill_presenter.go`：技能回包。
+  - `playeractor/adapter/router/protocol_registry.go`：协议注册表。
+  - `playeractor/adapter/router/protocol_router_controller.go`：协议路由控制器，按 MsgId 分发。
+  - `playeractor/adapter/system/base_sys.go`：SystemAdapter 基类，声明生命周期职责。
+  - `playeractor/adapter/system/attr_use_case_adapter.go`：属性用例适配，供跨系统调用。
+  - `playeractor/adapter/system/bag_sys.go`：背包生命周期调度与缓存索引。
+  - `playeractor/adapter/system/bag_use_case_adapter.go`：背包 UseCase 适配器（解循环依赖）。
+  - `playeractor/adapter/system/chat_sys.go`：聊天系统生命周期与事件订阅。
+  - `playeractor/adapter/system/equip_sys.go`：装备系统生命周期调度。
+  - `playeractor/adapter/system/fuben_sys.go`：副本系统生命周期调度。
+  - `playeractor/adapter/system/item_use_sys.go`：物品使用生命周期与冷却管理。
+  - `playeractor/adapter/system/level_sys.go`：等级系统生命周期调度。
+  - `playeractor/adapter/system/level_use_case_adapter.go`：等级 UseCase 适配器。
+  - `playeractor/adapter/system/message_sys.go`：玩家离线消息加载/回放调度。
+  - `playeractor/adapter/system/money_sys.go`：货币系统生命周期调度与余额初始化。
+  - `playeractor/adapter/system/quest_sys.go`：任务系统生命周期与事件映射。
+  - `playeractor/adapter/system/recycle_sys.go`：回收系统生命周期调度。
+  - `playeractor/adapter/system/shop_sys.go`：商城系统生命周期调度。
+  - `playeractor/adapter/system/skill_sys.go`：技能系统生命周期调度。
+  - `playeractor/adapter/system/attrcalc/add_rate_bus.go`：属性加成注册总线（加成项汇总）。
+  - `playeractor/adapter/system/attrcalc/bus.go`：属性计算器注册/调度总线。
+  - `playeractor/usecase/interfaces/attr.go`：属性相关用例接口。
+  - `playeractor/usecase/interfaces/bag.go`：背包用例接口。
+  - `playeractor/usecase/interfaces/blacklist.go`：黑名单接口。
+  - `playeractor/usecase/interfaces/chat_rate_limiter.go`：聊天限频接口。
+  - `playeractor/usecase/interfaces/config.go`：配置读取接口。
+  - `playeractor/usecase/interfaces/consume.go`：通用扣耗接口。
+  - `playeractor/usecase/interfaces/event.go`：事件发布接口。
+  - `playeractor/usecase/interfaces/event_subscriber.go`：事件订阅接口。
+  - `playeractor/usecase/interfaces/level.go`：等级接口。
+  - `playeractor/usecase/interfaces/money.go`：货币接口。
+  - `playeractor/usecase/interfaces/player_role_manager.go`：角色管理接口。
+  - `playeractor/usecase/interfaces/public_actor.go`：PublicActor 网关接口。
+  - `playeractor/usecase/interfaces/reward.go`：通用发奖接口。
+  - `playeractor/usecase/interfaces/rpc.go`：DungeonActor RPC 接口。
+  - `playeractor/usecase/interfaces/runone.go`：RunOne 调度接口。
+  - `playeractor/usecase/interfaces/time_callback.go`：定时回调接口。
+  - `playeractor/usecase/interfaces/token_generator.go`：Token 生成接口。
+  - `playeractor/usecase/attr/calculate_sys_power.go`：计算系统战力用例。
+  - `playeractor/usecase/attr/compare_attr_vec.go`：属性向量比较用例。
+  - `playeractor/usecase/bag/add_item.go`：非事务加物品用例。
+  - `playeractor/usecase/bag/add_item_tx.go`：事务加物品用例。
+  - `playeractor/usecase/bag/remove_item.go`：非事务移除物品用例。
+  - `playeractor/usecase/bag/remove_item_tx.go`：事务移除物品用例。
+  - `playeractor/usecase/bag/has_item.go`：检查物品是否存在。
+  - `playeractor/usecase/chat/chat_private.go`：私聊用例。
+  - `playeractor/usecase/chat/chat_world.go`：世界聊天用例。
+  - `playeractor/usecase/consume/consume_use_case.go`：通用扣耗实现（复用 Bag/Money）。
+  - `playeractor/usecase/equip/equip_item.go`：装备穿戴用例。
+  - `playeractor/usecase/equip/unequip_item.go`：装备卸下用例。
+  - `playeractor/usecase/fuben/enter_dungeon.go`：进入副本用例。
+  - `playeractor/usecase/fuben/get_dungeon_record.go`：查询副本记录用例。
+  - `playeractor/usecase/fuben/settle_dungeon.go`：副本结算用例。
+  - `playeractor/usecase/item_use/use_item.go`：物品使用用例。
+  - `playeractor/usecase/level/add_exp.go`：加经验用例。
+  - `playeractor/usecase/level/init_level_data.go`：等级数据初始化用例。
+  - `playeractor/usecase/level/level_up.go`：升级用例。
+  - `playeractor/usecase/mail/claim_attachments.go`：领取附件用例。
+  - `playeractor/usecase/mail/read_and_delete.go`：邮件阅读/删除用例。
+  - `playeractor/usecase/mail/send_custom_mail.go`：发送自定义邮件用例。
+  - `playeractor/usecase/mail/send_template_mail.go`：发送模板邮件用例。
+  - `playeractor/usecase/money/add_money.go`：加货币用例。
+  - `playeractor/usecase/money/consume_money.go`：扣货币用例。
+  - `playeractor/usecase/money/init_money_data.go`：货币数据初始化。
+  - `playeractor/usecase/money/money_use_case_impl.go`：MoneyUseCase 组合实现。
+  - `playeractor/usecase/money/update_balance_tx.go`：事务余额更新。
+  - `playeractor/usecase/playerauth/login.go`：登录用例。
+  - `playeractor/usecase/playerauth/register.go`：注册用例。
+  - `playeractor/usecase/playerrole/create_role.go`：创角用例。
+  - `playeractor/usecase/playerrole/query_roles.go`：角色列表查询。
+  - `playeractor/usecase/quest/accept_quest.go`：接取任务用例。
+  - `playeractor/usecase/quest/init_quest_data.go`：任务数据初始化。
+  - `playeractor/usecase/quest/refresh_quest_type.go`：日/周任务刷新用例。
+  - `playeractor/usecase/quest/submit_quest.go`：提交任务用例。
+  - `playeractor/usecase/quest/update_progress.go`：任务进度更新。
+  - `playeractor/usecase/recycle/recycle_item.go`：回收物品用例。
+  - `playeractor/usecase/reward/reward_use_case.go`：通用发奖实现。
+  - `playeractor/usecase/shop/buy_item.go`：商城购买用例。
+  - `playeractor/usecase/skill/init_skill_data.go`：技能数据初始化。
+  - `playeractor/usecase/skill/learn_skill.go`：学习技能用例。
+  - `playeractor/usecase/skill/upgrade_skill.go`：升级技能用例。
+  - `publicactor/adapter.go`：PublicActor 适配器。
+  - `publicactor/handler.go`：PublicActor 主循环。
+  - `publicactor/register.go`：消息注册。
+  - `publicactor/message_handler.go`：处理来自玩家的公共消息。
+  - `publicactor/public_role.go`：全局角色视图管理（在线、缓存）。
+  - `publicactor/public_role_chat.go`：聊天相关公共数据。
+  - `publicactor/public_role_online.go`：在线状态管理。
+  - `publicactor/public_role_rank.go`：排行榜快照与更新。
+  - `publicactor/public_role_offline_data.go`：离线快照加载/写库。
+  - `publicactor/public_role_offline_message.go`：离线消息桥接。
+  - `publicactor/public_handler_util.go`：公共处理辅助函数。
+  - `publicactor/offlinedata/manager.go`：OfflineDataManager 实现。
+  - `publicactor/send_client.go`：下发客户端广播/通知。
+  - `dungeonactor/adapter.go`：DungeonActor 适配器，实现 IDungeonActorFacade。
+  - `dungeonactor/handler.go`：DungeonActor 主循环与消息处理。
+  - `dungeonactor/register.go`：注册 DungeonActor 消息处理器。
+  - `dungeonactor/message.go`：DungeonActor 消息定义/派发。
+  - `dungeonactor/entity/entity.go`：实体基础结构。
+  - `dungeonactor/entity/drop_item.go`：掉落物实体与拾取逻辑。
+  - `dungeonactor/entity/monster.go`：怪物实体定义与属性计算。
+  - `dungeonactor/entity/revive_provider.go`：复活能力提供者。
+  - `dungeonactor/entity/rolest.go`：玩家角色在副本内镜像。
+  - `dungeonactor/entitymgr/mgr.go`：实体管理器，生命周期维护。
+  - `dungeonactor/entitymgr/handle.go`：实体管理事件处理。
+  - `dungeonactor/entitysystem/ai_state.go`：AI 状态枚举与切换。
+  - `dungeonactor/entitysystem/ai_sys.go`：AI 系统，驱动自动移动/攻击。
+  - `dungeonactor/entitysystem/aoi_sys.go`：AOI 系统。
+  - `dungeonactor/entitysystem/attr_sys.go`：副本内属性系统（重算/广播）。
+  - `dungeonactor/entitysystem/attrcalc/bus.go`：副本侧属性计算器注册。
+  - `dungeonactor/entitysystem/broadcast.go`：场景广播工具。
+  - `dungeonactor/entitysystem/buff_sys.go`：Buff 系统。
+  - `dungeonactor/entitysystem/debuff_helper.go`：减益效果工具。
+  - `dungeonactor/entitysystem/drop_sys.go`：掉落分配/拾取系统。
+  - `dungeonactor/entitysystem/fight_sys.go`：战斗系统（技能/伤害结算）。
+  - `dungeonactor/entitysystem/move_sys.go`：移动系统（Start/Update/EndMove 校验）。
+  - `dungeonactor/entitysystem/pathfinding.go`：寻路算法（A* 等）。
+  - `dungeonactor/entitysystem/skill_util.go`：技能计算辅助。
+  - `dungeonactor/entitysystem/state_machine.go`：实体状态机。
+  - `dungeonactor/fbmgr/mgr.go`：副本管理器（房间/实例调度）。
+  - `dungeonactor/fuben/default.go`：默认副本实现。
+  - `dungeonactor/fuben/fubenst.go`：副本状态定义。
+  - `dungeonactor/fuben/actor_msg.go`：与 PlayerActor 的进入成功消息。
+  - `dungeonactor/fuben/settlement.go`：副本结算、发消息回 PlayerActor。
+  - `dungeonactor/fuben/timed_provider.go`：限时副本时间提供者。
+  - `dungeonactor/iface/iaoi.go`：AOI 接口。
+  - `dungeonactor/iface/iattr.go`：属性接口。
+  - `dungeonactor/iface/ibuff.go`：Buff 接口。
+  - `dungeonactor/iface/idrop.go`：掉落接口。
+  - `dungeonactor/iface/ientity.go`：实体接口。
+  - `dungeonactor/iface/ifight.go`：战斗接口。
+  - `dungeonactor/iface/ifuben.go`：副本接口。
+  - `dungeonactor/iface/imonster.go`：怪物接口。
+  - `dungeonactor/iface/imove.go`：移动接口。
+  - `dungeonactor/iface/irole.go`：副本内角色接口。
+  - `dungeonactor/iface/iscene.go`：场景接口。
+  - `dungeonactor/scene/scenest.go`：场景结构、地图绑定与出生点校验。
+  - `dungeonactor/scene/scene_aoi.go`：场景 AOI 具体实现。
+  - `dungeonactor/scenemgr/mgr.go`：场景管理器。
+  - `dungeonactor/skill/skill.go`：技能主流程与目标筛选。
+  - `dungeonactor/skill/skill_cast_result.go`：技能施放结果结构。
+  - `dungeonactor/skill/skill_damage_calculator.go`：技能伤害计算。
+  - `dungeonactor/skill/skill_hit_result.go`：技能命中结果结构。
+  - `dungeonactor/skill/skill_result.go`：技能结果聚合。
+
 ---
 
 ## 3. 构建与运行现状
@@ -167,7 +398,7 @@ GameServer (per-player Actor + PublicActor + DungeonActor)
   - ✅ 创建了 `adapter/controller/bag_controller.go`（协议处理：C2SOpenBag、D2GAddItem）
   - ✅ 创建了 `adapter/presenter/bag_presenter.go`（响应构建）
   - ✅ 创建了 `adapter/system/bag_system_adapter.go`（系统生命周期适配器）
-  - ✅ 实现了辅助索引管理（`itemIndex`）和 `GetBagSys(ctx)` 函数
+  - ✅ 索引/快照逻辑收敛到 `usecase/bag/accessor.go`，SystemAdapter 只路由 UseCase，不再维护本地索引或快照
   - ✅ 注册了系统适配器工厂和协议处理器
   - ✅ 保持了向后兼容性（通过接口定义依赖，支持新旧代码并存）
 - 🆕 **核心系统重构（MoneySys）**：已完成 MoneySys 的 Clean Architecture 重构

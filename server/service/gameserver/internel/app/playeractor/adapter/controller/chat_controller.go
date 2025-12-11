@@ -3,13 +3,16 @@ package controller
 import (
 	"context"
 	"google.golang.org/protobuf/proto"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/presenter"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/router"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/system"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/deps"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/usecase/chat"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
 )
 
@@ -86,4 +89,12 @@ func (c *ChatController) HandlePrivateChat(ctx context.Context, msg *network.Cli
 		return c.presenter.SendError(ctx, sessionID, err.Error())
 	}
 	return nil
+}
+
+func init() {
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, _ *event.Event) {
+		chatController := NewChatController()
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SChatWorld), chatController.HandleWorldChat)
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SChatPrivate), chatController.HandlePrivateChat)
+	})
 }

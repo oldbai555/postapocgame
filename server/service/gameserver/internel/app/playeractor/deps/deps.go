@@ -9,9 +9,7 @@ import (
 	"sync"
 )
 
-// Dependencies 聚合 playeractor 的基础依赖，按需懒加载一次。
 type Dependencies struct {
-	// Gateways / Repositories
 	playerGateway        repository.PlayerRepository
 	accountRepository    repository.AccountRepository
 	roleRepository       repository.RoleRepository
@@ -70,7 +68,6 @@ func GetContainer() *Container {
 	return (*Container)(ensure())
 }
 
-// Gateways / repositories getters
 func PlayerGateway() repository.PlayerRepository {
 	return ensure().playerGateway
 }
@@ -115,7 +112,6 @@ func PlayerRoleManager() interfaces.IPlayerRoleManager {
 	return ensure().playerRoleManager
 }
 
-// methods for Container (compatibility)
 func (c *Container) PlayerGateway() repository.PlayerRepository { return ensure().playerGateway }
 func (c *Container) AccountRepository() repository.AccountRepository {
 	return ensure().accountRepository

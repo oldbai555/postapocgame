@@ -17,16 +17,6 @@ import (
 	"postapocgame/server/service/gameserver/internel/iface"
 )
 
-// EquipSystemAdapter 装备系统适配器
-//
-// 生命周期职责：
-// - 当前无额外初始化需求
-//
-// 业务逻辑：所有业务逻辑（装备/卸下、属性加成）均在 UseCase 层实现
-// 事件订阅：在 equip_system_adapter_init.go 中订阅 OnEquipChange/OnEquipUpgrade 事件，标记属性系统需要重算
-//
-// ⚠️ 防退化机制：禁止在 SystemAdapter 中编写业务规则逻辑，只允许调用 UseCase 与管理生命周期
-
 const (
 	// PerTenThousandBase 万分比基数（10000 = 100%）
 	PerTenThousandBase int64 = 10000

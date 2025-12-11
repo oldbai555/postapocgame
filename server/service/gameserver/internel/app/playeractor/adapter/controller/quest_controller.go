@@ -2,11 +2,14 @@ package controller
 
 import (
 	"context"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/presenter"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/router"
 	system2 "postapocgame/server/service/gameserver/internel/app/playeractor/adapter/system"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/deps"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/usecase/quest"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/usecase/reward"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
 
 	"google.golang.org/protobuf/proto"
@@ -92,4 +95,10 @@ func (c *QuestController) HandleTalkToNPC(ctx context.Context, msg *network.Clie
 	}
 
 	return c.presenter.SendTalkToNPCResult(ctx, sessionID, resp)
+}
+func init() {
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, _ *event.Event) {
+		questController := NewQuestController()
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2STalkToNPC), questController.HandleTalkToNPC)
+	})
 }

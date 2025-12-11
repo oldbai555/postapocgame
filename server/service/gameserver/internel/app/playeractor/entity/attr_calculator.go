@@ -258,8 +258,8 @@ func (ac *AttrCalculator) refreshSysCalc(sysID uint32, attrVec *protocol.AttrVec
 		if attr == nil {
 			continue
 		}
-		attrType := attrdef.AttrType(attr.Type)
-		calc.AddValue(attrType, attrdef.AttrValue(attr.Value))
+		attrType := attr.Type
+		calc.AddValue(attrType, attr.Value)
 	}
 }
 
@@ -328,11 +328,11 @@ func (ac *AttrCalculator) ApplyDungeonSyncData(syncData *protocol.SyncAttrData) 
 			if attr == nil {
 				continue
 			}
-			attrType := attrdef.AttrType(attr.Type)
+			attrType := attr.Type
 			if !attrdef.IsCombatAttr(attrType) {
 				continue
 			}
-			ac.fightAttr.AddValue(attrType, attrdef.AttrValue(attr.Value))
+			ac.fightAttr.AddValue(attrType, attr.Value)
 		}
 	}
 	if addRate := syncData.AddRateAttr; addRate != nil {
@@ -340,11 +340,11 @@ func (ac *AttrCalculator) ApplyDungeonSyncData(syncData *protocol.SyncAttrData) 
 			if attr == nil {
 				continue
 			}
-			attrType := attrdef.AttrType(attr.Type)
+			attrType := attr.Type
 			if !attrdef.IsCombatAttr(attrType) {
 				continue
 			}
-			ac.fightAttr.AddValue(attrType, attrdef.AttrValue(attr.Value))
+			ac.fightAttr.AddValue(attrType, attr.Value)
 		}
 	}
 }
@@ -393,8 +393,8 @@ func (ac *AttrCalculator) buildAddRateAttrVec() *protocol.AttrVec {
 		}
 		calc.DoRange(func(attrType attrdef.AttrType, value attrdef.AttrValue) {
 			attrs = append(attrs, &protocol.AttrSt{
-				Type:  uint32(attrType),
-				Value: int64(value),
+				Type:  attrType,
+				Value: value,
 			})
 		})
 	}
@@ -431,13 +431,13 @@ func (ac *AttrCalculator) calcTotalSysAddRate(ctx context.Context) {
 			if attr == nil {
 				continue
 			}
-			attrType := attrdef.AttrType(attr.Type)
-			targetCalc.AddValue(attrType, attrdef.AttrValue(attr.Value))
+			attrType := attr.Type
+			targetCalc.AddValue(attrType, attr.Value)
 		}
 	}
 }
 
-func (ac *AttrCalculator) pushAttrDataToClient(ctx context.Context, playerRole iface.IPlayerRole, syncData *protocol.SyncAttrData) {
+func (ac *AttrCalculator) pushAttrDataToClient(_ context.Context, playerRole iface.IPlayerRole, syncData *protocol.SyncAttrData) {
 	if playerRole == nil || syncData == nil {
 		return
 	}

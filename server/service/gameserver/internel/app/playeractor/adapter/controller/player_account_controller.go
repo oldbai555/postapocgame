@@ -2,10 +2,13 @@ package controller
 
 import (
 	"context"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/gateway"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/presenter"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/router"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/deps"
 	playerauth2 "postapocgame/server/service/gameserver/internel/app/playeractor/usecase/playerauth"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
 
 	"google.golang.org/protobuf/proto"
@@ -107,4 +110,12 @@ func getSessionIDFromContext(ctx context.Context) (string, error) {
 		return "", customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "session not found in context")
 	}
 	return sessionID, nil
+}
+func init() {
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, _ *event.Event) {
+		accountController := NewPlayerAccountController()
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SRegister), accountController.HandleRegister)
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SLogin), accountController.HandleLogin)
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SVerify), accountController.HandleVerify)
+	})
 }

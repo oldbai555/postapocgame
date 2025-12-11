@@ -11,17 +11,6 @@ import (
 	"time"
 )
 
-// ChatSystemAdapter 聊天系统适配器
-//
-// 生命周期职责：
-// - OnInit: 初始化聊天系统（暂无需特殊处理）
-// - 其他生命周期: 暂未使用
-//
-// 业务逻辑：聊天消息发送、限频、敏感词过滤等规则均在 UseCase 层实现
-// 状态管理：维护 lastChatTime 用于限频（限流逻辑属于框架状态管理，保留在适配层）
-// 外部交互：统一通过 PublicActorGateway 与 PublicActor 通信
-//
-// ⚠️ 防退化机制：禁止在 SystemAdapter 中编写业务规则逻辑，只允许调用 UseCase 与管理生命周期
 type ChatSystemAdapter struct {
 	*BaseSystemAdapter
 	lastChatTime time.Time

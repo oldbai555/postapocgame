@@ -169,9 +169,8 @@ message S2CSkillCastResultReq {
     uint64 caster_hdl = 1;
     uint32 skill_id = 2;
     uint32 err_code = 3;
-    reserved 4;
-    int64 server_time_ms = 5;
-    uint32 latency_tolerance_ms = 6;
+    int64 server_time_ms = 4;
+    uint32 latency_tolerance_ms = 5;
 }
 
 message S2CSkillDamageResultReq {
@@ -211,13 +210,11 @@ message S2CEntityDisappearReq {
 message S2CShopBuyResultReq {
     uint32 item_id = 1;
     uint32 count = 2;
-    uint32 err_code = 3;
 }
 
 message S2CEquipResultReq {
     uint32 slot = 1;
     uint32 item_id = 2;
-    uint32 err_code = 3;
 }
 
 // 系统通知

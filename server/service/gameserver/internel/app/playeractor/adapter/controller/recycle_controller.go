@@ -2,9 +2,12 @@ package controller
 
 import (
 	"context"
+	"postapocgame/server/internal/event"
 	presenter2 "postapocgame/server/service/gameserver/internel/app/playeractor/adapter/presenter"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/router"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/system"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/deps"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
 
 	"google.golang.org/protobuf/proto"
@@ -71,4 +74,10 @@ func (c *RecycleController) HandleRecycleItem(ctx context.Context, msg *network.
 		return sendErr
 	}
 	return err
+}
+func init() {
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, _ *event.Event) {
+		recycleController := NewRecycleController()
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SRecycleItem), recycleController.HandleRecycleItem)
+	})
 }

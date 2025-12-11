@@ -17,17 +17,6 @@ const (
 	questCategoryWeekly = uint32(protocol.QuestCategory_QuestCategoryWeekly)
 )
 
-// QuestSystemAdapter 任务系统适配器
-//
-// 生命周期职责：
-// - OnInit: 调用 InitQuestDataUseCase 初始化任务数据结构，调用 RefreshQuestTypeUseCase 确保可重复任务存在
-// - OnNewDay: 调用 RefreshQuestTypeUseCase 刷新每日任务
-// - OnNewWeek: 调用 RefreshQuestTypeUseCase 刷新每周任务
-// - 其他生命周期: 暂未使用
-//
-// 业务逻辑：所有业务逻辑（任务接取/更新/提交/刷新）均在 UseCase 层实现
-//
-// ⚠️ 防退化机制：禁止在 SystemAdapter 中编写业务规则逻辑，只允许调用 UseCase 与管理生命周期
 type QuestSystemAdapter struct {
 	*BaseSystemAdapter
 	acceptQuestUseCase      *quest.AcceptQuestUseCase

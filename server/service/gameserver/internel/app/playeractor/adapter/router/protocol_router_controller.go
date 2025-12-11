@@ -2,10 +2,10 @@ package router
 
 import (
 	"context"
-	"fmt"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
+	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/app/manager"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/gateway"
@@ -52,14 +52,14 @@ func (c *ProtocolRouterController) HandleDoNetworkMsg(message actor.IActorMessag
 		roleCtx := c.withPlayerRoleContext(baseCtx, session.GetRoleId())
 		if err := handler(roleCtx, clientMsg); err != nil {
 			log.Errorf("handle client protocol failed: proto=%d, session=%s, err=%v", clientMsg.MsgId, sessionID, err)
-			c.sendError(sessionID, err.Error())
+			c.sendError(sessionID, err)
 		}
 		return
 	}
 
 	// 未注册的协议，返回错误
 	log.Warnf("protocol not supported: proto=%d, session=%s", clientMsg.MsgId, sessionID)
-	c.sendError(sessionID, fmt.Sprintf("protocol %d not supported", clientMsg.MsgId))
+	c.sendError(sessionID, customerr.NewError("protocol %d not supported", clientMsg.MsgId))
 }
 
 func (c *ProtocolRouterController) withPlayerRoleContext(ctx context.Context, roleID uint64) context.Context {
@@ -73,9 +73,12 @@ func (c *ProtocolRouterController) withPlayerRoleContext(ctx context.Context, ro
 	return playerRole.WithContext(ctx)
 }
 
-func (c *ProtocolRouterController) sendError(sessionID, message string) {
-	_ = c.networkGateway.SendToSessionProto(sessionID, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
-		Code: -1,
-		Msg:  message,
+func (c *ProtocolRouterController) sendError(sessionId string, err error) {
+	sErr := c.networkGateway.SendToSessionProto(sessionId, uint16(protocol.S2CProtocol_S2CError), &protocol.ErrorData{
+		Code: customerr.GetErrCode(err),
+		Msg:  customerr.GetErrMsgByErr(err),
 	})
+	if sErr != nil {
+		log.Errorf("send error message failed: session=%s, err=%v", sessionId, sErr)
+	}
 }

@@ -17,17 +17,6 @@ import (
 	"postapocgame/server/service/gameserver/internel/iface"
 )
 
-// LevelSystemAdapter 等级系统适配器
-//
-// 生命周期职责：
-// - OnInit: 调用 InitLevelDataUseCase 初始化等级数据（默认值修正、经验同步）
-// - 其他生命周期: 暂未使用
-//
-// 业务逻辑：所有业务逻辑（加经验、升级、属性加成）均在 UseCase 层实现
-//
-// ⚠️ 防退化机制：禁止在 SystemAdapter 中编写业务规则逻辑，只允许调用 UseCase 与管理生命周期
-
-// EnsureISystem 确保 LevelSystemAdapter 实现 ISystem 接口
 var _ iface.ISystem = (*LevelSystemAdapter)(nil)
 
 type LevelSystemAdapter struct {

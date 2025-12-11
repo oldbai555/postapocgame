@@ -5,7 +5,6 @@ import (
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
-	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/domain/repository"
 	interfaces2 "postapocgame/server/service/gameserver/internel/app/playeractor/usecase/interfaces"
 )
@@ -50,40 +49,36 @@ func (uc *BuyItemUseCase) Execute(ctx context.Context, roleID uint64, itemID uin
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "item config not found")
 	}
 
+	if uc.consumeUseCase == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "consume use case nil")
+	}
+
+	if uc.rewardUseCase == nil {
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "reward use case nil")
+	}
+
 	// 构建消耗列表
 	consumes, err := uc.buildConsumeList(itemConfig, count)
 	if err != nil {
 		return err
 	}
 
-	// 构建奖励列表
-	rewards := uc.buildRewardList(itemConfig, count)
-
 	// 检查消耗
-	if uc.consumeUseCase != nil {
-		if err := uc.consumeUseCase.CheckConsume(ctx, roleID, consumes); err != nil {
-			return err
-		}
+	if err := uc.consumeUseCase.CheckConsume(ctx, roleID, consumes); err != nil {
+		return err
 	}
 
 	// 扣除消耗
-	if uc.consumeUseCase != nil {
-		if err := uc.consumeUseCase.ApplyConsume(ctx, roleID, consumes); err != nil {
-			return err
-		}
+	if err := uc.consumeUseCase.ApplyConsume(ctx, roleID, consumes); err != nil {
+		return err
 	}
+
+	// 构建奖励列表
+	rewards := uc.buildRewardList(itemConfig, count)
 
 	// 发放奖励
-	if uc.rewardUseCase != nil {
-		if err := uc.rewardUseCase.GrantRewards(ctx, roleID, rewards); err != nil {
-			return err
-		}
-	}
-
-	// 记录购买次数
-	if err := uc.recordPurchase(ctx, roleID, itemID, count); err != nil {
-		log.Warnf("Record purchase failed: %v", err)
-		// 记录失败不影响购买流程
+	if err := uc.rewardUseCase.GrantRewards(ctx, roleID, rewards); err != nil {
+		return err
 	}
 
 	return nil
@@ -117,34 +112,15 @@ func (uc *BuyItemUseCase) buildRewardList(cfg *jsonconf.ItemConfig, count uint32
 	if cfg == nil {
 		return nil
 	}
-
-	// 从商城配置读取奖励
 	shopCfg := uc.configManager.GetShopConfig(cfg.ItemId)
-	if shopCfg != nil && shopCfg.RewardId > 0 {
-		rewardCfg := uc.configManager.GetRewardConfig(shopCfg.RewardId)
-		if rewardCfg != nil {
-			return scaleItemAmounts(rewardCfg.Items, count)
-		}
+	if shopCfg == nil || shopCfg.RewardId == 0 {
+		return nil
 	}
-
-	// 如果没有商城配置，返回默认奖励（物品本身）
-	return []*jsonconf.ItemAmount{
-		{
-			ItemType: cfg.Type,
-			ItemId:   cfg.ItemId,
-			Count:    int64(count),
-			Bind:     1,
-		},
+	rewardCfg := uc.configManager.GetRewardConfig(shopCfg.RewardId)
+	if rewardCfg == nil {
+		return nil
 	}
-}
-
-// recordPurchase 记录购买次数
-// 注意：原始代码中 purchaseCounters 是存储在系统实例中的内存数据，不是持久化的
-// 这里暂时不实现持久化，保持与原始代码一致
-func (uc *BuyItemUseCase) recordPurchase(ctx context.Context, roleID uint64, itemID uint32, count uint32) error {
-	// TODO: 如果需要持久化购买次数，可以在这里实现
-	// 当前保持与原始代码一致，不持久化购买次数
-	return nil
+	return scaleItemAmounts(rewardCfg.Items, count)
 }
 
 // scaleItemAmounts 缩放物品数量

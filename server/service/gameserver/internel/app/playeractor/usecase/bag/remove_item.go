@@ -2,9 +2,7 @@ package bag
 
 import (
 	"context"
-	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
-	"postapocgame/server/service/gameserver/internel/app/playeractor/deps"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/domain/repository"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/usecase/interfaces"
 	"postapocgame/server/service/gameserver/internel/gevent"
@@ -33,40 +31,12 @@ func (uc *RemoveItemUseCase) Execute(ctx context.Context, roleID uint64, itemID 
 		return nil
 	}
 
-	bagData, err := deps.PlayerGateway().GetBagData(ctx)
+	acc, err := newAccessor(ctx, uc.playerRepo)
 	if err != nil {
 		return customerr.Wrap(err)
 	}
-
-	remaining := count
-	itemsToRemove := make([]int, 0) // 记录需要删除的索引
-
-	// 查找需要删除的物品
-	for i, item := range bagData.Items {
-		if item == nil || item.ItemId != itemID {
-			continue
-		}
-		if item.Count > remaining {
-			item.Count -= remaining
-			remaining = 0
-			break
-		}
-		remaining -= item.Count
-		itemsToRemove = append(itemsToRemove, i)
-		if remaining == 0 {
-			break
-		}
-	}
-
-	if remaining > 0 {
-		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "item not enough")
-	}
-
-	// 从后往前删除，避免索引变化
-	for i := len(itemsToRemove) - 1; i >= 0; i-- {
-		idx := itemsToRemove[i]
-		// 从切片中删除
-		bagData.Items = append(bagData.Items[:idx], bagData.Items[idx+1:]...)
+	if err := acc.removeItem(itemID, count); err != nil {
+		return err
 	}
 
 	// 发布事件

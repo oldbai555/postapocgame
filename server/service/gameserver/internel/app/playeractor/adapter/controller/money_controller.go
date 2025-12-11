@@ -2,13 +2,16 @@ package controller
 
 import (
 	"context"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/presenter"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/router"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/system"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/deps"
 	money2 "postapocgame/server/service/gameserver/internel/app/playeractor/usecase/money"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
 )
 
@@ -51,4 +54,11 @@ func (c *MoneyController) HandleOpenMoney(ctx context.Context, msg *network.Clie
 
 	// 通过 Presenter 发送响应
 	return c.presenter.SendMoneyData(ctx, sessionID, moneyData)
+}
+
+func init() {
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, _ *event.Event) {
+		moneyController := NewMoneyController()
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SOpenMoney), moneyController.HandleOpenMoney)
+	})
 }

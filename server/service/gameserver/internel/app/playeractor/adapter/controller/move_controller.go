@@ -2,6 +2,10 @@ package controller
 
 import (
 	"context"
+	"postapocgame/server/internal/event"
+	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/router"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
 
 	"postapocgame/server/internal/actor"
@@ -81,4 +85,22 @@ func (c *MoveController) HandleChangeScene(ctx context.Context, msg *network.Cli
 	ctxWithSession := context.WithValue(ctx, gshare.ContextKeySession, sessionID)
 	actorMsg := actor.NewBaseMessage(ctxWithSession, uint16(protocol.DungeonActorMsgId_DungeonActorMsgIdChangeScene), msg.Data)
 	return gshare.SendDungeonMessageAsync("global", actorMsg)
+}
+
+func init() {
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, _ *event.Event) {
+		moveController := NewMoveController()
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SStartMove), moveController.HandleStartMove)
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SUpdateMove), moveController.HandleUpdateMove)
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SEndMove), moveController.HandleEndMove)
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SChangeScene), moveController.HandleChangeScene)
+
+		gshare.RegisterHandler(uint16(protocol.PlayerActorMsgId_PlayerActorMsgIdSyncPosition), func(message actor.IActorMessage) {
+			msgCtx := message.GetContext()
+			sessionID, _ := msgCtx.Value(gshare.ContextKeySession).(string)
+			if err := HandleSyncPosition(msgCtx, sessionID, message.GetData()); err != nil {
+				log.Errorf("[player-network] handleSyncPosition failed: %v", err)
+			}
+		})
+	})
 }

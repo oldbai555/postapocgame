@@ -3,13 +3,18 @@ package controller
 import (
 	"context"
 	"google.golang.org/protobuf/proto"
+	"postapocgame/server/internal/actor"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
+	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/presenter"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/router"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/system"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/deps"
 	bag2 "postapocgame/server/service/gameserver/internel/app/playeractor/usecase/bag"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
 )
 
@@ -32,16 +37,16 @@ func NewBagController() *BagController {
 }
 
 // HandleOpenBag 处理打开背包请求
-func (c *BagController) HandleOpenBag(ctx context.Context, msg *network.ClientMessage) error {
+func (c *BagController) HandleOpenBag(ctx context.Context, _ *network.ClientMessage) error {
 	// 检查系统是否开启
 	bagSys := system.GetBagSys(ctx)
 	if bagSys == nil {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_System_NotEnabled), "背包系统未开启")
 	}
 
-	sessionID, err := gshare.GetSessionIDFromContext(ctx)
+	sessionId, err := gshare.GetSessionIDFromContext(ctx)
 	if err != nil {
-		return err
+		return customerr.Wrap(err)
 	}
 
 	// 获取背包数据
@@ -51,7 +56,7 @@ func (c *BagController) HandleOpenBag(ctx context.Context, msg *network.ClientMe
 	}
 
 	// 通过 Presenter 发送响应
-	return c.presenter.SendBagData(ctx, sessionID, bagData)
+	return c.presenter.SendBagData(ctx, sessionId, bagData)
 }
 
 // HandleAddItem 处理添加物品请求（RPC，来自 DungeonServer）
@@ -70,7 +75,7 @@ func (c *BagController) HandleAddItem(ctx context.Context, sessionID string, dat
 	// 执行添加物品用例
 	err := c.addItemUseCase.Execute(ctx, req.RoleId, req.ItemId, req.Count, 0) // bind=0 表示非绑定
 	if err != nil {
-		return err
+		return customerr.Wrap(err)
 	}
 
 	// 获取更新后的背包数据并发送
@@ -81,4 +86,18 @@ func (c *BagController) HandleAddItem(ctx context.Context, sessionID string, dat
 
 	// 通过 Presenter 发送背包数据更新
 	return c.presenter.SendBagData(ctx, sessionID, bagData)
+}
+
+func init() {
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, _ *event.Event) {
+		bagController := NewBagController()
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SOpenBag), bagController.HandleOpenBag)
+		gshare.RegisterHandler(uint16(protocol.PlayerActorMsgId_PlayerActorMsgIdAddItem), func(message actor.IActorMessage) {
+			msgCtx := message.GetContext()
+			sessionID, _ := msgCtx.Value(gshare.ContextKeySession).(string)
+			if err := bagController.HandleAddItem(msgCtx, sessionID, message.GetData()); err != nil {
+				log.Errorf("[bag-controller] HandleAddItem failed: %v", err)
+			}
+		})
+	})
 }

@@ -2,6 +2,9 @@ package controller
 
 import (
 	"context"
+	"postapocgame/server/internal/event"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/router"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
 
 	"postapocgame/server/internal/actor"
@@ -32,4 +35,10 @@ func (c *DungeonItemController) HandlePickupItem(ctx context.Context, msg *netwo
 	ctxWithSession := context.WithValue(ctx, gshare.ContextKeySession, sessionID)
 	actorMsg := actor.NewBaseMessage(ctxWithSession, uint16(protocol.DungeonActorMsgId_DungeonActorMsgIdPickupItem), msg.Data)
 	return gshare.SendDungeonMessageAsync("global", actorMsg)
+}
+func init() {
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, _ *event.Event) {
+		dungeonItemController := NewDungeonItemController()
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SPickupItem), dungeonItemController.HandlePickupItem)
+	})
 }

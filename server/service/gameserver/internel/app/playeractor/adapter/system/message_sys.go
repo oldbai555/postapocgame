@@ -10,21 +10,6 @@ import (
 	"postapocgame/server/service/gameserver/internel/iface"
 )
 
-// MessageSystemAdapter 玩家消息系统适配器
-//
-// 生命周期职责：
-// - OnInit: 加载离线消息并触发回放
-// - OnRoleLogin: 登录时加载离线消息
-// - OnRoleReconnect: 重连时加载离线消息
-// - OnNewDay: 清理过期消息（超过7天的消息）
-// - RunOne: 检查消息数量限制（每个玩家最多1000条消息）
-// - 其他生命周期: 暂未使用
-//
-// 业务逻辑：消息类型注册、回放时机、失败重试策略主要在 UseCase 与消息注册中心中实现
-// 状态管理：维护 owner 引用，用于消息回放
-//
-// ⚠️ 防退化机制：禁止在 SystemAdapter 中编写业务规则逻辑，只允许调用 UseCase 与管理生命周期
-// 注意：主要逻辑为加载离线消息，属于框架层面的消息处理，保留在适配层符合 Clean Architecture 原则
 type MessageSystemAdapter struct {
 	*BaseSystemAdapter
 	owner iface.IPlayerRole

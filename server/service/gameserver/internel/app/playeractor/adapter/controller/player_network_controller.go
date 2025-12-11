@@ -2,7 +2,10 @@ package controller
 
 import (
 	"context"
+	"postapocgame/server/internal/event"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/router"
 	gatewaylink2 "postapocgame/server/service/gameserver/internel/gatewaylink"
+	"postapocgame/server/service/gameserver/internel/gevent"
 
 	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/actor"
@@ -299,4 +302,26 @@ func HandleSendToClient(message actor.IActorMessage) {
 	if err := gatewaylink2.SendToSession(sessionID, uint16(req.GetMsgId()), req.GetData()); err != nil {
 		log.Errorf("[player-network] handleSendToClient: send failed: %v", err)
 	}
+}
+
+func init() {
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, _ *event.Event) {
+		protocolRouter := router.NewProtocolRouterController()
+		gshare.RegisterHandler(uint16(protocol.PlayerActorMsgId_PlayerActorMsgIdDoNetworkMsg), protocolRouter.HandleDoNetworkMsg)
+		gshare.RegisterHandler(uint16(protocol.PlayerActorMsgId_PlayerActorMsgIdDoRunOneMsg), HandleRunOneMsg)
+		gshare.RegisterHandler(uint16(protocol.PlayerActorMsgId_PlayerActorMsgIdPlayerMessageMsg), HandlePlayerMessageMsg)
+		gshare.RegisterHandler(uint16(protocol.PlayerActorMsgId_PlayerActorMsgIdSendToClient), HandleSendToClient)
+
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SEnterGame), HandleEnterGame)
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SReconnect), HandleReconnect)
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SQueryRank), HandleQueryRank)
+
+		gshare.RegisterHandler(uint16(protocol.PlayerActorMsgId_PlayerActorMsgIdSyncAttrs), func(message actor.IActorMessage) {
+			msgCtx := message.GetContext()
+			sessionID, _ := msgCtx.Value(gshare.ContextKeySession).(string)
+			if err := HandleDungeonSyncAttrs(msgCtx, sessionID, message.GetData()); err != nil {
+				log.Errorf("[player-network] handleDungeonSyncAttrs failed: %v", err)
+			}
+		})
+	})
 }

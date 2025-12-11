@@ -13,15 +13,6 @@ import (
 	"postapocgame/server/service/gameserver/internel/iface"
 )
 
-// ShopSystemAdapter 商城系统适配器
-//
-// 生命周期职责：
-// - OnInit: 暂未使用（商城数据无需初始化）
-// - 其他生命周期: 暂未使用
-//
-// 业务逻辑：所有业务逻辑（购买商品、消耗/奖励构建）均在 UseCase 层实现
-//
-// ⚠️ 防退化机制：禁止在 SystemAdapter 中编写业务规则逻辑，只允许调用 UseCase 与管理生命周期
 type ShopSystemAdapter struct {
 	*BaseSystemAdapter
 	buyItemUseCase *shop.BuyItemUseCase

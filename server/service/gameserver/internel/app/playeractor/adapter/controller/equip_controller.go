@@ -3,13 +3,16 @@ package controller
 import (
 	"context"
 	"google.golang.org/protobuf/proto"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/presenter"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/router"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/system"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/deps"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/usecase/equip"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
 )
 
@@ -42,15 +45,6 @@ func (c *EquipController) HandleEquipItem(ctx context.Context, msg *network.Clie
 	// 检查系统是否开启
 	equipSys := system.GetEquipSys(ctx)
 	if equipSys == nil {
-		sessionID, _ := gshare.GetSessionIDFromContext(ctx)
-		resp := &protocol.S2CEquipResultReq{
-			Slot:    0,
-			ItemId:  0,
-			ErrCode: uint32(protocol.ErrorCode_System_NotEnabled),
-		}
-		if sendErr := c.presenter.SendEquipResult(ctx, sessionID, resp); sendErr != nil {
-			return sendErr
-		}
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_System_NotEnabled), "装备系统未开启")
 	}
 
@@ -74,9 +68,8 @@ func (c *EquipController) HandleEquipItem(ctx context.Context, msg *network.Clie
 
 	// 构建响应
 	resp := &protocol.S2CEquipResultReq{
-		Slot:    req.Slot,
-		ItemId:  req.ItemId,
-		ErrCode: errCodeFromError(err),
+		Slot:   req.Slot,
+		ItemId: req.ItemId,
 	}
 
 	// 发送响应
@@ -101,12 +94,9 @@ func (c *EquipController) HandleEquipItem(ctx context.Context, msg *network.Clie
 	return nil
 }
 
-// errCodeFromError 从错误中提取错误码
-func errCodeFromError(err error) uint32 {
-	if err == nil {
-		return uint32(protocol.ErrorCode_Success)
-	}
-	// 这里需要根据错误类型提取错误码
-	// 暂时返回通用错误
-	return uint32(protocol.ErrorCode_Internal_Error)
+func init() {
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, _ *event.Event) {
+		equipController := NewEquipController()
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SEquipItem), equipController.HandleEquipItem)
+	})
 }

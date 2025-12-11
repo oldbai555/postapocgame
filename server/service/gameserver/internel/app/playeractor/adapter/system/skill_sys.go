@@ -14,16 +14,6 @@ import (
 	"postapocgame/server/service/gameserver/internel/iface"
 )
 
-// SkillSystemAdapter 技能系统适配器
-//
-// 生命周期职责：
-// - OnInit: 调用 InitSkillDataUseCase 初始化技能数据（按职业配置初始化基础技能）
-// - 其他生命周期: 暂未使用
-//
-// 业务逻辑：所有业务逻辑（学习技能、升级技能、消耗校验）均在 UseCase 层实现
-// 外部交互：通过 DungeonServerGateway 同步技能数据到战斗服
-//
-// ⚠️ 防退化机制：禁止在 SystemAdapter 中编写业务规则逻辑，只允许调用 UseCase 与管理生命周期
 type SkillSystemAdapter struct {
 	*BaseSystemAdapter
 	learnSkillUseCase    *skill2.LearnSkillUseCase

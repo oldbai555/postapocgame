@@ -2,12 +2,15 @@ package controller
 
 import (
 	"context"
+	"postapocgame/server/internal/event"
 	presenter2 "postapocgame/server/service/gameserver/internel/app/playeractor/adapter/presenter"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/router"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/system"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/deps"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/usecase/consume"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/usecase/reward"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/usecase/shop"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
 
 	"google.golang.org/protobuf/proto"
@@ -68,18 +71,15 @@ func (c *ShopController) HandleShopBuy(ctx context.Context, msg *network.ClientM
 
 	// 参数校验
 	if req.ItemId == 0 || req.Count == 0 {
-		resp.ErrCode = uint32(protocol.ErrorCode_Param_Invalid)
-		return c.presenter.SendShopBuyResult(ctx, sessionID, resp)
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Param_Invalid), "itemId %d, count %d", req.ItemId, req.Count)
 	}
 
 	// 执行购买用例
 	err = c.buyItemUseCase.Execute(ctx, roleID, req.ItemId, req.Count)
 	if err != nil {
-		resp.ErrCode = errCodeFromError(err)
-		return c.presenter.SendShopBuyResult(ctx, sessionID, resp)
+		return customerr.Wrap(err)
 	}
 
-	resp.ErrCode = uint32(protocol.ErrorCode_Success)
 	if err := c.presenter.SendShopBuyResult(ctx, sessionID, resp); err != nil {
 		return err
 	}
@@ -89,4 +89,10 @@ func (c *ShopController) HandleShopBuy(ctx context.Context, msg *network.ClientM
 	presenter2.PushMoneyData(ctx, sessionID)
 
 	return nil
+}
+func init() {
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, _ *event.Event) {
+		shopController := NewShopController()
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SShopBuy), shopController.HandleShopBuy)
+	})
 }

@@ -12,30 +12,21 @@ import (
 	"postapocgame/server/service/gameserver/internel/iface"
 )
 
-// FubenSystemAdapter 副本系统适配器
-//
-// 生命周期职责：
-// - 当前无额外初始化需求
-//
-// 业务逻辑：所有业务逻辑（进入副本、副本结算、记录查找）均在 UseCase 层实现
-// 外部交互：通过 DungeonServerGateway 进行副本进入/结算 RPC 调用
-//
-// ⚠️ 防退化机制：禁止在 SystemAdapter 中编写业务规则逻辑，只允许调用 UseCase 与管理生命周期
-type FubenSystemAdapter struct {
+type FuBenSystemAdapter struct {
 	*BaseSystemAdapter
 	enterDungeonUseCase     *fuben.EnterDungeonUseCase
 	getDungeonRecordUseCase *fuben.GetDungeonRecordUseCase
 }
 
-// NewFubenSystemAdapter 创建副本系统适配器
-func NewFubenSystemAdapter() *FubenSystemAdapter {
+// NewFuBenSystemAdapter 创建副本系统适配器
+func NewFuBenSystemAdapter() *FuBenSystemAdapter {
 	enterDungeonUC := fuben.NewEnterDungeonUseCase(deps.PlayerGateway(), deps.ConfigGateway(), deps.DungeonServerGateway())
 	getDungeonRecordUC := fuben.NewGetDungeonRecordUseCase(deps.PlayerGateway())
 
 	consumeUseCase := consume.NewConsumeUseCase(deps.PlayerGateway(), deps.EventPublisher())
 	enterDungeonUC.SetDependencies(consumeUseCase)
 
-	return &FubenSystemAdapter{
+	return &FuBenSystemAdapter{
 		BaseSystemAdapter:       NewBaseSystemAdapter(uint32(protocol.SystemId_SysFuBen)),
 		enterDungeonUseCase:     enterDungeonUC,
 		getDungeonRecordUseCase: getDungeonRecordUC,
@@ -43,7 +34,7 @@ func NewFubenSystemAdapter() *FubenSystemAdapter {
 }
 
 // GetDungeonRecord 获取副本记录（对外接口，供其他系统调用）
-func (a *FubenSystemAdapter) GetDungeonRecord(ctx context.Context, dungeonID uint32, difficulty uint32) (*protocol.DungeonRecord, error) {
+func (a *FuBenSystemAdapter) GetDungeonRecord(ctx context.Context, dungeonID uint32, difficulty uint32) (*protocol.DungeonRecord, error) {
 	roleID, err := gshare.GetRoleIDFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -53,7 +44,7 @@ func (a *FubenSystemAdapter) GetDungeonRecord(ctx context.Context, dungeonID uin
 }
 
 // GetDungeonData 获取副本数据（用于协议）
-func (a *FubenSystemAdapter) GetDungeonData(ctx context.Context) (*protocol.SiDungeonData, error) {
+func (a *FuBenSystemAdapter) GetDungeonData(ctx context.Context) (*protocol.SiDungeonData, error) {
 	dungeonData, err := deps.PlayerGateway().GetDungeonData(ctx)
 	if err != nil {
 		return nil, err
@@ -61,11 +52,11 @@ func (a *FubenSystemAdapter) GetDungeonData(ctx context.Context) (*protocol.SiDu
 	return dungeonData, nil
 }
 
-// EnsureISystem 确保 FubenSystemAdapter 实现 ISystem 接口
-var _ iface.ISystem = (*FubenSystemAdapter)(nil)
+// EnsureISystem 确保 FuBenSystemAdapter 实现 ISystem 接口
+var _ iface.ISystem = (*FuBenSystemAdapter)(nil)
 
 // GetFubenSys 获取副本系统
-func GetFubenSys(ctx context.Context) *FubenSystemAdapter {
+func GetFubenSys(ctx context.Context) *FuBenSystemAdapter {
 	playerRole, err := gshare.GetPlayerRoleFromContext(ctx)
 	if err != nil {
 		log.Errorf("get player role error:%v", err)
@@ -75,7 +66,7 @@ func GetFubenSys(ctx context.Context) *FubenSystemAdapter {
 	if system == nil {
 		return nil
 	}
-	sys, ok := system.(*FubenSystemAdapter)
+	sys, ok := system.(*FuBenSystemAdapter)
 	if !ok || !sys.IsOpened() {
 		return nil
 	}
@@ -86,7 +77,7 @@ func GetFubenSys(ctx context.Context) *FubenSystemAdapter {
 func init() {
 	// 注册系统适配器工厂
 	entitysystem.RegisterSystemFactory(uint32(protocol.SystemId_SysFuBen), func() iface.ISystem {
-		return NewFubenSystemAdapter()
+		return NewFuBenSystemAdapter()
 	})
 
 	// 协议注册由 controller 包负责
