@@ -365,7 +365,7 @@ func (c *TCPClient) reconnectLoop() {
 
 func (c *TCPClient) SendMessage(msg *Message) error {
 	if !c.connected.Load() {
-		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Network_Timeout), "not connected to "+c.addr)
+		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Network_Timeout), "not connected to %s", c.addr)
 	}
 
 	c.mu.RLock()

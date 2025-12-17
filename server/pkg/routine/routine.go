@@ -20,7 +20,7 @@ func Go(ctx context.Context, logic func(ctx context.Context) error) {
 			code := customerr.GetErrCode(err)
 			if code < 0 {
 				msg := fmt.Sprintf("go-routine err %v", err)
-				log.Errorf(msg)
+				log.Errorf("%s", msg)
 				// 错误通知
 			}
 		}
@@ -37,7 +37,7 @@ func GoV2(fn func() error) {
 			code := customerr.GetErrCode(err)
 			if code < 0 {
 				msg := fmt.Sprintf("go-routine err:%v", err)
-				log.Errorf(msg)
+				log.Errorf("%s", msg)
 				// 错误通知
 			}
 		}
@@ -60,7 +60,7 @@ func CatchPanic(panicCallback func(err interface{})) {
 		} else {
 			sb.WriteString(fmt.Sprintf("stack is empty (%s)", err))
 		}
-		log.Errorf(sb.String())
+		log.Errorf("%s", sb.String())
 		if panicCallback != nil {
 			panicCallback(err)
 		}

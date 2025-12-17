@@ -10,10 +10,10 @@ import (
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
-	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/system"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/deps"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/entitysystem"
-	interfaces2 "postapocgame/server/service/gameserver/internel/app/playeractor/usecase/interfaces"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/level"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/runtime"
 	"postapocgame/server/service/gameserver/internel/gatewaylink"
 	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
@@ -42,14 +42,17 @@ type PlayerRole struct {
 	// 事件总线（每个玩家独立的事件总线）
 	eventBus *event.Bus
 
+	// Runtime 依赖聚合（Phase 2D 新增，用于替代全局 deps）
+	runtime *runtime.Runtime
+
 	// 系统管理器
 	sysMgr       iface.ISystemMgr
 	_1sChecker   *tool.TimeChecker
 	_5minChecker *tool.TimeChecker
 	timeCursor   timeCursorMark
 
-	// 属性计算工具类（从 AttrSystemAdapter 重构而来）
-	attrCalculator *AttrCalculator
+	// 属性计算工具类（从 AttrSystemAdapter 重构而来）（已移除，保留字段以兼容旧接口，但不再使用）
+	// attrCalculator *AttrCalculator
 }
 
 type timeCursorMark struct {
@@ -70,12 +73,19 @@ func NewPlayerRole(sessionId string, roleInfo *protocol.PlayerSimpleData) *Playe
 		ReconnectKey: generateReconnectKey(sessionId, roleInfo.RoleId),
 		// 为该玩家创建独立的事件总线（按注册表装配）
 		eventBus: gevent.NewPlayerEventBus(),
+		// 创建 Runtime 实例（Phase 2D：聚合依赖，使用 deps 工厂函数）
+		runtime: runtime.NewRuntime(
+			deps.NewPlayerGateway(),
+			deps.NewRoleRepository(),
+			deps.NewConfigManager(),
+			deps.NewEventPublisher(),
+			deps.NewNetworkGateway(),
+			deps.NewDungeonServerGateway(),
+			deps.NewPublicActorGateway(),
+		),
 	}
 	// 创建系统管理器
 	pr.sysMgr = entitysystem.NewSysMgr()
-
-	// 创建属性计算工具类
-	pr.attrCalculator = NewAttrCalculator(pr)
 
 	// 订阅升级事件，自动更新排行榜（订阅到玩家自己的事件总线）
 	pr.eventBus.Subscribe(gevent.OnPlayerLevelUp, 3, func(evCtx context.Context, ev *event.Event) {
@@ -117,11 +127,6 @@ func NewPlayerRole(sessionId string, roleInfo *protocol.PlayerSimpleData) *Playe
 	err = pr.sysMgr.OnInit(pr.WithContext(context.TODO()))
 	if err != nil {
 		log.Errorf("sys mgr on init failed, err:%v", err)
-	}
-
-	// 初始化属性计算工具类
-	if pr.attrCalculator != nil {
-		pr.attrCalculator.Init(pr.WithContext(context.TODO()))
 	}
 
 	pr._1sChecker = tool.NewTimeChecker(time.Second)
@@ -178,7 +183,7 @@ func (pr *PlayerRole) UpdateRankSnapshot(ctx context.Context) {
 	roleInfo := pr.SimpleData
 
 	// 获取等级
-	levelSys := system.GetLevelSys(ctx)
+	levelSys := level.GetLevelSys(ctx)
 	var level uint32
 	if levelSys != nil {
 		if lvl, err := levelSys.GetLevel(ctx); err == nil {
@@ -190,22 +195,8 @@ func (pr *PlayerRole) UpdateRankSnapshot(ctx context.Context) {
 		level = roleInfo.Level
 	}
 
-	// 计算战力（简化版：从属性计算工具类获取）
+	// 计算战力（目前简化为 0，如需恢复请接入 AttrCalculator 工具类或属性系统）
 	var combatPower int64
-	if pr.attrCalculator != nil {
-		// 计算所有属性
-		allAttrs := pr.attrCalculator.CalculateAllAttrs(ctx)
-		// 简化计算：将所有属性值相加作为战力（实际应该根据配置计算）
-		for _, attrVec := range allAttrs {
-			if attrVec != nil && attrVec.Attrs != nil {
-				for _, attr := range attrVec.Attrs {
-					if attr != nil {
-						combatPower += attr.Value
-					}
-				}
-			}
-		}
-	}
 
 	// 构建排行榜快照
 	snapshot := &protocol.PlayerRankSnapshot{
@@ -321,7 +312,7 @@ func (pr *PlayerRole) OnReconnect(newSessionId string) error {
 	oldSessionId := pr.SessionId
 	pr.SessionId = newSessionId
 	if oldSessionId != newSessionId {
-		deps.PlayerRoleManager().UpdateSession(pr.SimpleData.RoleId, oldSessionId, newSessionId)
+		deps.GetPlayerRoleManager().UpdateSession(pr.SimpleData.RoleId, oldSessionId, newSessionId)
 	}
 
 	pr.IsOnline = true
@@ -329,9 +320,7 @@ func (pr *PlayerRole) OnReconnect(newSessionId string) error {
 
 	// 发布玩家重连事件
 	pr.Publish(gevent.OnPlayerReconnect)
-	if pr.attrCalculator != nil {
-		pr.attrCalculator.PushFullAttrData(pr.WithContext(context.TODO()))
-	}
+	// 这里原本会在重连时推送完整属性数据，当前已移除 AttrCalculator 逻辑
 
 	var resp protocol.S2CReconnectSuccessReq
 	resp.ReconnectKey = pr.ReconnectKey
@@ -367,6 +356,11 @@ func (pr *PlayerRole) GetPlayerRoleId() uint64 {
 
 func (pr *PlayerRole) GetSessionId() string {
 	return pr.SessionId
+}
+
+// GetRuntime 获取 Runtime 实例（Phase 2D：供系统从 PlayerRole 获取依赖）
+func (pr *PlayerRole) GetRuntime() *runtime.Runtime {
+	return pr.runtime
 }
 
 func (pr *PlayerRole) GetReconnectKey() string {
@@ -427,14 +421,27 @@ func (pr *PlayerRole) WithContext(parentCtx context.Context) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	// 注入 PlayerRole
 	ctx = context.WithValue(ctx, gshare.ContextKeyRole, pr)
+	// 注入 SessionId，便于日志与下游链路从 ctx 还原会话信息
+	if pr.SessionId != "" {
+		ctx = context.WithValue(ctx, gshare.ContextKeySession, pr.SessionId)
+	}
+	// 注入 Runtime，方便下游通过 runtime.FromContext(ctx) 获取运行时依赖
+	if pr.runtime != nil {
+		ctx = pr.runtime.WithContext(ctx)
+	}
 	return ctx
 }
 
 func (pr *PlayerRole) sendPublicActorMessage(ctx context.Context, msgID uint16, data []byte) error {
 	msgCtx := pr.WithContext(ctx)
 	actorMsg := actor.NewBaseMessage(msgCtx, msgID, data)
-	return deps.PublicActorGateway().SendMessageAsync(msgCtx, "global", actorMsg)
+	// 通过 Runtime 中的 PublicGateway 发送消息，避免在此处重新创建 gateway 实例
+	if pr.runtime == nil {
+		return customerr.NewError("runtime is nil")
+	}
+	return pr.runtime.PublicGateway().SendMessageAsync(msgCtx, "global", actorMsg)
 }
 func (pr *PlayerRole) GetSysStatus(sysId uint32) bool {
 	idxInt := sysId / 32
@@ -465,20 +472,13 @@ func (pr *PlayerRole) GetSysMgr() iface.ISystemMgr {
 	return pr.sysMgr
 }
 
-// GetAttrCalculator 获取属性计算工具类（实现 IPlayerRole 接口）
-func (pr *PlayerRole) GetAttrCalculator() interfaces2.IAttrCalculator {
-	if pr == nil {
-		return nil
-	}
-	if pr.attrCalculator == nil {
-		return nil
-	}
-	return pr.attrCalculator
-}
-
 // CallDungeonServer 异步调用DungeonServer（用于解耦，避免循环依赖）
 func (pr *PlayerRole) CallDungeonServer(ctx context.Context, msgId uint16, data []byte) error {
-	return deps.DungeonServerGateway().AsyncCall(ctx, pr.GetSessionId(), msgId, data)
+	msgCtx := pr.WithContext(ctx)
+	if pr.runtime == nil {
+		return customerr.NewError("runtime is nil")
+	}
+	return pr.runtime.DungeonGateway().AsyncCall(msgCtx, pr.GetSessionId(), msgId, data)
 }
 
 func (pr *PlayerRole) timeSync() {
@@ -499,13 +499,8 @@ func (pr *PlayerRole) RunOne() {
 
 	pr.handleTimeEvents()
 
-	ctx := pr.WithContext(context.TODO())
-
 	if pr._1sChecker.CheckAndSet(true) {
 		pr.timeSync()
-		if pr.attrCalculator != nil {
-			pr.attrCalculator.RunOne(ctx)
-		}
 	}
 
 	if pr._5minChecker.CheckAndSet(true) {

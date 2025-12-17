@@ -147,13 +147,13 @@
 目标：UseCase 通过接口发布事件，由外部注入实现；实体层不再持有/感知 EventBus，事件总线按 Actor 隔离。
 
 接口与位置
-- 接口声明：`internel/app/playeractor/usecase/interfaces/event.go`
+- 接口声明：`internel/app/playeractor/service/interfaces/event.go`
   ```go
   type EventPublisher interface {
       Publish(ctx context.Context, topic string, payload any) error
   }
   ```
-- 实现：`internel/app/playeractor/adapter/event/event_publisher.go`
+- 实现：`internel/app/playeractor/event/event_publisher.go`
   - 构造入参：玩家级事件总线（由 `gevent.NewPlayerEventBus()` 等工厂创建）。
   - 方法：`Publish` 内部直接调用 bus.Publish，记录错误，不 panic；如需异步，保持在 Actor 单线程队列。
 

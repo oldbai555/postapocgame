@@ -15,6 +15,8 @@ import (
 	"postapocgame/server/service/gameserver/internel/app/engine"
 	"postapocgame/server/service/gameserver/internel/app/playeractor"
 	"postapocgame/server/service/gameserver/internel/app/playeractor/deps"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/register"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/runtime"
 	"postapocgame/server/service/gameserver/internel/app/publicactor"
 	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
@@ -42,6 +44,20 @@ func main() {
 
 	// 初始化错误码映射
 	protocol.InitErrorCodes()
+
+	// 显式注册 PlayerActor 系统（替代 init()）
+	// Phase 2D：直接创建依赖实例，不再使用全局 deps 单例
+	globalRuntime := runtime.NewRuntime(
+		deps.NewPlayerGateway(),
+		deps.NewRoleRepository(),
+		deps.NewConfigManager(),
+		deps.NewEventPublisher(),
+		deps.NewNetworkGateway(),
+		deps.NewDungeonServerGateway(),
+		deps.NewPublicActorGateway(),
+	)
+	register.RegisterAll(globalRuntime)
+
 	serverConfig, err := engine.LoadServerConfig("")
 	if err != nil {
 		log.Fatalf("err:%v", err)
@@ -127,8 +143,8 @@ func main() {
 	if err := dActor.Stop(shutdownCtx); err != nil {
 		log.Errorf("Stop DungeonActor failed: %v", err)
 	}
-	// 使用 DI 容器获取 PlayerRoleManager，并指定批次大小（每批 100 个角色）
-	if err := deps.GetContainer().PlayerRoleManager().FlushAndSave(shutdownCtx, 100); err != nil {
+	// 获取 PlayerRoleManager，并指定批次大小（每批 100 个角色）
+	if err := deps.GetPlayerRoleManager().FlushAndSave(shutdownCtx, 100); err != nil {
 		log.Errorf("FlushAndSave failed: %v", err)
 	}
 	if err := gs.Stop(shutdownCtx); err != nil {

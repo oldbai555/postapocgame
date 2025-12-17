@@ -2,136 +2,66 @@ package deps
 
 import (
 	"postapocgame/server/service/gameserver/internel/app/manager"
-	"postapocgame/server/service/gameserver/internel/app/playeractor/adapter/event"
-	gateway2 "postapocgame/server/service/gameserver/internel/app/playeractor/adapter/gateway"
-	"postapocgame/server/service/gameserver/internel/app/playeractor/domain/repository"
-	"postapocgame/server/service/gameserver/internel/app/playeractor/usecase/interfaces"
-	"sync"
+	"postapocgame/server/service/gameserver/internel/app/playeractor/event"
+	gateway2 "postapocgame/server/service/gameserver/internel/app/playeractor/gateway"
+	"postapocgame/server/service/gameserver/internel/iface"
 )
 
-type Dependencies struct {
-	playerGateway        repository.PlayerRepository
-	accountRepository    repository.AccountRepository
-	roleRepository       repository.RoleRepository
-	clientGateway        gateway2.ClientGateway
-	publicActorGateway   interfaces.PublicActorGateway
-	dungeonServerGateway interfaces.DungeonServerGateway
-	configGateway        interfaces.ConfigManager
-	eventPublisher       interfaces.EventPublisher
-	blacklistRepository  interfaces.BlacklistRepository
-	tokenGenerator       interfaces.TokenGenerator
-	playerRoleManager    interfaces.IPlayerRoleManager
+// Phase 2D 后：移除全局单例，只提供工厂函数
+// 约束：
+//   1）绝大部分业务代码（SystemAdapter / Service / UseCase / Presenter / Controller）不得直接调用 NewXXX，
+//      必须通过 Runtime 或各自的 Deps 结构注入依赖。
+//   2）仅以下场景允许使用：
+//        - runtime.NewRuntime 内部组装依赖；
+//        - 极少量 bootstrapping 代码（如协议路由器/账号控制器的构造函数、兼容性适配器 bag.NewBagUseCaseAdapter）；
+//      其他新代码如需调用 NewXXX，必须在评审时给出明确理由。
+
+// NewPlayerGateway 创建 PlayerRepository 实例
+func NewPlayerGateway() iface.PlayerRepository {
+	return gateway2.NewPlayerGateway()
 }
 
-// Container 为兼容旧调用保留的别名，后续可直接使用包级函数替换。
-type Container Dependencies
-
-var (
-	deps     *Dependencies
-	depsOnce sync.Once
-)
-
-// init 早期初始化，避免在各处重复判断。
-func init() {
-	Init()
+// NewAccountRepository 创建 AccountRepository 实例
+func NewAccountRepository() iface.AccountRepository {
+	return gateway2.NewAccountGateway()
 }
 
-// Init 构建依赖实例（只执行一次）。
-func Init() {
-	depsOnce.Do(func() {
-		deps = &Dependencies{
-			playerGateway:        gateway2.NewPlayerGateway(),
-			accountRepository:    gateway2.NewAccountGateway(),
-			roleRepository:       gateway2.NewRoleGateway(),
-			clientGateway:        gateway2.NewClientGateway(),
-			publicActorGateway:   gateway2.NewPublicActorGateway(),
-			dungeonServerGateway: gateway2.NewDungeonServerGateway(),
-			configGateway:        gateway2.NewConfigGateway(),
-			eventPublisher:       event.NewEventAdapter(),
-			blacklistRepository:  gateway2.NewBlacklistRepositoryAdapter(),
-			tokenGenerator:       gateway2.NewTokenGenerator(),
-			playerRoleManager:    manager.GetPlayerRoleManager(),
-		}
-	})
+// NewRoleRepository 创建 RoleRepository 实例
+func NewRoleRepository() iface.RoleRepository {
+	return gateway2.NewRoleGateway()
 }
 
-func ensure() *Dependencies {
-	Init()
-	if deps == nil {
-		panic("deps container not initialized")
-	}
-	return deps
+// NewNetworkGateway 创建 ClientGateway 实例（包含 NetworkGateway 和 SessionGateway）
+func NewNetworkGateway() gateway2.ClientGateway {
+	return gateway2.NewClientGateway()
 }
 
-// GetContainer 兼容旧 DI 样式，返回只读视图。
-func GetContainer() *Container {
-	return (*Container)(ensure())
+// NewPublicActorGateway 创建 PublicActorGateway 实例
+func NewPublicActorGateway() iface.PublicActorGateway {
+	return gateway2.NewPublicActorGateway()
 }
 
-func PlayerGateway() repository.PlayerRepository {
-	return ensure().playerGateway
+// NewDungeonServerGateway 创建 DungeonServerGateway 实例
+func NewDungeonServerGateway() iface.DungeonServerGateway {
+	return gateway2.NewDungeonServerGateway()
 }
 
-func AccountRepository() repository.AccountRepository {
-	return ensure().accountRepository
+// NewConfigManager 创建 ConfigManager 实例
+func NewConfigManager() iface.ConfigManager {
+	return gateway2.NewConfigGateway()
 }
 
-func RoleRepository() repository.RoleRepository {
-	return ensure().roleRepository
+// NewEventPublisher 创建 EventPublisher 实例
+func NewEventPublisher() iface.EventPublisher {
+	return event.NewEventAdapter()
 }
 
-func NetworkGateway() gateway2.NetworkGateway { return ensure().clientGateway }
-func SessionGateway() gateway2.SessionGateway { return ensure().clientGateway }
-func ClientGateway() gateway2.ClientGateway   { return ensure().clientGateway }
-
-func PublicActorGateway() interfaces.PublicActorGateway {
-	return ensure().publicActorGateway
+// NewTokenGenerator 创建 TokenGenerator 实例
+func NewTokenGenerator() iface.TokenGenerator {
+	return gateway2.NewTokenGenerator()
 }
 
-func DungeonServerGateway() interfaces.DungeonServerGateway {
-	return ensure().dungeonServerGateway
-}
-
-func ConfigGateway() interfaces.ConfigManager {
-	return ensure().configGateway
-}
-
-func EventPublisher() interfaces.EventPublisher {
-	return ensure().eventPublisher
-}
-
-func BlacklistRepository() interfaces.BlacklistRepository {
-	return ensure().blacklistRepository
-}
-
-func TokenGenerator() interfaces.TokenGenerator {
-	return ensure().tokenGenerator
-}
-
-func PlayerRoleManager() interfaces.IPlayerRoleManager {
-	return ensure().playerRoleManager
-}
-
-func (c *Container) PlayerGateway() repository.PlayerRepository { return ensure().playerGateway }
-func (c *Container) AccountRepository() repository.AccountRepository {
-	return ensure().accountRepository
-}
-func (c *Container) RoleRepository() repository.RoleRepository { return ensure().roleRepository }
-func (c *Container) NetworkGateway() gateway2.NetworkGateway   { return ensure().clientGateway }
-func (c *Container) SessionGateway() gateway2.SessionGateway   { return ensure().clientGateway }
-func (c *Container) ClientGateway() gateway2.ClientGateway     { return ensure().clientGateway }
-func (c *Container) PublicActorGateway() interfaces.PublicActorGateway {
-	return ensure().publicActorGateway
-}
-func (c *Container) DungeonServerGateway() interfaces.DungeonServerGateway {
-	return ensure().dungeonServerGateway
-}
-func (c *Container) ConfigGateway() interfaces.ConfigManager   { return ensure().configGateway }
-func (c *Container) EventPublisher() interfaces.EventPublisher { return ensure().eventPublisher }
-func (c *Container) BlacklistRepository() interfaces.BlacklistRepository {
-	return ensure().blacklistRepository
-}
-func (c *Container) TokenGenerator() interfaces.TokenGenerator { return ensure().tokenGenerator }
-func (c *Container) PlayerRoleManager() interfaces.IPlayerRoleManager {
-	return ensure().playerRoleManager
+// GetPlayerRoleManager 获取 PlayerRoleManager 单例
+func GetPlayerRoleManager() iface.IPlayerRoleManager {
+	return manager.GetPlayerRoleManager()
 }

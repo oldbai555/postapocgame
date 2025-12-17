@@ -54,20 +54,6 @@ type IPlayerRole interface {
 	OnNewWeek(ctx context.Context)
 	OnNewMonth(ctx context.Context)
 	OnNewYear(ctx context.Context)
-
-	// GetAttrCalculator 获取属性计算工具类
-	GetAttrCalculator() IAttrCalculator
-}
-
-// IAttrCalculator 属性计算接口（最小集合，避免循环依赖）
-type IAttrCalculator interface {
-	MarkDirty(saAttrSysId uint32)
-	CalculateAllAttrs(ctx context.Context) map[uint32]*protocol.AttrVec
-	PushFullAttrData(ctx context.Context)
-	PushSyncDataToClient(ctx context.Context, syncData *protocol.SyncAttrData)
-	ApplyDungeonSyncData(syncData *protocol.SyncAttrData)
-	RunOne(ctx context.Context) error
-	OnInit(ctx context.Context)
 }
 
 type IPlayerEvent interface {

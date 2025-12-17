@@ -4,7 +4,6 @@ import (
 	"context"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/pkg/customerr"
-	"postapocgame/server/pkg/routine"
 	"postapocgame/server/service/gameserver/internel/gshare"
 )
 
@@ -18,7 +17,6 @@ type PlayerRoleActor struct {
 func NewPlayerRoleActor(mode actor.ActorMode) *PlayerRoleActor {
 	defaultHandler := NewPlayerHandler()
 	defaultHandler.BaseActorHandler = actor.NewBaseActorHandler("player role handler")
-	defaultHandler.OnInit()
 	p := &PlayerRoleActor{
 		mode:          mode,
 		playerHandler: defaultHandler,
@@ -32,57 +30,36 @@ func NewPlayerRoleActor(mode actor.ActorMode) *PlayerRoleActor {
 }
 
 func (p *PlayerRoleActor) RegisterHandler(msgId uint16, f actor.HandlerMessageFunc) {
-	routine.Run(func() {
-		p.playerHandler.RegisterMessageHandler(msgId, f)
-	})
+	// 同步注册消息处理器，避免协程内对 handler 的并发访问
+	p.playerHandler.RegisterMessageHandler(msgId, f)
 }
 
 func (p *PlayerRoleActor) SendMessageAsync(key string, message actor.IActorMessage) error {
-	var err error
-	routine.Run(func() {
-		err = p.actorMgr.SendMessageAsync(key, message)
-	})
-	return err
+	// 直接转发给底层 ActorManager，由调用方决定是否需要在更外层异步化
+	return p.actorMgr.SendMessageAsync(key, message)
 }
 
 func (p *PlayerRoleActor) RemoveActor(key string) error {
-	var err error
-	routine.Run(func() {
-		err = p.actorMgr.RemoveActor(key)
-	})
-	return err
+	return p.actorMgr.RemoveActor(key)
 }
 
 func (p *PlayerRoleActor) Init() error {
-	var err error
-	routine.Run(func() {
-		err = p.actorMgr.Init()
-		if err == nil {
-			p.playerHandler.OnInit()
-		}
-	})
-	if err != nil {
+	if err := p.actorMgr.Init(); err != nil {
 		return customerr.Wrap(err)
 	}
+	// 在 ActorManager 初始化完成后，再初始化默认的 handler 模板
+	p.playerHandler.OnInit()
 	return nil
 }
 
 // Start 启动Actor系统
 func (p *PlayerRoleActor) Start(ctx context.Context) error {
-	var err error
-	routine.Run(func() {
-		err = p.actorMgr.Start(ctx)
-	})
-	return err
+	return p.actorMgr.Start(ctx)
 }
 
 // Stop 停止Actor系统
 func (p *PlayerRoleActor) Stop(ctx context.Context) error {
-	var err error
-	routine.Run(func() {
-		err = p.actorMgr.Stop(ctx)
-	})
-	return err
+	return p.actorMgr.Stop(ctx)
 }
 
 func (p *PlayerRoleActor) NewPlayerHandlerFactory() actor.IActorHandler {

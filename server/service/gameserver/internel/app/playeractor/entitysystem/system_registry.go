@@ -51,12 +51,8 @@ func GetDefaultSystemIds() []uint32 {
 		uint32(protocol.SystemId_SysBag),
 		uint32(protocol.SystemId_SysEquip),
 		uint32(protocol.SystemId_SysSkill),
-		uint32(protocol.SystemId_SysQuest),
 		uint32(protocol.SystemId_SysMoney),
-		uint32(protocol.SystemId_SysShop),
 		uint32(protocol.SystemId_SysFuBen),
-		uint32(protocol.SystemId_SysChat),
 		uint32(protocol.SystemId_SysMessage),
-		uint32(protocol.SystemId_SysItemUse),
 	}
 }

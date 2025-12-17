@@ -171,7 +171,7 @@ func (sm *SessionManager) cleanupTimeoutSessions() {
 		log.Infof("closing timeout session: %s", id)
 		err := sm.CloseSession(id)
 		if err != nil {
-			log.Errorf("CloseSession %d err:%v", id, err)
+			log.Errorf("CloseSession %s err:%v", id, err)
 		}
 
 	}
