@@ -13,190 +13,97 @@ import "base.proto";
 import "player.proto";
 import "system.proto";
 import "skill_def.proto";
-import "social_def.proto";
 import "attr_def.proto";
 
 enum S2CProtocol{
     S2CError = 0;// 错误消息
 
-    S2CRegisterResult = 1;// 注册结果
-    S2CLoginResult = 2;// 登录结果
-    S2CRoleList = 3;// 角色列表
-    S2CCreateRoleResult = 4;// 创建角色结果
-    S2CEnterScene = 5;// 进入场景
-    S2CUpdateBagData = 6;// 更新背包数据
-    S2CQuestData = 7;// 任务数据
-    S2CLevelData = 8;// 等级数据
-    S2CBagData = 9;// 背包数据
-    S2CVipData = 10;// VIP数据
-    S2CMoneyData = 11;// 货币数据
-    S2CAttrData = 12;// 属性数据
-    S2CMailList = 13;// 邮件列表
-    S2CMailDetail = 14;// 邮件详情
-    S2CReconnectSuccess = 15;// 重连密钥
-    S2CLoginSuccess = 16;// 登录成功
-    S2CEntityMove = 17;// 实体移动广播
-    S2CEntityStopMove = 18;// 实体停止移动
-    S2CSkillCastResult = 19;// 技能释放结果
-    S2CEntityAppear = 20;// 实体进入视野
-    S2CEntityDisappear = 21;// 实体离开视野
-    S2CShopBuyResult = 22;// 商城购买结果
-    S2CEquipResult = 23;// 穿戴装备结果
-    S2CSystemNotification = 24;// 系统通知
-    S2CGMCommandResult = 25;// GM命令结果
-    S2CUseItemResult = 26;// 使用物品结果
-    S2CRecycleItemResult = 27;// 回收物品结果
-    S2CTalkToNPCResult = 28;// NPC对话结果
-    S2CLearnSkillResult = 29;// 学习技能结果
-    S2CUpgradeSkillResult = 30;// 升级技能结果
-    S2CChangeSceneResult = 31;// 切换场景结果
-    S2CPickupItemResult = 32;// 拾取掉落物结果
-    S2CEnterDungeonResult = 33;// 进入副本结果
-    S2CClaimOfflineRewardResult = 34;// 领取离线收益结果
-    S2CReviveResult = 35;// 角色复活结果
-    S2CGetNearestMonsterResult = 36;// 获取最近怪物结果
-    S2CTimeSync = 37;// 服务器时间同步（动画/移动时间轴对齐）
-    S2CSkillDamageResult = 38;// 技能伤害结果
-    S2CChatMessage = 39;// 聊天消息
-    S2CAddFriendResult = 40;// 添加好友结果
-    S2CFriendRequestNotify = 41;// 好友申请通知
-    S2CRespondFriendReqResult = 42;// 响应好友申请结果
-    S2CFriendList = 43;// 好友列表
-    S2CRemoveFriendResult = 44;// 删除好友结果
-    S2CQueryRankResult = 45;// 查询排行榜结果
-    S2CCreateGuildResult = 46;// 创建公会结果
-    S2CJoinGuildResult = 47;// 加入公会结果
-    S2CLeaveGuildResult = 48;// 离开公会结果
-    S2CGuildInfo = 49;// 公会信息
-    S2CAuctionPutOnResult = 50;// 拍卖上架结果
-    S2CAuctionBuyResult = 51;// 拍卖购买结果
-    S2CAuctionQueryResult = 52;// 拍卖查询结果
-    S2CGuildJoinApproveResult = 53;// 审批加入公会申请结果
-    S2CGuildJoinRejectResult = 54;// 拒绝加入公会申请结果
-    S2CGuildKickMemberResult = 55;// 踢出成员结果
-    S2CGuildChangePositionResult = 56;// 修改职位结果
-    S2CGuildUpdateAnnouncementResult = 57;// 修改公会宣言结果
-    S2CGuildUpdateNameResult = 58;// 修改公会名称结果
-    S2CAddToBlacklistResult = 59;// 添加到黑名单结果
-    S2CRemoveFromBlacklistResult = 60;// 从黑名单移除结果
-    S2CBlacklist = 61;// 黑名单列表
-    S2CStartMove = 62;// 开始移动广播
-    S2CEndMove = 63;// 结束移动广播
+    // 账号
+    S2CRegister = 1;// 注册账号结果
+    S2CLogin = 2;// 登录账号结果
+    S2CVerify = 3;// 验证结果
+    S2CRoleList = 4;// 角色列表
+    S2CCreateRole = 5;// 创建角色结果
+    S2CLoginRole = 6;// 登录角色成功
+    S2CTimeSync = 7;// 服务器时间同步
+
+    // 移动
+    S2CStartMove = 20;// 实体开始移动
+    S2CUpdateMove = 21;// 实体移动中更新
+    S2CStopMove = 22;// 实体结束移动
+
+    // 场景
+    S2CEnterScene = 40;// 进入场景
+    S2CEntityAppear = 41;// 实体进入视野
+    S2CEntityDisappear = 42;// 实体离开视野
+
+    // 技能
+    S2CUseSkill = 60;// 技能释放结果
+    S2CSkillDamage = 61;// 技能伤害结果
+
+    // 等级
+    S2CLevelData = 80;// 等级数据
+}
+
+// =========== 账号 ==========
+message S2CRegisterReq {
+    bool success = 1;
+    string message = 2;
+    string token = 3; // 注册成功后返回token
+}
+
+message S2CVerifyReq {
+
+}
+
+message S2CLoginReq {
+    bool success = 1;
+    string message = 2;
+    string token = 3; // 登录成功后返回token
 }
 
 message S2CRoleListReq {
     repeated PlayerSimpleData role_list = 1;
 }
 
-message S2CCreateRoleResultReq {
+message S2CCreateRoleReq {
     uint32 job = 1;
     uint32 sex = 2;
     string role_name = 3;
 }
 
+message S2CLoginRoleReq {
+    string reconnect_key = 1;
+    PlayerSimpleData role_data = 2;
+}
+
+message S2CTimeSyncReq {
+    int64 server_time_ms = 1;// 服务器当前时间（Unix 毫秒）
+}
+
+
+// =========== 移动 ==========
+// 实体开始移动
+message S2CStartMoveReq {
+    uint64 entity_hdl = 1; // 实体句柄
+    uint32 pos_x = 2;      // 当前位置X坐标（像素坐标）
+    uint32 pos_y = 3;      // 当前位置Y坐标（像素坐标）
+    MoveData move_data = 4; // 移动数据（包含目的地）
+}
+
+// 实体移动中更新
+message S2CEntityUpdateMoveReq {
+
+}
+
+message S2CEndMoveReq {
+    uint64 entity_hdl = 1; // 实体句柄
+    uint32 pos_x = 2;      // 最终位置X坐标（像素坐标）
+    uint32 pos_y = 3;      // 最终位置Y坐标（像素坐标）
+}
+// =========== 场景 ==========
 message S2CEnterSceneReq {
     EntitySt entity_data = 4;
-}
-
-message S2CUpdateBagDataReq {}
-
-message S2CQuestDataReq {
-    SiQuestData quest_data = 1;
-}
-
-message S2CLevelDataReq {
-    SiLevelData level_data =1;
-}
-
-message S2CBagDataReq {
-    SiBagData bag_data = 1;
-}
-
-message S2CMoneyDataReq {
-    SiMoneyData money_data = 1;
-}
-
-message S2CAttrDataReq {
-    SyncAttrData attr_data = 1;
-    map<uint32, int64> sys_power_map = 2;
-}
-
-message S2CMailListReq {
-    repeated MailSt mail_list = 1;
-}
-
-message S2CMailDetailReq {
-    MailSt mail = 1;
-}
-
-message S2CReconnectSuccessReq {
-    string reconnect_key = 1;
-    PlayerSimpleData role_data = 2;
-}
-
-message S2CRegisterResultReq {
-    bool success = 1;
-    string message = 2;
-    string token = 3; // 注册成功后返回token
-}
-
-message S2CLoginResultReq {
-    bool success = 1;
-    string message = 2;
-    string token = 3; // 登录成功后返回token
-}
-
-message S2CLoginSuccessReq {
-    string reconnect_key = 1;
-    PlayerSimpleData role_data = 2;
-}
-
-message SkillHitResultSt {
-    uint64 target_hdl = 1;
-    bool is_hit = 2;
-    bool is_dodge = 3;
-    bool is_crit = 4;
-    int64 damage = 5;
-    int64 heal = 6;
-    repeated uint32 added_buffs = 7;
-    SkillResultType result_type = 8;
-    map<uint32, int64> attrs = 9;
-    uint64 state_flags = 10;
-    uint64 damage_flags = 11;
-}
-
-message S2CSkillCastResultReq {
-    uint64 caster_hdl = 1;
-    uint32 skill_id = 2;
-    uint32 err_code = 3;
-    int64 server_time_ms = 4;
-    uint32 latency_tolerance_ms = 5;
-}
-
-message S2CSkillDamageResultReq {
-    uint64 caster_hdl = 1;
-    uint32 skill_id = 2;
-    reserved 3;
-    uint32 batch_index = 4;
-    int64 server_time_ms = 5;
-    repeated SkillHitResultSt hits = 6;
-}
-
-// 实体移动广播
-// 注意：pos_x、pos_y 是格子坐标（不是像素坐标）
-message S2CEntityMoveReq {
-    uint64 entity_hdl = 1;
-    uint32 pos_x = 2; // 格子X坐标
-    uint32 pos_y = 3; // 格子Y坐标
-    uint32 speed = 4; // 移动速度（像素/秒）
-}
-
-// 实体停止移动广播
-// 注意：pos_x、pos_y 是格子坐标（不是像素坐标）
-message S2CEntityStopMoveReq {
-    uint64 entity_hdl = 1;
-    uint32 pos_x = 2; // 格子X坐标
-    uint32 pos_y = 3; // 格子Y坐标
 }
 
 message S2CEntityAppearReq {
@@ -207,283 +114,16 @@ message S2CEntityDisappearReq {
     uint64 entity_hdl = 1;
 }
 
-message S2CShopBuyResultReq {
-    uint32 item_id = 1;
-    uint32 count = 2;
+
+// =========== 技能 ==========
+message S2CUseSkillReq {
+
 }
 
-message S2CEquipResultReq {
-    uint32 slot = 1;
-    uint32 item_id = 2;
-}
+message S2CSkillDamageReq {
 
-// 系统通知
-message S2CSystemNotificationReq {
-    string title = 1;// 通知标题
-    string content = 2;// 通知内容
-    uint32 type = 3;// 通知类型: 1=系统维护 2=活动通知 3=奖励通知 4=其他
-    uint32 priority = 4;// 优先级: 1=低 2=中 3=高
 }
-
-// GM命令结果
-message S2CGMCommandResultReq {
-    bool success = 1;// 是否执行成功
-    string message = 2;// 执行结果消息
-}
-
-// 使用物品结果
-message S2CUseItemResultReq {
-    bool success = 1;// 是否使用成功
-    string message = 2;// 结果消息
-    uint32 item_id = 3;// 物品ID
-    uint32 remaining_count = 4;// 剩余数量
-}
-
-// 回收物品结果
-message S2CRecycleItemResultReq {
-    bool success = 1;// 是否回收成功
-    string message = 2;// 结果消息
-    uint32 item_id = 3;// 物品ID
-    uint32 recycled_count = 4;// 回收数量
-    repeated ItemAmount awards = 5;// 回收奖励列表
-}
-
-// NPC对话结果
-message S2CTalkToNPCResultReq {
-    bool success = 1;// 是否对话成功
-    string message = 2;// 结果消息
-    uint32 npc_id = 3;// NPC ID
-}
-
-// 学习技能结果
-message S2CLearnSkillResultReq {
-    bool success = 1;// 是否学习成功
-    string message = 2;// 结果消息
-    uint32 skill_id = 3;// 技能ID
-}
-
-// 升级技能结果
-message S2CUpgradeSkillResultReq {
-    bool success = 1;// 是否升级成功
-    string message = 2;// 结果消息
-    uint32 skill_id = 3;// 技能ID
-    uint32 skill_level = 4;// 技能等级
-}
-
-// 切换场景结果
-message S2CChangeSceneResultReq {
-    bool success = 1;// 是否切换成功
-    string message = 2;// 结果消息
-    uint32 scene_id = 3;// 场景ID
-}
-
-// 拾取掉落物结果
-message S2CPickupItemResultReq {
-    bool success = 1;// 是否拾取成功
-    string message = 2;// 结果消息
-    uint64 item_hdl = 3;// 掉落物句柄
-}
-
-// 进入副本结果
-message S2CEnterDungeonResultReq {
-    bool success = 1;// 是否进入成功
-    string message = 2;// 结果消息
-    uint32 dungeon_id = 3;// 副本ID
-}
-
-// 领取离线收益结果
-message S2CClaimOfflineRewardResultReq {
-    bool success = 1;// 是否领取成功
-    string message = 2;// 结果消息
-    int64 offline_seconds = 3;// 离线时间（秒）
-    repeated ItemAmount rewards = 4;// 奖励列表
-    int64 claimed_time = 5;// 领取时间（Unix时间戳）
-}
-
-// 角色复活结果
-message S2CReviveResultReq {
-    bool success = 1;// 是否复活成功
-    string message = 2;// 结果消息
-    uint32 scene_id = 3;// 复活场景ID
-    uint32 pos_x = 4;// 复活位置X
-    uint32 pos_y = 5;// 复活位置Y
-}
-
-// 获取最近怪物结果
-message S2CGetNearestMonsterResultReq {
-    bool success = 1;// 是否找到怪物
-    string message = 2;// 结果消息
-    uint64 monster_hdl = 3;// 怪物句柄
-    uint32 monster_id = 4;// 怪物ID
-    string monster_name = 5;// 怪物名称
-    uint32 pos_x = 6;// 怪物位置X
-    uint32 pos_y = 7;// 怪物位置Y
-    float distance = 8;// 距离
-}
-
-// 服务器时间同步：用于客户端对齐本地时间轴（动画、移动插值等）
-message S2CTimeSyncReq {
-    int64 server_time_ms = 1;// 服务器当前时间（Unix 毫秒）
-}
-
-// 聊天消息
-message S2CChatMessageReq {
-    ChatMessage chat_msg = 1;// 聊天消息内容
-}
-
-// 添加好友结果
-message S2CAddFriendResultReq {
-    bool success = 1;// 是否成功
-    string message = 2;// 结果消息
-    uint64 target_id = 3;// 目标角色ID
-}
-
-// 好友申请通知
-message S2CFriendRequestNotifyReq {
-    uint64 requester_id = 1;// 申请者角色ID
-    string requester_name = 2;// 申请者名称
-}
-
-// 响应好友申请结果
-message S2CRespondFriendReqResultReq {
-    bool success = 1;// 是否成功
-    string message = 2;// 结果消息
-    uint64 requester_id = 3;// 申请者角色ID
-    bool accepted = 4;// 是否同意
-}
-
-// 好友列表
-message S2CFriendListReq {
-    repeated PlayerRankSnapshot friends = 1;// 好友列表（包含快照信息）
-    map<uint64, bool> online_status = 2;// 在线状态 role_id -> is_online
-}
-
-// 删除好友结果
-message S2CRemoveFriendResultReq {
-    bool success = 1;// 是否成功
-    string message = 2;// 结果消息
-    uint64 friend_id = 3;// 好友角色ID
-}
-
-// 查询排行榜结果
-message S2CQueryRankResultReq {
-    RankData rank_data = 1;// 排行榜数据
-    int64 requester_rank = 2;// 请求者的排名（-1表示未上榜）
-    int64 requester_value = 3;// 请求者的数值
-}
-
-// 创建公会结果
-message S2CCreateGuildResultReq {
-    bool success = 1;// 是否成功
-    string message = 2;// 结果消息
-    GuildData guild_data = 3;// 公会数据（成功时返回）
-}
-
-// 加入公会结果
-message S2CJoinGuildResultReq {
-    bool success = 1;// 是否成功
-    string message = 2;// 结果消息
-    GuildData guild_data = 3;// 公会数据（成功时返回）
-}
-
-// 离开公会结果
-message S2CLeaveGuildResultReq {
-    bool success = 1;// 是否成功
-    string message = 2;// 结果消息
-}
-
-// 公会信息
-message S2CGuildInfoReq {
-    GuildData guild_data = 1;// 公会数据
-}
-
-// 拍卖上架结果
-message S2CAuctionPutOnResultReq {
-    bool success = 1;// 是否成功
-    string message = 2;// 结果消息
-    uint64 auction_id = 3;// 拍卖ID（成功时返回）
-}
-
-// 拍卖购买结果
-message S2CAuctionBuyResultReq {
-    bool success = 1;// 是否成功
-    string message = 2;// 结果消息
-    AuctionItem item = 3;// 购买的物品（成功时返回）
-}
-
-// 拍卖查询结果
-message S2CAuctionQueryResultReq {
-    repeated AuctionItem items = 1;// 拍卖物品列表
-    int32 total_count = 2;// 总数量
-    int32 total_page = 3;// 总页数
-}
-
-// 审批加入公会申请结果
-message S2CGuildJoinApproveResultReq {
-    bool success = 1;// 是否成功
-    string message = 2;// 结果消息
-}
-
-// 拒绝加入公会申请结果
-message S2CGuildJoinRejectResultReq {
-    bool success = 1;// 是否成功
-    string message = 2;// 结果消息
-}
-
-// 踢出成员结果
-message S2CGuildKickMemberResultReq {
-    bool success = 1;// 是否成功
-    string message = 2;// 结果消息
-}
-
-// 修改职位结果
-message S2CGuildChangePositionResultReq {
-    bool success = 1;// 是否成功
-    string message = 2;// 结果消息
-}
-
-// 修改公会宣言结果
-message S2CGuildUpdateAnnouncementResultReq {
-    bool success = 1;// 是否成功
-    string message = 2;// 结果消息
-}
-
-// 修改公会名称结果
-message S2CGuildUpdateNameResultReq {
-    bool success = 1;// 是否成功
-    string message = 2;// 结果消息
-}
-
-// 添加到黑名单结果
-message S2CAddToBlacklistResultReq {
-    bool success = 1;// 是否成功
-    string message = 2;// 结果消息
-}
-
-// 从黑名单移除结果
-message S2CRemoveFromBlacklistResultReq {
-    bool success = 1;// 是否成功
-    string message = 2;// 结果消息
-}
-
-// 黑名单列表
-message S2CBlacklistReq {
-    repeated uint64 blacklist_ids = 1;// 黑名单角色ID列表
-}
-
-// 开始移动广播
-// 注意：pos_x、pos_y 是像素坐标（客户端显示用），move_data 包含目的地信息
-message S2CStartMoveReq {
-    uint64 entity_hdl = 1; // 实体句柄
-    uint32 pos_x = 2;      // 当前位置X坐标（像素坐标）
-    uint32 pos_y = 3;      // 当前位置Y坐标（像素坐标）
-    MoveData move_data = 4; // 移动数据（包含目的地）
-}
-
-// 结束移动广播
-// 注意：pos_x、pos_y 是像素坐标（客户端显示用）
-message S2CEndMoveReq {
-    uint64 entity_hdl = 1; // 实体句柄
-    uint32 pos_x = 2;      // 最终位置X坐标（像素坐标）
-    uint32 pos_y = 3;      // 最终位置Y坐标（像素坐标）
+// =========== 等级 ==========
+message S2CLevelDataReq {
+    SiLevelData level_data =1;
 }

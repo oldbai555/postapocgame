@@ -16,10 +16,7 @@ import "base.proto";
 enum SaAttrSys {
     SaAttrSysNil = 0;
     SaLevel = 1;  // 等级系统
-    SaEquip = 2;  // 装备系统
-    SaBuff = 3;   // Buff系统（战斗服本地）
-    MonsterBaseProperty = 100; // 怪物基础属性（战斗服本地）
-    // 后续可扩展其他系统
+    SaMonsterBaseProperty = 2; // 怪物基础属性
 }
 
 // 属性同步数据（单个系统的属性数据）

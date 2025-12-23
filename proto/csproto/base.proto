@@ -15,31 +15,20 @@ message ErrorData {
     string msg = 2;
 }
 
-message QuestData {
-    uint32 id = 1; // 任务ID（通过配置表 QuestConfig.QuestId 推导任务类型与配置）
-    repeated uint32 progress = 2; // 当前进度，长度与 QuestConfig.Targets 保持一致
-}
-
 message ItemSt {
     uint32 item_id = 1;
     uint32 count = 2;
     uint32 bind = 3;
 }
 
-message MailSt {
-    uint64 mail_id = 1; //邮件id
-    uint32 conf_id = 2; //配置模版配表id
-    uint32 status = 3; //状态 (0:未读,1:已读,2:已读已领取)
-    uint32 create_at = 4; //邮件创建时间
-    string args = 5; //参数 json格式 根据confId 在mailargs.proto里面做约定
-    string files = 6; //邮件附件       id_count_bind|id_cound_bind|id_count_bind
-    string title = 7; //邮件标题-仅在confId 为0时有用
-    string content = 8; //邮件内容-仅在confId 为0时有用
-    ItemSt items = 9; //附件真实的道具
+message ItemAmount {
+    uint32 item_type = 1; // 物品类型
+    uint32 item_id = 2;   // 物品ID
+    int64 count = 3;      // 数量
+    uint32 bind = 4;      // 绑定标记：0=不绑定，1=绑定
 }
 
 // 实体数据
-// 注意：pos_x、pos_y 是格子坐标（不是像素坐标）
 message EntitySt {
     uint64 hdl = 1;
     uint64 id = 2;
@@ -59,15 +48,8 @@ message AttrSt {
     int64 value = 2;
 }
 
-message ItemAmount {
-    uint32 item_type = 1; // 物品类型
-    uint32 item_id = 2;   // 物品ID
-    int64 count = 3;      // 数量
-    uint32 bind = 4;      // 绑定标记：0=不绑定，1=绑定
-}
 
 // 移动数据（用于广播移动开始）
-// 注意：dest_px、dest_py 是像素坐标
 message MoveData {
     int32 dest_px = 1; // 目标X坐标（像素坐标）
     int32 dest_py = 2; // 目标Y坐标（像素坐标）

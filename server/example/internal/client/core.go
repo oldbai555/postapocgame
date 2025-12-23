@@ -83,12 +83,6 @@ type Core struct {
 	sceneMap     *jsonconf.GameMap
 	moveRunner   *MoveRunner
 
-	bagMu    sync.RWMutex
-	bagItems []*protocol.ItemSt
-
-	moneyMu   sync.RWMutex
-	moneyData map[uint32]int64
-
 	observedMu sync.RWMutex
 	observed   map[uint64]*EntityView
 
@@ -109,7 +103,6 @@ func NewCore(playerID string, gatewayAddr string, actorMgr actor.IActorManager) 
 		actorMgr:    actorMgr,
 		observed:    make(map[uint64]*EntityView),
 		flow:        newFlowRegistry(),
-		moneyData:   make(map[uint32]int64),
 	}
 	core.moveRunner = NewMoveRunner(core)
 	return core
@@ -302,27 +295,10 @@ func (c *Core) CastNormalAttack(targetHdl uint64) error {
 	return c.sendProtoMessage(uint16(protocol.C2SProtocol_C2SUseSkill), req)
 }
 
-func (c *Core) WaitForSkillResult(targetHdl uint64, timeout time.Duration) (*protocol.SkillHitResultSt, error) {
-	deadline := servertime.Now().Add(timeout)
-	for {
-		remaining := time.Until(deadline)
-		if remaining <= 0 {
-			return nil, fmt.Errorf("[%s] wait skill result timeout", c.id)
-		}
-
-		timer := time.NewTimer(remaining)
-		select {
-		case resp := <-c.flow.skillDamage.Chan():
-			timer.Stop()
-			for _, hit := range resp.Hits {
-				if hit.TargetHdl == targetHdl {
-					return hit, nil
-				}
-			}
-		case <-timer.C:
-			return nil, fmt.Errorf("[%s] wait skill result timeout", c.id)
-		}
-	}
+func (c *Core) WaitForSkillResult(targetHdl uint64, timeout time.Duration) error {
+	_ = targetHdl
+	_ = timeout
+	return nil
 }
 
 // --- 状态查询 ---
@@ -393,11 +369,11 @@ func (c *Core) SceneID() uint32 {
 
 // --- Flow 回调入口 ---
 
-func (c *Core) OnRegisterResult(resp *protocol.S2CRegisterResultReq) {
+func (c *Core) OnRegisterResult(resp *protocol.S2CRegisterReq) {
 	c.flow.register.Deliver(resp)
 }
 
-func (c *Core) OnLoginResult(resp *protocol.S2CLoginResultReq) {
+func (c *Core) OnLoginResult(resp *protocol.S2CLoginReq) {
 	c.flow.login.Deliver(resp)
 }
 
@@ -405,8 +381,12 @@ func (c *Core) OnRoleList(resp *protocol.S2CRoleListReq) {
 	c.flow.roleList.Deliver(resp)
 }
 
-func (c *Core) OnCreateRoleResult(resp *protocol.S2CCreateRoleResultReq) {
+func (c *Core) OnCreateRoleResult(resp *protocol.S2CCreateRoleReq) {
 	c.flow.createRole.Deliver(resp)
+}
+
+func (c *Core) OnLoginRole(resp *protocol.S2CLoginRoleReq) {
+	c.flow.loginRole.Deliver(resp)
 }
 
 func (c *Core) OnEnterScene(resp *protocol.S2CEnterSceneReq) {
@@ -419,8 +399,8 @@ func (c *Core) OnEnterScene(resp *protocol.S2CEnterSceneReq) {
 	c.entityHandle = entity.Hdl
 	c.posX = entity.PosX
 	c.posY = entity.PosY
-	c.hp = attrValueOrZero(entity.Attrs, attrdef.AttrHP)
-	c.mp = attrValueOrZero(entity.Attrs, attrdef.AttrMP)
+	c.hp = attrValueOrZero(entity.Attrs, attrdef.HP)
+	c.mp = attrValueOrZero(entity.Attrs, attrdef.MP)
 	c.stateFlags = entity.StateFlags
 	c.sceneID = entity.SceneId
 	c.roleLevel = entity.Level
@@ -433,32 +413,34 @@ func (c *Core) OnEnterScene(resp *protocol.S2CEnterSceneReq) {
 	c.flow.enterScene.Deliver(resp)
 }
 
-func (c *Core) OnEntityMove(resp *protocol.S2CEntityMoveReq) {
-	if resp.EntityHdl == c.EntityHandle() {
-		c.dataMu.Lock()
-		c.posX = resp.PosX
-		c.posY = resp.PosY
-		c.dataMu.Unlock()
+func (c *Core) OnEntityAppear(resp *protocol.S2CEntityAppearReq) {
+	if resp == nil || resp.Entity == nil {
 		return
 	}
 	view := &EntityView{
-		Handle: resp.EntityHdl,
-		PosX:   resp.PosX,
-		PosY:   resp.PosY,
+		Handle:     resp.Entity.Hdl,
+		PosX:       resp.Entity.PosX,
+		PosY:       resp.Entity.PosY,
+		StateFlags: resp.Entity.StateFlags,
+	}
+	if hp, ok := attrValue(resp.Entity.Attrs, attrdef.HP); ok {
+		view.Hp = hp
+		view.HasHp = true
+	}
+	if mp, ok := attrValue(resp.Entity.Attrs, attrdef.MP); ok {
+		view.Mp = mp
+		view.HasMp = true
 	}
 	c.updateObserved(view)
-	select {
-	case c.flow.aoi.Chan() <- view:
-	default:
-	}
 }
 
-func (c *Core) OnEntityStop(resp *protocol.S2CEntityStopMoveReq) {
-	c.OnEntityMove(&protocol.S2CEntityMoveReq{
-		EntityHdl: resp.EntityHdl,
-		PosX:      resp.PosX,
-		PosY:      resp.PosY,
-	})
+func (c *Core) OnEntityDisappear(resp *protocol.S2CEntityDisappearReq) {
+	if resp == nil {
+		return
+	}
+	c.observedMu.Lock()
+	delete(c.observed, resp.EntityHdl)
+	c.observedMu.Unlock()
 }
 
 func (c *Core) OnStartMove(resp *protocol.S2CStartMoveReq) {
@@ -469,32 +451,17 @@ func (c *Core) OnEndMove(resp *protocol.S2CEndMoveReq) {
 	// currently no-op; kept for protocol completeness
 }
 
-func (c *Core) OnSkillCastResult(resp *protocol.S2CSkillCastResultReq) {
-	if resp.ErrCode != 0 {
-		log.Warnf("[%s] skill cast failed, skillId=%d err=%d", c.id, resp.SkillId, resp.ErrCode)
+func (c *Core) OnLevelData(resp *protocol.S2CLevelDataReq) {
+	if resp == nil || resp.LevelData == nil {
+		return
 	}
+	c.dataMu.Lock()
+	c.roleLevel = resp.LevelData.Level
+	c.dataMu.Unlock()
 }
 
-func (c *Core) OnSkillDamageResult(resp *protocol.S2CSkillDamageResultReq) {
-	for _, hit := range resp.Hits {
-		view := &EntityView{
-			Handle:     hit.TargetHdl,
-			StateFlags: hit.StateFlags,
-		}
-		if hp, ok := attrValue(hit.Attrs, attrdef.AttrHP); ok {
-			view.Hp = hp
-			view.HasHp = true
-		}
-		if mp, ok := attrValue(hit.Attrs, attrdef.AttrMP); ok {
-			view.Mp = mp
-			view.HasMp = true
-		}
-		c.updateObserved(view)
-	}
-	select {
-	case c.flow.skillDamage.Chan() <- resp:
-	default:
-	}
+func (c *Core) OnSkillDamageResult(resp *protocol.S2CSkillDamageReq) {
+	_ = resp
 }
 
 func (c *Core) OnTimeSync(resp *protocol.S2CTimeSyncReq) {
@@ -511,58 +478,6 @@ func (c *Core) OnTimeSync(resp *protocol.S2CTimeSyncReq) {
 	if diff > 200 {
 		log.Warnf("[%s] server time drift detected: %dms", c.id, diff)
 	}
-}
-
-func (c *Core) OnBagData(resp *protocol.S2CBagDataReq) {
-	if resp == nil || resp.BagData == nil {
-		return
-	}
-	c.bagMu.Lock()
-	c.bagItems = c.bagItems[:0]
-	for _, item := range resp.BagData.Items {
-		if item == nil {
-			continue
-		}
-		copyItem := proto.Clone(item).(*protocol.ItemSt)
-		c.bagItems = append(c.bagItems, copyItem)
-	}
-	c.bagMu.Unlock()
-	c.flow.bagData.Deliver(resp)
-}
-
-func (c *Core) OnBagUpdate() {
-	// 服务端提示背包更新，主动重新拉取
-	if err := c.RequestBagData(); err != nil {
-		log.Warnf("[%s] request bag data failed: %v", c.id, err)
-	}
-}
-
-func (c *Core) OnMoneyData(resp *protocol.S2CMoneyDataReq) {
-	if resp == nil || resp.MoneyData == nil {
-		return
-	}
-	c.moneyMu.Lock()
-	for k, v := range resp.MoneyData.MoneyMap {
-		c.moneyData[k] = v
-	}
-	c.moneyMu.Unlock()
-	c.flow.moneyData.Deliver(resp)
-}
-
-func (c *Core) OnGMCommandResult(resp *protocol.S2CGMCommandResultReq) {
-	c.flow.gmResult.Deliver(resp)
-}
-
-func (c *Core) OnUseItemResult(resp *protocol.S2CUseItemResultReq) {
-	c.flow.useItem.Deliver(resp)
-}
-
-func (c *Core) OnPickupItemResult(resp *protocol.S2CPickupItemResultReq) {
-	c.flow.pickup.Deliver(resp)
-}
-
-func (c *Core) OnEnterDungeonResult(resp *protocol.S2CEnterDungeonResultReq) {
-	c.flow.dungeonEnter.Deliver(resp)
 }
 
 // --- 内部辅助 ---
@@ -639,15 +554,15 @@ func clampToUint32(v int64) uint32 {
 	return uint32(v)
 }
 
-func attrValue(attrs map[uint32]int64, attrType attrdef.AttrType) (int64, bool) {
+func attrValue(attrs map[uint32]int64, attrType uint32) (int64, bool) {
 	if attrs == nil {
 		return 0, false
 	}
-	val, ok := attrs[uint32(attrType)]
+	val, ok := attrs[attrType]
 	return val, ok
 }
 
-func attrValueOrZero(attrs map[uint32]int64, attrType attrdef.AttrType) int64 {
+func attrValueOrZero(attrs map[uint32]int64, attrType uint32) int64 {
 	val, _ := attrValue(attrs, attrType)
 	return val
 }
@@ -793,91 +708,4 @@ func (c *Core) currentPosition() (uint32, uint32) {
 	c.dataMu.RLock()
 	defer c.dataMu.RUnlock()
 	return c.posX, c.posY
-}
-
-// --- Bag & Inventory ---
-
-func (c *Core) RequestBagData() error {
-	return c.sendProtoMessage(uint16(protocol.C2SProtocol_C2SOpenBag), &protocol.C2SOpenBagReq{})
-}
-
-func (c *Core) WaitBagData(timeout time.Duration) (*protocol.S2CBagDataReq, error) {
-	return c.flow.bagData.Wait(timeout)
-}
-
-func (c *Core) BagSnapshot() []*protocol.ItemSt {
-	c.bagMu.RLock()
-	defer c.bagMu.RUnlock()
-	items := make([]*protocol.ItemSt, 0, len(c.bagItems))
-	for _, it := range c.bagItems {
-		if it == nil {
-			continue
-		}
-		copyItem := proto.Clone(it).(*protocol.ItemSt)
-		items = append(items, copyItem)
-	}
-	return items
-}
-
-func (c *Core) UseItem(itemID, count uint32) error {
-	req := &protocol.C2SUseItemReq{
-		ItemId: itemID,
-		Count:  count,
-	}
-	return c.sendProtoMessage(uint16(protocol.C2SProtocol_C2SUseItem), req)
-}
-
-func (c *Core) WaitUseItemResult(timeout time.Duration) (*protocol.S2CUseItemResultReq, error) {
-	return c.flow.useItem.Wait(timeout)
-}
-
-func (c *Core) PickupItem(handle uint64) error {
-	req := &protocol.C2SPickupItemReq{
-		ItemHdl: handle,
-	}
-	return c.sendProtoMessage(uint16(protocol.C2SProtocol_C2SPickupItem), req)
-}
-
-func (c *Core) WaitPickupResult(timeout time.Duration) (*protocol.S2CPickupItemResultReq, error) {
-	return c.flow.pickup.Wait(timeout)
-}
-
-// --- GM Command ---
-
-func (c *Core) SendGMCommand(name string, args []string) error {
-	req := &protocol.C2SGMCommandReq{
-		GmName: name,
-		Args:   args,
-	}
-	return c.sendProtoMessage(uint16(protocol.C2SProtocol_C2SGMCommand), req)
-}
-
-func (c *Core) WaitGMResult(timeout time.Duration) (*protocol.S2CGMCommandResultReq, error) {
-	return c.flow.gmResult.Wait(timeout)
-}
-
-// --- Dungeon ---
-
-func (c *Core) EnterDungeonReq(dungeonID, difficulty uint32) error {
-	req := &protocol.C2SEnterDungeonReq{
-		DungeonId:  dungeonID,
-		Difficulty: difficulty,
-	}
-	return c.sendProtoMessage(uint16(protocol.C2SProtocol_C2SEnterDungeon), req)
-}
-
-func (c *Core) WaitEnterDungeonResult(timeout time.Duration) (*protocol.S2CEnterDungeonResultReq, error) {
-	return c.flow.dungeonEnter.Wait(timeout)
-}
-
-// --- Bag/Money snapshots helpers ---
-
-func (c *Core) MoneySnapshot() map[uint32]int64 {
-	c.moneyMu.RLock()
-	defer c.moneyMu.RUnlock()
-	result := make(map[uint32]int64, len(c.moneyData))
-	for k, v := range c.moneyData {
-		result[k] = v
-	}
-	return result
 }

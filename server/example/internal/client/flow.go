@@ -41,35 +41,21 @@ func (w waiter[T]) Chan() chan T {
 }
 
 type flowRegistry struct {
-	register     waiter[*protocol.S2CRegisterResultReq]
-	login        waiter[*protocol.S2CLoginResultReq]
-	roleList     waiter[*protocol.S2CRoleListReq]
-	createRole   waiter[*protocol.S2CCreateRoleResultReq]
-	enterScene   waiter[*protocol.S2CEnterSceneReq]
-	aoi          waiter[*EntityView]
-	skillDamage  waiter[*protocol.S2CSkillDamageResultReq]
-	bagData      waiter[*protocol.S2CBagDataReq]
-	moneyData    waiter[*protocol.S2CMoneyDataReq]
-	gmResult     waiter[*protocol.S2CGMCommandResultReq]
-	useItem      waiter[*protocol.S2CUseItemResultReq]
-	pickup       waiter[*protocol.S2CPickupItemResultReq]
-	dungeonEnter waiter[*protocol.S2CEnterDungeonResultReq]
+	register   waiter[*protocol.S2CRegisterReq]
+	login      waiter[*protocol.S2CLoginReq]
+	roleList   waiter[*protocol.S2CRoleListReq]
+	createRole waiter[*protocol.S2CCreateRoleReq]
+	loginRole  waiter[*protocol.S2CLoginRoleReq]
+	enterScene waiter[*protocol.S2CEnterSceneReq]
 }
 
 func newFlowRegistry() flowRegistry {
 	return flowRegistry{
-		register:     newWaiter[*protocol.S2CRegisterResultReq](),
-		login:        newWaiter[*protocol.S2CLoginResultReq](),
-		roleList:     newWaiter[*protocol.S2CRoleListReq](),
-		createRole:   newWaiter[*protocol.S2CCreateRoleResultReq](),
-		enterScene:   newWaiter[*protocol.S2CEnterSceneReq](),
-		aoi:          newWaiter[*EntityView](),
-		skillDamage:  newWaiter[*protocol.S2CSkillDamageResultReq](),
-		bagData:      newWaiter[*protocol.S2CBagDataReq](),
-		moneyData:    newWaiter[*protocol.S2CMoneyDataReq](),
-		gmResult:     newWaiter[*protocol.S2CGMCommandResultReq](),
-		useItem:      newWaiter[*protocol.S2CUseItemResultReq](),
-		pickup:       newWaiter[*protocol.S2CPickupItemResultReq](),
-		dungeonEnter: newWaiter[*protocol.S2CEnterDungeonResultReq](),
+		register:   newWaiter[*protocol.S2CRegisterReq](),
+		login:      newWaiter[*protocol.S2CLoginReq](),
+		roleList:   newWaiter[*protocol.S2CRoleListReq](),
+		createRole: newWaiter[*protocol.S2CCreateRoleReq](),
+		loginRole:  newWaiter[*protocol.S2CLoginRoleReq](),
+		enterScene: newWaiter[*protocol.S2CEnterSceneReq](),
 	}
 }

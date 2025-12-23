@@ -41,12 +41,5 @@ message PlayerRoleMainData {
 message PlayerRoleBinaryData {
     map<uint32, uint32> sys_open_status = 1;// 功能开启
     SiLevelData level_data = 2;
-    SiBagData bag_data = 3;
-    SiMoneyData money_data = 5;
-    SiEquipData equip_data = 6;
-    SiDungeonData dungeon_data = 7;// 副本记录数据
-    SiQuestData quest_data = 8;// 任务数据
-    SiMailData mail_data = 9;// 邮件数据
-    SiSkillData skill_data = 10;// 技能数据
-    SiItemUseData item_use_data = 11;// 物品使用数据（冷却时间等）
+    SiSkillData skill_data = 3;// 技能数据
 }

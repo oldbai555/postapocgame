@@ -121,7 +121,7 @@ func (h *NetworkHandler) handleClientMsg(ctx context.Context, msg *network.Messa
 	log.Debugf("ClientMsg: SessionId=%s, MsgId=%d, DataLen=%d", fwdMsg.SessionId, clientMsg.MsgId, len(clientMsg.Data))
 
 	newCtx := context.WithValue(ctx, gshare.ContextKeySession, fwdMsg.SessionId)
-	message := actor.NewBaseMessage(newCtx, uint16(protocol.PlayerActorMsgId_PlayerActorMsgIdDoNetworkMsg), fwdMsg.Payload)
+	message := actor.NewBaseMessage(newCtx, uint16(protocol.PlayerActorMsgId_PAMNetworkMsg), fwdMsg.Payload)
 
 	// 发送到Actor系统处理
 	if err := gshare.SendMessageAsync(fwdMsg.SessionId, message); err != nil {

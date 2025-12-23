@@ -12,25 +12,9 @@ import "base.proto";
 enum SystemId {
     SystemIdNil = 0;
     SysLevel = 1;// 等级系统
-    SysBag = 2;// 背包系统
-    SysMoney = 3;// 货币系统
-    SysSkill = 4;// 技能系统
-    SysEquip = 5;// 装备系统
-    SysFuBen = 6;// 副本系统
-    SysMessage = 7;// 玩家消息系统
+    SysSkill = 2;// 技能系统
 
-    SysIdMax = 8;// 最大系统ID 手动递增
-}
-
-// 任务系统
-message QuestTypeList {
-    repeated QuestData quests = 1;
-}
-
-message SiQuestData {
-    map<uint32, QuestTypeList> quest_map = 1; // key: 任务类型
-    map<uint32, int64> last_reset_map = 2; // key: 任务类型 value: 上次刷新时间
-    map<uint32, uint32> quest_finish_count = 3; // key: 任务ID value: 当天/当周已完成次数（用于 MaxCount 限制）
+    SysIdMax = 5;// 最大系统ID 手动递增
 }
 
 // 等级系统
@@ -39,58 +23,7 @@ message SiLevelData {
     int64 exp = 2;
 }
 
-// 背包系统
-message SiBagData {
-    repeated ItemSt items = 1;// 通用道具列表
-}
-
-// 货币系统
-message SiMoneyData {
-    map<uint32, int64> moneyMap = 1;// key: 货币类型,
-}
-
-// 装备系统
-message SiEquipData {
-    repeated EquipSt equips = 1;// 装备列表
-}
-
-message EquipSt {
-    uint32 item_id = 1;// 装备物品ID
-    uint32 slot = 2;// 装备槽位
-    uint32 level = 3;// 强化等级
-    uint32 exp = 4;// 强化经验
-    uint32 refine_level = 5;// 精炼等级（0表示未精炼）
-    repeated AttrSt enchant_attrs = 6;// 附魔属性列表
-    uint32 set_id = 7;// 套装ID（0表示不属于任何套装）
-}
-
-// 副本系统
-message SiDungeonData {
-    repeated DungeonRecord records = 1;// 副本记录列表
-}
-
-message DungeonRecord {
-    uint32 dungeon_id = 1;// 副本ID
-    uint32 difficulty = 2;// 难度: 1=普通 2=精英 3=地狱
-    int64 last_enter_time = 3;// 最后进入时间（Unix时间戳）
-    uint32 enter_count = 4;// 今日进入次数
-    int64 reset_time = 5;// 重置时间（Unix时间戳，每日重置）
-}
-
-// 邮件系统
-message SiMailData {
-    repeated MailSt mails = 1;// 邮件列表
-}
-
 // 技能系统
 message SiSkillData {
     map<uint32, uint32> skill_map = 1;// 技能列表（skillId -> level）
 }
-
-// 物品使用系统
-message SiItemUseData {
-    map<uint32, int64> cooldown_map = 1;// 物品冷却时间记录（itemId -> 冷却结束时间Unix时间戳）
-}
-
-// 以下系统数据结构曾用于规划中的离线收益/防作弊/成就/新手保护等功能，目前服务端业务代码未使用，已整体移除：如需在未来重新引入相关功能，请在对应领域目录下按 Clean Architecture 规范重新设计 Domain/UseCase，并在此处补充最小必要的数据结构定义。
-

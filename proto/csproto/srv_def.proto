@@ -8,5 +8,4 @@ enum SrvType {
     SrvTypeNil = 0;
     SrvTypeGateway = 1;
     SrvTypeGameServer = 2;
-    SrvTypeDungeonServer = 3;
 }

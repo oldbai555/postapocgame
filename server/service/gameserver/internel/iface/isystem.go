@@ -8,7 +8,6 @@ type ISystem interface {
 	OnInit(ctx context.Context)
 	OnOpen(ctx context.Context)
 	OnRoleLogin(ctx context.Context)
-	OnRoleReconnect(ctx context.Context)
 	OnRoleLogout(ctx context.Context)
 	OnRoleClose(ctx context.Context)
 	OnNewHour(ctx context.Context)
@@ -26,7 +25,6 @@ type ISystemMgr interface {
 	OnInit(ctx context.Context) error
 	CheckAllSysOpen(ctx context.Context)
 	OnRoleLogin(ctx context.Context)
-	OnRoleReconnect(ctx context.Context)
 	OnNewHour(ctx context.Context)
 	OnNewDay(ctx context.Context)
 	OnNewWeek(ctx context.Context)

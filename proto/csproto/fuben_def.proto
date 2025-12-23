@@ -22,5 +22,5 @@ enum FuBenState {
     FuBenStateNormal   = 1;// 正常
     FuBenStateClosing  = 2;// 关闭中
     FuBenStateClosed   = 3;// 已关闭
-    FuBenStateCompleted = 4;// 已完成（结算中）
+    FuBenStateCompleted = 4;// 已完成
 }

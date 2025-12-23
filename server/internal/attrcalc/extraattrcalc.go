@@ -12,7 +12,7 @@ import (
 
 // ExtraAttrCalc 非战斗属性计算器
 type ExtraAttrCalc struct {
-	extraAttr [ExtraAttrCount]attrdef.AttrValue
+	extraAttr [ExtraAttrCount]int64
 }
 
 // NewExtraAttrCalc 创建非战斗属性计算器
@@ -26,7 +26,7 @@ func (calc *ExtraAttrCalc) Reset() {
 }
 
 // SetValue 设置属性值
-func (calc *ExtraAttrCalc) SetValue(attrType attrdef.AttrType, value attrdef.AttrValue) {
+func (calc *ExtraAttrCalc) SetValue(attrType uint32, value int64) {
 	if !attrdef.IsExtraAttr(attrType) {
 		return
 	}
@@ -35,7 +35,7 @@ func (calc *ExtraAttrCalc) SetValue(attrType attrdef.AttrType, value attrdef.Att
 }
 
 // GetValue 获取属性值
-func (calc *ExtraAttrCalc) GetValue(attrType attrdef.AttrType) attrdef.AttrValue {
+func (calc *ExtraAttrCalc) GetValue(attrType uint32) int64 {
 	if !attrdef.IsExtraAttr(attrType) {
 		return 0
 	}
@@ -43,7 +43,7 @@ func (calc *ExtraAttrCalc) GetValue(attrType attrdef.AttrType) attrdef.AttrValue
 }
 
 // AddValue 增加属性值
-func (calc *ExtraAttrCalc) AddValue(attrType attrdef.AttrType, delta attrdef.AttrValue) {
+func (calc *ExtraAttrCalc) AddValue(attrType uint32, delta int64) {
 	if !attrdef.IsExtraAttr(attrType) {
 		return
 	}
@@ -52,18 +52,18 @@ func (calc *ExtraAttrCalc) AddValue(attrType attrdef.AttrType, delta attrdef.Att
 }
 
 // DoRange 遍历所有属性
-func (calc *ExtraAttrCalc) DoRange(cb func(attrType attrdef.AttrType, value attrdef.AttrValue)) {
+func (calc *ExtraAttrCalc) DoRange(cb func(attrType uint32, value int64)) {
 	for i, v := range calc.extraAttr {
 		if v != 0 {
-			cb(attrdef.AttrType(i)+attrdef.ExtraAttrBegin, v)
+			cb(uint32(i)+attrdef.ExtraAttrBegin, v)
 		}
 	}
 }
 
 // GetAll 获取所有属性
-func (calc *ExtraAttrCalc) GetAll() map[attrdef.AttrType]attrdef.AttrValue {
-	result := make(map[attrdef.AttrType]attrdef.AttrValue)
-	calc.DoRange(func(attrType attrdef.AttrType, value attrdef.AttrValue) {
+func (calc *ExtraAttrCalc) GetAll() map[uint32]int64 {
+	result := make(map[uint32]int64)
+	calc.DoRange(func(attrType uint32, value int64) {
 		result[attrType] = value
 	})
 	return result

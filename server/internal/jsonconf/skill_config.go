@@ -21,8 +21,6 @@ type SkillConfig struct {
 	Description      string         `json:"description"`      // 描述
 	LevelRequirement uint32         `json:"levelRequirement"` // 学习等级要求（0表示无要求）
 	MaxLevel         uint32         `json:"maxLevel"`         // 最大等级（默认10）
-	LearnConsume     []*ItemAmount  `json:"learnConsume"`     // 学习消耗（技能点、材料等）
-	UpgradeConsume   []*ItemAmount  `json:"upgradeConsume"`   // 升级消耗（技能点、材料等）
 
 }
 

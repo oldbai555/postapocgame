@@ -3,7 +3,7 @@ package iface
 import (
 	"context"
 	"errors"
-	"postapocgame/server/service/gameserver/internel/app/playeractor/domain/model"
+	"postapocgame/server/service/gameserver/internel/playeractor/domain/model"
 )
 
 var (

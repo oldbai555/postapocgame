@@ -307,12 +307,7 @@ func (p *AdventurePanel) currentMenuOptions() []menuOption {
 		}},
 		{keys: []string{"3"}, label: "移动 ΔX/ΔY", handler: p.actionMovePrompt},
 		{keys: []string{"4"}, label: "自动寻路到坐标", handler: p.actionMoveToPrompt},
-		{keys: []string{"5"}, label: "查看背包", handler: p.actionShowBag},
-		{keys: []string{"6"}, label: "使用物品", handler: p.actionUseItemPrompt},
-		{keys: []string{"7"}, label: "进入副本", handler: p.actionEnterDungeonPrompt},
-		{keys: []string{"8"}, label: "执行 GM 命令", handler: p.actionGMCommandPrompt},
-		{keys: []string{"9"}, label: "运行脚本 Demo", handler: p.actionRunDemoScript},
-		{keys: []string{"a"}, label: "普通攻击", handler: p.actionAttackPrompt},
+		{keys: []string{"5"}, label: "普通攻击", handler: p.actionAttackPrompt},
 		{keys: []string{"d"}, label: "断开连接", handler: p.disconnect},
 		{keys: []string{"0", "q"}, label: "退出", handler: func() error { return errPanelExit }},
 	}

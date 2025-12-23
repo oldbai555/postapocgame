@@ -1,7 +1,5 @@
 package attrcalc
 
-import "postapocgame/server/internal/attrdef"
-
 // AttrSet 管理各系统的增量/减量属性集合
 type AttrSet struct {
 	inc map[uint32]*FightAttrCalc
@@ -64,11 +62,11 @@ func (set *AttrSet) ResetProperty(target *FightAttrCalc) {
 }
 
 // PackToMap 将当前增量属性导出为 map 结构
-func (set *AttrSet) PackToMap() map[uint32]map[attrdef.AttrType]attrdef.AttrValue {
-	result := make(map[uint32]map[attrdef.AttrType]attrdef.AttrValue)
+func (set *AttrSet) PackToMap() map[uint32]map[uint32]int64 {
+	result := make(map[uint32]map[uint32]int64)
 	for sysID, calc := range set.inc {
-		attrMap := make(map[attrdef.AttrType]attrdef.AttrValue)
-		calc.DoRange(func(attrType attrdef.AttrType, value attrdef.AttrValue) {
+		attrMap := make(map[uint32]int64)
+		calc.DoRange(func(attrType uint32, value int64) {
 			attrMap[attrType] = value
 		})
 		if len(attrMap) > 0 {

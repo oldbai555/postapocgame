@@ -42,7 +42,7 @@ func Ip2int(ipnr string) int64 {
 }
 
 // IsSetBit64 是否设置指定位
-func IsSetBit64(value uint64, bit uint32) bool {
+func IsSetBit64(value uint64, bit uint64) bool {
 	if bit > 63 {
 		return false
 	}
@@ -50,7 +50,7 @@ func IsSetBit64(value uint64, bit uint32) bool {
 }
 
 // SetBit64 设置位
-func SetBit64(value uint64, bit uint32) uint64 {
+func SetBit64(value uint64, bit uint64) uint64 {
 	if bit > 63 {
 		return value
 	}

@@ -2,14 +2,11 @@ package panel
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 	"time"
-
-	"postapocgame/server/internal/attrdef"
 )
 
 func (p *AdventurePanel) exec(line string) error {
@@ -173,79 +170,10 @@ func (p *AdventurePanel) exec(line string) error {
 		if err != nil {
 			return fmt.Errorf("entityHandle 解析失败: %w", err)
 		}
-		result, err := p.systems.Combat.NormalAttack(target, 3*time.Second)
-		if err != nil {
+		if err := p.systems.Combat.NormalAttack(target, 3*time.Second); err != nil {
 			return err
 		}
 		p.appendLog("⚔️ 发起普通攻击 Handle=%d", target)
-		if result != nil {
-			p.appendLog("   ➤ 伤害=%d HP=%d MP=%d State=%d",
-				result.Damage,
-				attrValueOrZero(result.Attrs, attrdef.AttrHP),
-				attrValueOrZero(result.Attrs, attrdef.AttrMP),
-				result.StateFlags,
-			)
-		}
-	case "bag":
-		if _, err := p.requireScene(); err != nil {
-			return err
-		}
-		return p.actionShowBag()
-	case "use-item":
-		if len(fields) < 2 {
-			return fmt.Errorf("用法: use-item <itemId> [count]")
-		}
-		if _, err := p.requireScene(); err != nil {
-			return err
-		}
-		return p.actionUseItem(fields[1], parseDefault(fields, 2, "1"))
-	case "pickup":
-		if len(fields) < 2 {
-			return fmt.Errorf("用法: pickup <dropHandle>")
-		}
-		if _, err := p.requireScene(); err != nil {
-			return err
-		}
-		return p.actionPickup(fields[1])
-	case "gm":
-		if len(fields) < 2 {
-			return fmt.Errorf("用法: gm <command> [args...]")
-		}
-		if _, err := p.requireScene(); err != nil {
-			return err
-		}
-		return p.actionGMCommand(fields[1], fields[2:])
-	case "enter-dungeon":
-		if len(fields) < 2 {
-			return fmt.Errorf("用法: enter-dungeon <dungeonId> [difficulty]")
-		}
-		if _, err := p.requireScene(); err != nil {
-			return err
-		}
-		return p.actionEnterDungeon(fields[1], parseDefault(fields, 2, "1"))
-	case "script-record":
-		if len(fields) < 2 {
-			return fmt.Errorf("用法: script-record <file>")
-		}
-		return p.startRecording(fields[1])
-	case "script-stop":
-		p.stopRecording()
-	case "script-run":
-		if len(fields) < 2 {
-			return fmt.Errorf("用法: script-run <file> [delayMs]")
-		}
-		delay := 200 * time.Millisecond
-		if len(fields) > 2 {
-			if ms, err := strconv.Atoi(fields[2]); err == nil && ms >= 0 {
-				delay = time.Duration(ms) * time.Millisecond
-			}
-		}
-		return p.runScript(fields[1], delay)
-	case "script-demo":
-		if _, err := p.requireScene(); err != nil {
-			return err
-		}
-		return p.actionRunDemoScript()
 	case "quit", "exit":
 		return errPanelExit
 	default:
@@ -270,15 +198,6 @@ func (p *AdventurePanel) printHelp() {
 	fmt.Println("  move-to <x> <y>          自动寻路到指定格子")
 	fmt.Println("  move-resume              继续上一次自动寻路")
 	fmt.Println("  attack <handle>          对指定实体发起普通攻击")
-	fmt.Println("  bag                      查询背包并展示")
-	fmt.Println("  use-item <id> [count]    使用物品")
-	fmt.Println("  pickup <handle>          拾取掉落物")
-	fmt.Println("  gm <name> [args...]      执行 GM 命令")
-	fmt.Println("  enter-dungeon <id> [d]   进入副本（d=1/2/3）")
-	fmt.Println("  script-demo              运行内置巡逻脚本")
-	fmt.Println("  script-record <file>     开始录制命令")
-	fmt.Println("  script-stop              停止录制命令")
-	fmt.Println("  script-run <file> [ms]   按文件顺序执行命令")
 	fmt.Println("  quit / exit              退出客户端")
 }
 
@@ -435,125 +354,10 @@ func (p *AdventurePanel) actionAttackPrompt() error {
 	if err != nil {
 		return err
 	}
-	result, err := p.systems.Combat.NormalAttack(target, 3*time.Second)
-	if err != nil {
+	if err := p.systems.Combat.NormalAttack(target, 3*time.Second); err != nil {
 		return err
 	}
 	p.appendLog("⚔️ 攻击目标 %d", target)
-	if result != nil {
-		p.appendLog("   ➤ 伤害=%d HP=%d MP=%d State=%d",
-			result.Damage,
-			attrValueOrZero(result.Attrs, attrdef.AttrHP),
-			attrValueOrZero(result.Attrs, attrdef.AttrMP),
-			result.StateFlags,
-		)
-	}
-	return nil
-}
-
-func (p *AdventurePanel) actionShowBag() error {
-	items, err := p.systems.Inventory.Refresh(2 * time.Second)
-	if err != nil {
-		return err
-	}
-	if len(items) == 0 {
-		p.appendLog("🎒 背包为空")
-		return nil
-	}
-	p.appendLog("🎒 背包内容：")
-	for _, item := range items {
-		p.appendLog("  • ID=%d 数量=%d 绑定=%d", item.ItemId, item.Count, item.Bind)
-	}
-	return nil
-}
-
-func (p *AdventurePanel) actionUseItem(itemIDStr, countStr string) error {
-	itemID, err := strconv.ParseUint(itemIDStr, 10, 32)
-	if err != nil {
-		return err
-	}
-	count, err := strconv.ParseUint(countStr, 10, 32)
-	if err != nil {
-		return err
-	}
-	resp, err := p.systems.Inventory.UseItem(uint32(itemID), uint32(count), 3*time.Second)
-	if err != nil {
-		return err
-	}
-	if resp != nil {
-		if resp.Success {
-			p.appendLog("🧪 使用物品成功: ID=%d 剩余=%d", resp.ItemId, resp.RemainingCount)
-		} else {
-			p.appendLog("🧪 使用物品失败: %s", resp.Message)
-		}
-	}
-	return nil
-}
-
-func (p *AdventurePanel) actionPickup(handleStr string) error {
-	handle, err := strconv.ParseUint(handleStr, 10, 64)
-	if err != nil {
-		return fmt.Errorf("handle 解析失败: %w", err)
-	}
-	resp, err := p.systems.Inventory.Pickup(handle, 3*time.Second)
-	if err != nil {
-		return err
-	}
-	if resp != nil {
-		if resp.Success {
-			p.appendLog("🎁 拾取掉落成功: Handle=%d", resp.ItemHdl)
-		} else {
-			p.appendLog("🎁 拾取掉落失败: %s", resp.Message)
-		}
-	}
-	return nil
-}
-
-func (p *AdventurePanel) actionGMCommand(name string, args []string) error {
-	resp, err := p.systems.GM.Exec(name, args, 5*time.Second)
-	if err != nil {
-		return err
-	}
-	if resp != nil {
-		state := "失败"
-		if resp.Success {
-			state = "成功"
-		}
-		p.appendLog("🛠️ GM 命令%s：%s", state, resp.Message)
-	}
-	return nil
-}
-
-func (p *AdventurePanel) actionEnterDungeon(idStr, diffStr string) error {
-	dungeonID, err := strconv.ParseUint(idStr, 10, 32)
-	if err != nil {
-		return err
-	}
-	diff, err := strconv.ParseUint(diffStr, 10, 32)
-	if err != nil {
-		return err
-	}
-	resp, err := p.systems.Dungeon.Enter(uint32(dungeonID), uint32(diff), 5*time.Second)
-	if err != nil {
-		return err
-	}
-	if resp != nil {
-		if resp.Success {
-			p.appendLog("🏰 副本进入成功：ID=%d", resp.DungeonId)
-		} else {
-			p.appendLog("🏰 副本进入失败：%s", resp.Message)
-		}
-	}
-	return nil
-}
-
-func (p *AdventurePanel) actionRunDemoScript() error {
-	ctx, cancel := context.WithTimeout(p.ctx, 15*time.Second)
-	defer cancel()
-	if err := p.systems.Script.RunDemo(ctx); err != nil {
-		return err
-	}
-	p.appendLog("🎬 Demo 脚本执行完毕")
 	return nil
 }
 
@@ -582,61 +386,6 @@ func (p *AdventurePanel) actionMoveToPrompt() error {
 	}
 	p.appendLog("🚶 自动寻路至 (%d,%d)", xVal, yVal)
 	return nil
-}
-
-func (p *AdventurePanel) actionUseItemPrompt() error {
-	if _, err := p.requireScene(); err != nil {
-		return err
-	}
-	itemIDStr, err := p.promptInput("物品 ID")
-	if err != nil {
-		return err
-	}
-	countStr, err := p.promptInput("数量 (默认1)")
-	if err != nil {
-		return err
-	}
-	if countStr == "" {
-		countStr = "1"
-	}
-	return p.actionUseItem(itemIDStr, countStr)
-}
-
-func (p *AdventurePanel) actionEnterDungeonPrompt() error {
-	if _, err := p.requireScene(); err != nil {
-		return err
-	}
-	idStr, err := p.promptInput("副本 ID")
-	if err != nil {
-		return err
-	}
-	diffStr, err := p.promptInput("难度 (1=普通 2=精英 3=地狱)")
-	if err != nil {
-		return err
-	}
-	if diffStr == "" {
-		diffStr = "1"
-	}
-	return p.actionEnterDungeon(idStr, diffStr)
-}
-
-func (p *AdventurePanel) actionGMCommandPrompt() error {
-	if _, err := p.requireScene(); err != nil {
-		return err
-	}
-	name, err := p.promptInput("GM 命令名")
-	if err != nil {
-		return err
-	}
-	argLine, err := p.promptInput("参数 (空格分隔，可留空)")
-	if err != nil {
-		return err
-	}
-	var args []string
-	if argLine != "" {
-		args = strings.Fields(argLine)
-	}
-	return p.actionGMCommand(name, args)
 }
 
 func splitFields(line string) []string {
@@ -738,11 +487,11 @@ func parseDefault(fields []string, idx int, def string) string {
 	return fields[idx]
 }
 
-func attrValueOrZero(attrs map[uint32]int64, attrType attrdef.AttrType) int64 {
+func attrValueOrZero(attrs map[uint32]int64, attrType uint32) int64 {
 	if attrs == nil {
 		return 0
 	}
-	if val, ok := attrs[uint32(attrType)]; ok {
+	if val, ok := attrs[attrType]; ok {
 		return val
 	}
 	return 0

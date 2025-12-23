@@ -11,61 +11,25 @@ package pb3;
 option go_package = "server/internal/protocol";
 import "base.proto";
 import "player.proto";
-import "social_def.proto";
 
 enum C2SProtocol{
     C2SProtocolNil = 0;
 
+    // 账号相关
     C2SRegister = 1;// 账号注册
     C2SLogin = 2;// 账号登录
     C2SVerify = 3;// 验证请求
     C2SQueryRoles = 4;// 查询角色列表
     C2SCreateRole = 5;// 创建角色
     C2SEnterGame = 6;// 进入游戏
-    C2SReconnect = 7;// 重连请求
-    C2SUseSkill = 8;// 使用技能
-    C2SStartMove = 9;// 开始移动
-    C2SUpdateMove = 10;// 移动中更新
-    C2SEndMove = 11;// 结束移动
-    C2SOpenBag = 12;// 查询背包
-    C2SOpenMoney = 13;// 查询货币
-    C2SShopBuy = 14;// 商城购买
-    C2SEquipItem = 15;// 穿戴装备
-    C2SGMCommand = 16;// GM命令
-    C2SUseItem = 17;// 使用物品
-    C2SRecycleItem = 18;// 回收物品
-    C2STalkToNPC = 19;// 和NPC对话
-    C2SLearnSkill = 20;// 学习技能
-    C2SUpgradeSkill = 21;// 升级技能
-    C2SChangeScene = 22;// 切换场景
-    C2SPickupItem = 23;// 拾取掉落物
-    C2SEnterDungeon = 24;// 进入副本（限时副本）
-    C2SClaimOfflineReward = 25;// 领取离线收益
-    C2SRevive = 26;// 角色复活
-    C2SGetNearestMonster = 27;// 获取最近怪物
-    C2SChatWorld = 28;// 世界聊天
-    C2SChatPrivate = 29;// 私聊
-    C2SAddFriend = 30;// 添加好友
-    C2SRespondFriendReq = 31;// 响应好友申请
-    C2SQueryFriendList = 32;// 查询好友列表
-    C2SRemoveFriend = 33;// 删除好友
-    C2SQueryRank = 34;// 查询排行榜
-    C2SCreateGuild = 35;// 创建公会
-    C2SJoinGuild = 36;// 加入公会
-    C2SLeaveGuild = 37;// 离开公会
-    C2SQueryGuildInfo = 38;// 查询公会信息
-    C2SAuctionPutOn = 39;// 拍卖上架
-    C2SAuctionBuy = 40;// 拍卖购买
-    C2SAuctionQuery = 41;// 拍卖查询
-    C2SGuildJoinApprove = 42;// 审批加入公会申请
-    C2SGuildJoinReject = 43;// 拒绝加入公会申请
-    C2SGuildKickMember = 44;// 踢出成员
-    C2SGuildChangePosition = 45;// 修改职位
-    C2SGuildUpdateAnnouncement = 46;// 修改公会宣言
-    C2SGuildUpdateName = 47;// 修改公会名称
-    C2SAddToBlacklist = 48;// 添加到黑名单
-    C2SRemoveFromBlacklist = 49;// 从黑名单移除
-    C2SQueryBlacklist = 50;// 查询黑名单
+
+    // 移动相关
+    C2SStartMove = 20;// 开始移动
+    C2SUpdateMove = 21;// 移动中更新
+    C2SEndMove = 22;// 结束移动
+
+    // 技能相关
+    C2SUseSkill = 40;// 使用技能
 }
 
 message C2SRegisterReq {
@@ -99,13 +63,11 @@ message C2SReconnectReq {
 message C2SUseSkillReq {
     uint32 skill_id = 1;
     uint64 target_hdl = 2;
-    repeated uint64 target_list = 3;
-    uint32 pos_x = 4; // 技能释放位置X坐标（像素坐标，服务端会转换为格子坐标）
-    uint32 pos_y = 5; // 技能释放位置Y坐标（像素坐标，服务端会转换为格子坐标）
+    uint32 pos_x = 3; // 技能释放位置X坐标（像素坐标，服务端会转换为格子坐标）
+    uint32 pos_y = 4; // 技能释放位置Y坐标（像素坐标，服务端会转换为格子坐标）
 }
 
 // 开始移动请求
-// 注意：客户端发送的坐标是像素坐标，服务端会自动转换为格子坐标进行业务处理
 message C2SStartMoveReq {
     uint32 from_x = 1; // 起点X坐标（像素坐标）
     uint32 from_y = 2; // 起点Y坐标（像素坐标）
@@ -115,7 +77,6 @@ message C2SStartMoveReq {
 }
 
 // 移动更新请求
-// 注意：客户端发送的坐标是像素坐标，服务端会自动转换为格子坐标进行业务处理
 message C2SUpdateMoveReq {
     uint32 pos_x = 1; // 当前位置X坐标（像素坐标）
     uint32 pos_y = 2; // 当前位置Y坐标（像素坐标）
@@ -123,217 +84,7 @@ message C2SUpdateMoveReq {
 }
 
 // 结束移动请求
-// 注意：客户端发送的坐标是像素坐标，服务端会自动转换为格子坐标进行业务处理
 message C2SEndMoveReq {
     uint32 pos_x = 1; // 终点X坐标（像素坐标）
     uint32 pos_y = 2; // 终点Y坐标（像素坐标）
 }
-
-message C2SOpenBagReq {}
-
-message C2SOpenMoneyReq {}
-
-message C2SShopBuyReq {
-    uint32 item_id = 1;
-    uint32 count = 2;
-}
-
-message C2SEquipItemReq {
-    uint32 item_id = 1;
-    uint32 slot = 2;
-}
-
-// GM命令请求
-message C2SGMCommandReq {
-    string gm_name = 1;// GM命令名称
-    repeated string args = 2;// GM命令参数数组
-}
-
-// 使用物品请求
-message C2SUseItemReq {
-    uint32 item_id = 1;// 物品ID
-    uint32 count = 2;// 使用数量（默认1）
-}
-
-// 回收物品请求
-message C2SRecycleItemReq {
-    uint32 item_id = 1;// 物品ID
-    uint32 count = 2;// 回收数量（默认1）
-}
-
-// 和NPC对话请求
-message C2STalkToNPCReq {
-    uint32 npc_id = 1;// NPC ID
-}
-
-// 学习技能请求
-message C2SLearnSkillReq {
-    uint32 skill_id = 1;// 技能ID
-}
-
-// 升级技能请求
-message C2SUpgradeSkillReq {
-    uint32 skill_id = 1;// 技能ID
-}
-
-// 切换场景请求
-message C2SChangeSceneReq {
-    uint32 scene_id = 1;// 目标场景ID
-}
-
-// 拾取掉落物请求
-message C2SPickupItemReq {
-    uint64 item_hdl = 1;// 掉落物句柄
-}
-
-// 进入副本请求（限时副本）
-message C2SClaimOfflineRewardReq {
-    // 空消息，服务端自动计算离线收益
-}
-
-message C2SEnterDungeonReq {
-    uint32 dungeon_id = 1;// 副本ID
-    uint32 difficulty = 2;// 难度: 1=普通 2=精英 3=地狱
-}
-
-// 角色复活请求
-message C2SReviveReq {
-    // 空消息，服务端自动处理复活逻辑
-}
-
-// 获取最近怪物请求
-message C2SGetNearestMonsterReq {
-    // 空消息，服务端自动查找最近怪物
-}
-
-// 添加好友请求
-message C2SAddFriendReq {
-    uint64 target_id = 1;// 目标角色ID
-}
-
-// 响应好友申请请求
-message C2SRespondFriendReqReq {
-    uint64 requester_id = 1;// 申请者角色ID
-    bool accepted = 2;// true=同意, false=拒绝
-}
-
-// 查询好友列表请求
-message C2SQueryFriendListReq {
-    // 空消息，服务端返回完整好友列表
-}
-
-// 删除好友请求
-message C2SRemoveFriendReq {
-    uint64 friend_id = 1;// 好友角色ID
-}
-
-// 查询排行榜请求
-message C2SQueryRankReq {
-    RankType rank_type = 1;// 排行榜类型
-    int32 top_n = 2;// 查询前N名（默认100）
-}
-
-// 创建公会请求
-message C2SCreateGuildReq {
-    string guild_name = 1;// 公会名称
-}
-
-// 加入公会请求
-message C2SJoinGuildReq {
-    uint64 guild_id = 1;// 公会ID
-}
-
-// 离开公会请求
-message C2SLeaveGuildReq {
-    // 空消息，服务端自动处理
-}
-
-// 查询公会信息请求
-message C2SQueryGuildInfoReq {
-    // 空消息，服务端返回当前玩家所在公会信息
-}
-
-// 拍卖上架请求
-message C2SAuctionPutOnReq {
-    uint32 item_id = 1;// 物品ID
-    uint32 count = 2;// 数量
-    int64 price = 3;// 价格
-    int64 duration = 4;// 持续时间（秒）
-}
-
-// 拍卖购买请求
-message C2SAuctionBuyReq {
-    uint64 auction_id = 1;// 拍卖ID
-}
-
-// 拍卖查询请求
-message C2SAuctionQueryReq {
-    uint32 item_id = 1;// 物品ID（0表示查询所有）
-    int32 page = 2;// 页码（从1开始）
-    int32 page_size = 3;// 每页数量
-}
-
-// 审批加入公会申请
-message C2SGuildJoinApproveReq {
-    uint64 guild_id = 1;// 公会ID
-    uint64 applicant_id = 2;// 申请人ID
-}
-
-// 拒绝加入公会申请
-message C2SGuildJoinRejectReq {
-    uint64 guild_id = 1;// 公会ID
-    uint64 applicant_id = 2;// 申请人ID
-}
-
-// 踢出成员
-message C2SGuildKickMemberReq {
-    uint64 guild_id = 1;// 公会ID
-    uint64 target_id = 2;// 被踢出的成员ID
-}
-
-// 修改职位
-message C2SGuildChangePositionReq {
-    uint64 guild_id = 1;// 公会ID
-    uint64 target_id = 2;// 目标成员ID
-    uint32 new_position = 3;// 新职位（GuildPosition枚举）
-}
-
-// 修改公会宣言
-message C2SGuildUpdateAnnouncementReq {
-    uint64 guild_id = 1;// 公会ID
-    string announcement = 2;// 新宣言
-}
-
-// 修改公会名称
-message C2SGuildUpdateNameReq {
-    uint64 guild_id = 1;// 公会ID
-    string new_name = 2;// 新名称
-}
-
-// 添加到黑名单
-message C2SAddToBlacklistReq {
-    uint64 target_id = 1;// 目标角色ID
-    string reason = 2;// 拉黑原因
-}
-
-// 从黑名单移除
-message C2SRemoveFromBlacklistReq {
-    uint64 target_id = 1;// 目标角色ID
-}
-
-// 查询黑名单
-message C2SQueryBlacklistReq {
-    // 空消息，返回当前玩家的黑名单列表
-}
-
-// 世界聊天请求
-message C2SChatWorldReq {
-    string content = 1;// 聊天内容
-}
-
-// 私聊请求
-message C2SChatPrivateReq {
-    uint64 target_id = 1;// 目标角色ID
-    string content = 2;// 聊天内容
-}
-

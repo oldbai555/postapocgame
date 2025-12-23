@@ -1,0 +1,48 @@
+/**
+ * @Author: zjj
+ * @Date: 2025/11/12
+ * @Desc:
+**/
+
+syntax = "proto3";
+
+package pb3;
+
+option go_package = "server/internal/protocol";
+
+enum DungeonActorMsgId {
+    DAMNil = 0;
+    DAMRunOne = 1;     // 执行 RunOne 循环
+
+    // 移动相关
+    DAMStartMove = 10;
+    DAMUpdateMove = 11;
+    DAMEndMove = 12;
+    DAMEnterGame = 13;// 进入游戏
+
+    // 战斗与交互
+    DAMUseSkill = 20; // C2SUseSkill
+}
+
+message DAMEnterGameReq {
+    string session_id = 1;
+    uint32 platform_id = 2;// 平台ID
+    uint32 srv_id = 3;// 区服ID
+    map<uint32, uint32> skill_map = 4;// 技能列表
+}
+
+
+enum PlayerActorMsgId {
+    PAMNil = 0;
+
+    // 系统消息（GameServer → PlayerActor）
+    PAMNetworkMsg = 1;    // 处理客户端网络消息
+    PAMRunOneMsg = 2;     // 执行 RunOne 循环
+    PAMSendToClient = 3;  // 透传 S2C 协议
+}
+
+// 透传 S2C 协议
+message PAMSendToClientReq {
+    uint32 msg_id = 1; // S2C 协议ID
+    bytes data = 2;    // 编码后的 S2C 消息体
+}
