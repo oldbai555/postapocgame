@@ -2,6 +2,8 @@ package controller
 
 import (
 	"context"
+	"postapocgame/server/internal/event"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/playeractor/deps"
 	"postapocgame/server/service/gameserver/internel/playeractor/domain/model"
 	"postapocgame/server/service/gameserver/internel/playeractor/gateway"
@@ -104,7 +106,9 @@ func (c *PlayerRoleController) HandleCreateRole(ctx context.Context, msg *networ
 	return c.presenter.SendCreateRoleResult(ctx, sessionID, result)
 }
 func init() {
-	roleController := NewPlayerRoleController()
-	router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SQueryRoles), roleController.HandleQueryRoles)
-	router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SCreateRole), roleController.HandleCreateRole)
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, _ *event.Event) {
+		roleController := NewPlayerRoleController()
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SQueryRoles), roleController.HandleQueryRoles)
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SCreateRole), roleController.HandleCreateRole)
+	})
 }

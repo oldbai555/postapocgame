@@ -9,11 +9,13 @@ package iface
 import (
 	"context"
 	"google.golang.org/protobuf/proto"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
 )
 
 type IPlayerRole interface {
 	IPlayerSiDataRepository
+	IPlayerEvent
 
 	WithContext(parentCtx context.Context) context.Context
 
@@ -48,6 +50,10 @@ type IPlayerRole interface {
 	OnNewWeek(ctx context.Context)
 	OnNewMonth(ctx context.Context)
 	OnNewYear(ctx context.Context)
+}
+
+type IPlayerEvent interface {
+	Publish(typ event.Type, args ...interface{})
 }
 
 type IPlayerSiDataRepository interface {

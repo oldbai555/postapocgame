@@ -39,6 +39,9 @@ func (f *dungeonActorFacadeImpl) SendMessageAsync(key string, message actor.IAct
 
 // NewDungeonActor 创建并注册全局 DungeonActor 单例
 func NewDungeonActor(mode actor.ActorMode) *DungeonActor {
+	if mode != actor.ModeSingle {
+		log.Fatalf("[dungeon-actor] only ModeSingle is supported, got mode=%d", mode)
+	}
 	handler := NewDungeonActorHandler()
 	d := &DungeonActor{
 		mode:    mode,

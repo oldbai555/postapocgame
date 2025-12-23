@@ -2,13 +2,14 @@ package controller
 
 import (
 	"context"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/service/gameserver/internel/gatewaylink"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/playeractor/deps"
 	"postapocgame/server/service/gameserver/internel/playeractor/entity"
 	"postapocgame/server/service/gameserver/internel/playeractor/router"
 	"postapocgame/server/service/gameserver/internel/playeractor/skill"
 
-	"google.golang.org/protobuf/proto"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/network"
 	"postapocgame/server/internal/protocol"
@@ -16,39 +17,55 @@ import (
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/iface"
+
+	"google.golang.org/protobuf/proto"
 )
 
 // HandleEnterGame 处理进入游戏
 func HandleEnterGame(ctx context.Context, msg *network.ClientMessage) error {
 	var req protocol.C2SEnterGameReq
 	if err := proto.Unmarshal(msg.Data, &req); err != nil {
+		return customerr.Wrap(err)
+	}
+
+	sessionId, err := sessionIDFromContext(ctx)
+	if err != nil {
 		return err
 	}
 
-	sessionId := ctx.Value(gshare.ContextKeySession).(string)
+	depsSet := resolveEnterGameDeps(ctx)
+	return depsSet.enterGame(ctx, sessionId, &req)
+}
+
+type enterGameDeps struct {
+	roleRepo iface.RoleRepository
+	roleMgr  iface.IPlayerRoleManager
+}
+
+func resolveEnterGameDeps(ctx context.Context) enterGameDeps {
+	egd := enterGameDeps{
+		roleRepo: deps.NewRoleRepository(),
+		roleMgr:  deps.GetPlayerRoleManager(),
+	}
+
+	if rt := deps.FromContext(ctx); rt != nil {
+		if rt.RoleRepo() != nil {
+			egd.roleRepo = rt.RoleRepo()
+		}
+	}
+	return egd
+}
+
+func (d enterGameDeps) enterGame(ctx context.Context, sessionId string, req *protocol.C2SEnterGameReq) error {
 	session := gatewaylink.GetSession(sessionId)
 	if session == nil {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "session not found")
 	}
 
-	// 从 context 获取 Runtime，然后获取 RoleRepository
-	rt := deps.FromContext(ctx)
-
-	var roleRepo iface.RoleRepository
-	if rt != nil {
-		// 优先通过 Runtime 获取 RoleRepository（符合依赖注入原则）
-		roleRepo = rt.RoleRepo()
-	}
-	if roleRepo == nil {
-		// 如果 Runtime 中没有 RoleRepository，使用 deps.NewRoleRepository 作为回退（bootstrapping 场景）
-		roleRepo = deps.NewRoleRepository()
-	}
-
-	role, err := roleRepo.GetRoleByID(ctx, req.RoleId)
+	role, err := d.roleRepo.GetRoleByID(ctx, req.RoleId)
 	if err != nil {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "角色不存在")
 	}
-
 	if role.AccountID != uint64(session.GetAccountID()) {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "角色不属于当前账号")
 	}
@@ -61,23 +78,12 @@ func HandleEnterGame(ctx context.Context, msg *network.ClientMessage) error {
 		Level:    role.Level,
 	}
 
-	if err := enterGame(sessionId, selectedRole); err != nil {
-		return err
-	}
-	return nil
-}
-
-func enterGame(sessionId string, roleInfo *protocol.PlayerSimpleData) error {
-	playerRole := entity.NewPlayerRole(sessionId, roleInfo)
+	playerRole := entity.NewPlayerRole(sessionId, selectedRole)
 	if playerRole == nil {
 		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "create player role failed")
 	}
 
-	deps.GetPlayerRoleManager().Add(playerRole)
-	session := gatewaylink.GetSession(sessionId)
-	if session == nil {
-		return customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "session not found")
-	}
+	d.roleMgr.Add(playerRole)
 	session.SetRoleId(playerRole.GetPlayerRoleId())
 
 	if err := playerRole.OnLogin(); err != nil {
@@ -112,16 +118,17 @@ func enterGame(sessionId string, roleInfo *protocol.PlayerSimpleData) error {
 
 // HandleRunOneMsg 驱动玩家 Actor RunOne
 func HandleRunOneMsg(message actor.IActorMessage) {
-	sessionId := message.GetContext().Value(gshare.ContextKeySession).(string)
+	sessionId, err := sessionIDFromContext(message.GetContext())
+	if err != nil {
+		return
+	}
 	session := gatewaylink.GetSession(sessionId)
 	if session == nil {
 		return
 	}
-	iPlayerRole := deps.GetPlayerRoleManager().GetBySession(sessionId)
-	if iPlayerRole == nil {
-		return
+	if iPlayerRole := deps.GetPlayerRoleManager().GetBySession(sessionId); iPlayerRole != nil {
+		iPlayerRole.RunOne()
 	}
-	iPlayerRole.RunOne()
 }
 
 // HandleSendToClient 统一的 S2C 透传
@@ -144,10 +151,22 @@ func HandleSendToClient(message actor.IActorMessage) {
 }
 
 func init() {
-	protocolRouter := router.NewProtocolRouterController(nil)
-	gshare.RegisterHandler(uint16(protocol.PlayerActorMsgId_PAMNetworkMsg), protocolRouter.HandleDoNetworkMsg)
-	gshare.RegisterHandler(uint16(protocol.PlayerActorMsgId_PAMRunOneMsg), HandleRunOneMsg)
-	gshare.RegisterHandler(uint16(protocol.PlayerActorMsgId_PAMSendToClient), HandleSendToClient)
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, _ *event.Event) {
+		protocolRouter := router.NewProtocolRouterController(nil)
+		gshare.RegisterHandler(uint16(protocol.PlayerActorMsgId_PAMNetworkMsg), protocolRouter.HandleDoNetworkMsg)
+		gshare.RegisterHandler(uint16(protocol.PlayerActorMsgId_PAMRunOneMsg), HandleRunOneMsg)
+		gshare.RegisterHandler(uint16(protocol.PlayerActorMsgId_PAMSendToClient), HandleSendToClient)
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SEnterGame), HandleEnterGame)
+	})
+}
 
-	router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SEnterGame), HandleEnterGame)
+func sessionIDFromContext(ctx context.Context) (string, error) {
+	if ctx == nil {
+		return "", customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "context missing")
+	}
+	sessionId, _ := ctx.Value(gshare.ContextKeySession).(string)
+	if sessionId == "" {
+		return "", customerr.NewErrorByCode(int32(protocol.ErrorCode_Internal_Error), "session not found")
+	}
+	return sessionId, nil
 }

@@ -59,7 +59,8 @@
 - 依赖装配：`playeractor/deps` 同时承载 Runtime + 工厂（gateway/repo），Context 取值在 `gshare/context_helper.go`。
 - 消息派发：`player_network_controller.go` 处理 `ForwardMessage`/`PlayerActorMsg`，经 `gshare.SendDungeonMessageAsync` 调用 DungeonActor。
 - 系统：`level`、`skill` 基于 `sysbase`，运行于 Actor 单线程。
-- 瘦身：删除未用的 PublicActor 网关/事件发布器占位与多余玩家事件枚举，精简 PlayerActor 运行时依赖；补齐 `DAMEnterGame` 处理，进入游戏时直接分配默认副本/场景并下发 `EnterScene`/AOI Appear；移除未使用的 message registry/dispatcher，技能控制器统一到 `controller` 目录；新增清理与 proto 无关的怪物/AI/寻路/掉落接口，DungeonActor 仅保留玩家 AOI/移动/技能链路；配置层仅保留 `job/skill/scene/map`，删除 item/level/monster/monsterscene 相关结构体与配置文件；移除 gevent 全局/玩家事件总线，控制器与 DungeonActor 直接注册，PlayerRole 登录直接驱动系统管理器。
+- 瘦身：删除未用的 PublicActor 网关/事件发布器占位与多余玩家事件枚举，精简 PlayerActor 运行时依赖；补齐 `DAMEnterGame` 处理，进入游戏时直接分配默认副本/场景并下发 `EnterScene`/AOI Appear；移除未使用的 message registry/dispatcher，技能控制器统一到 `controller` 目录；新增清理与 proto 无关的怪物/AI/寻路/掉落接口，DungeonActor 仅保留玩家 AOI/移动/技能链路；配置层仅保留 `job/skill/scene/map`，删除 item/level/monster/monsterscene 相关结构体与配置文件。
+- 技能定义：SkillCastResult/SkillHitResult 等结构统一在 `proto/csproto/skill_def.proto` 生成，skill 包删除重复结构体并移除 FightSys 未用字段。
 
 ### 3.3 DungeonActor（单 Actor 战斗/副本引擎）
 
@@ -71,7 +72,7 @@
 
 ### 3.4 共享基础
 
-- Actor 框架、servertime、日志、Proto、gatewaylink 透传、上下文/日志辅助（事件总线封装已移除，直接注册处理器）。  
+- Actor 框架、事件总线、servertime、日志、Proto、gatewaylink 透传、上下文/日志辅助。  
   关键目录：`server/internal/{actor,servertime,jsonconf,argsdef}`、`server/pkg/log`
 - 调试客户端：对齐当前 `cs/sc.proto`，仅保留注册/登录/角色/移动/技能命令，移除背包、GM、副本、脚本录制等旧逻辑。  
   关键目录：`server/example/internal/{client,panel,systems}`
@@ -99,7 +100,10 @@
 - 接口归档：端口接口集中于 `server/service/gameserver/internel/iface`，新增接口先放这里。
 - 坐标规范：服务端全部使用格子坐标做校验/寻路/范围；客户端上送像素坐标，由服务端转换。
 - 无兼容层：旧 entitysystem 玩法代码已移除，不再保留 wrapper，新功能直接按现有目录实现。
-- 事件注册：不再使用 gevent 事件总线，控制器与 DungeonActor 在 init/注册函数里直接绑定处理器，PlayerRole 登录直接调用系统管理器。
+- 事件注册：使用 gevent 事件总线，控制器与 DungeonActor 在 OnSrvStart 时注册，PlayerRole 登录通过事件驱动系统管理器。
+- 技能结果：逻辑层使用 proto 生成的 SkillCastResult/SkillHitResult，不重复定义内部结构。
+- 停服流程：收到退出信号发布 `OnSrvStop`，先触发所有在线玩家的 OnDisconnect/Close 并移除 Actor，再走批量落盘与服务停止。
+- DungeonActor 仅支持 `ModeSingle`，配置为多 Actor 直接拒绝启动。
 
 ---
 
@@ -122,5 +126,5 @@
 - 2025-12-23（瘦身补充3）：删除未使用的 message registry / player message dispatcher，技能协议控制器统一放入 `controller/skill_controller.go`。
 - 2025-12-23（瘦身补充4）：移除与当前 proto 无关的怪物/AI/寻路/掉落接口，DungeonActor 仅保留玩家 AOI/移动/技能链路。
 - 2025-12-23（瘦身补充5）：配置层仅加载 `job/skill/scene/map`，删除 item/level/monster/monsterscene 结构体及对应 json。
-- 2025-12-23（瘦身补充6）：移除 gevent 全局/玩家事件总线，控制器与 DungeonActor 直接注册，PlayerRole 登录直接驱动系统管理器。
+- 2025-12-23（瘦身补充6）：技能 Cast/Hit 结果结构移入 `skill_def.proto`，删除本地 Cast/HitResult 结构与 FightSys 未用字段，保持逻辑/协议一致。
  

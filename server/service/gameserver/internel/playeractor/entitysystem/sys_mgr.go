@@ -2,11 +2,14 @@ package entitysystem
 
 import (
 	"context"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/iface"
+
+	"postapocgame/server/service/gameserver/internel/gevent"
 )
 
 // SysMgr 系统管理器
@@ -147,6 +150,20 @@ type SystemInfo struct {
 	SysId   uint32
 	Opened  bool
 	HasImpl bool
+}
+
+func handleSysMgrOnPlayerLogin(ctx context.Context, _ *event.Event) {
+	iPlayerRole, err := GetIPlayerRoleByContext(ctx)
+	if err != nil {
+		log.Errorf("handleSysMgrOnPlayerLogin: get player role error:%v", err)
+		return
+	}
+	mgr := iPlayerRole.GetSysMgr().(*SysMgr)
+	mgr.OnRoleLogin(ctx)
+}
+
+func init() {
+	gevent.SubscribePlayerEvent(gevent.OnPlayerLogin, handleSysMgrOnPlayerLogin)
 }
 
 // GetIPlayerRoleByContext 从上下文中解析玩家角色

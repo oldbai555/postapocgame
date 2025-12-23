@@ -1,25 +1,27 @@
 package dungeonactor
 
 import (
+	"context"
 	"postapocgame/server/internal/actor"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/dungeonactor/entitysystem"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
 )
 
-// RegisterHandlers 注册 DungeonActor 消息处理器。
-// 在 DungeonActor 创建并完成门面注入后调用。
-func RegisterHandlers() {
-	facade := gshare.GetDungeonActorFacade()
-	if facade == nil {
-		log.Warnf("[dungeon-actor] facade not ready, skip register handlers")
-		return
-	}
+func init() {
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, e *event.Event) {
+		facade := gshare.GetDungeonActorFacade()
+		if facade == nil {
+			return
+		}
 
-	RegisterEnterGameHandler(facade)
-	RegisterMoveHandlers(facade)
-	RegisterFightHandlers(facade)
+		RegisterEnterGameHandler(facade)
+		RegisterMoveHandlers(facade)
+		RegisterFightHandlers(facade)
+	})
 }
 
 func RegisterEnterGameHandler(facade gshare.IDungeonActorFacade) {

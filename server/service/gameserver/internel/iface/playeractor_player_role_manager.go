@@ -27,4 +27,7 @@ type IPlayerRoleManager interface {
 	// FlushAndSave 遍历所有在线角色并同步保存数据，用于优雅停服
 	// ctx: 上下文，用于超时控制；batchSize: 每批处理的角色数量，0 表示不限制
 	FlushAndSave(ctx context.Context, batchSize int) error
+
+	// CloseAll 优雅停服时关闭所有玩家
+	CloseAll(ctx context.Context)
 }

@@ -26,18 +26,13 @@ var _ iface2.IFightSys = (*FightSys)(nil)
 
 // FightSys 管理实体主动/被动技能，并在命中后驱动伤害、治疗与 Buff 结算。
 type FightSys struct {
-	et              iface2.IEntity
-	skills          map[uint32]*skill2.Skill //手动释放技能列表
-	passivitySkills map[uint32]*skill2.Skill //被动技能列表
-
-	CommonCd map[uint32]int64 // 技能组公共CD
+	et     iface2.IEntity
+	skills map[uint32]*skill2.Skill //手动释放技能列表
 }
 
 func NewFightSys() *FightSys {
 	return &FightSys{
-		skills:          make(map[uint32]*skill2.Skill),
-		passivitySkills: make(map[uint32]*skill2.Skill),
-		CommonCd:        make(map[uint32]int64),
+		skills: make(map[uint32]*skill2.Skill),
 	}
 }
 
@@ -89,7 +84,7 @@ func (s *FightSys) UseSkill(ctx *argsdef.SkillCastContext) int {
 	if result == nil {
 		return int(protocol.SkillUseErr_ErrSkillCannotCast)
 	}
-	return result.ErrCode
+	return int(result.ErrCode)
 }
 
 func (s *FightSys) RunOne(time.Time) {}

@@ -2,6 +2,8 @@ package controller
 
 import (
 	"context"
+	"postapocgame/server/internal/event"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/playeractor/deps"
 	"postapocgame/server/service/gameserver/internel/playeractor/gateway"
@@ -110,8 +112,10 @@ func getSessionIDFromContext(ctx context.Context) (string, error) {
 	return sessionID, nil
 }
 func init() {
-	accountController := NewPlayerAccountController()
-	router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SRegister), accountController.HandleRegister)
-	router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SLogin), accountController.HandleLogin)
-	router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SVerify), accountController.HandleVerify)
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, _ *event.Event) {
+		accountController := NewPlayerAccountController()
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SRegister), accountController.HandleRegister)
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SLogin), accountController.HandleLogin)
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SVerify), accountController.HandleVerify)
+	})
 }

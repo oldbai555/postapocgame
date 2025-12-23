@@ -40,5 +40,8 @@ func (g *PlayerGateway) GetSkillData(ctx context.Context) (*protocol.SiSkillData
 	if skillData == nil {
 		return nil, iface.ErrSkillDataNotFound
 	}
+	if skillData.SkillMap == nil {
+		skillData.SkillMap = make(map[uint32]uint32)
+	}
 	return skillData, nil
 }

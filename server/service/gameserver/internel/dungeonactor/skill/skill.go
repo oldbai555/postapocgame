@@ -45,11 +45,11 @@ func (s *Skill) GetConfig() *jsonconf.SkillConfig {
 }
 
 // FindSkillTargets 寻找技能释放目标
-func (s *Skill) FindSkillTargets(ctx *argsdef.SkillCastContext, caster iface.IEntity) ([]iface.IEntity, int) {
+func (s *Skill) FindSkillTargets(ctx *argsdef.SkillCastContext, caster iface.IEntity) ([]iface.IEntity, protocol.SkillUseErr) {
 	configMgr := jsonconf.GetConfigManager()
 	skillCfg := configMgr.GetSkillConfig(ctx.SkillId)
 	if skillCfg == nil {
-		return nil, int(protocol.SkillUseErr_ErrSkillNotLearned)
+		return nil, protocol.SkillUseErr_ErrSkillNotLearned
 	}
 
 	var targets []iface.IEntity
@@ -60,13 +60,13 @@ func (s *Skill) FindSkillTargets(ctx *argsdef.SkillCastContext, caster iface.IEn
 		// 单体指向性技能
 		target, ok := entityMgr.GetByHdl(ctx.TargetHdl)
 		if !ok || target == nil {
-			return nil, int(protocol.SkillUseErr_ErrSkillTargetInvalId)
+			return nil, protocol.SkillUseErr_ErrSkillTargetInvalId
 		}
 
 		// 检查距离（格子距离）
 		distance := s.calculateDistance(caster.GetPosition(), target.GetPosition())
 		if distance > skillCfg.Range { // skillCfg.Range 是格子距离
-			return nil, int(protocol.SkillUseErr_ErrSkillTargetTooFar)
+			return nil, protocol.SkillUseErr_ErrSkillTargetTooFar
 		}
 
 		targets = []iface.IEntity{target}
@@ -81,10 +81,10 @@ func (s *Skill) FindSkillTargets(ctx *argsdef.SkillCastContext, caster iface.IEn
 	}
 
 	if len(targets) == 0 {
-		return nil, int(protocol.SkillUseErr_ErrSkillTargetInvalId)
+		return nil, protocol.SkillUseErr_ErrSkillTargetInvalId
 	}
 
-	return targets, 0
+	return targets, protocol.SkillUseErr_SkillUseErrSuccess
 }
 
 // CheckTargetsValId 检查目标是否有效
@@ -166,14 +166,14 @@ func (s *Skill) checkHit(caster, target iface.IEntity) (bool, bool) {
 	return !isDodge, isDodge
 }
 
-func (s *Skill) Use(ctx *argsdef.SkillCastContext, caster iface.IEntity) *CastResult {
-	result := &CastResult{
+func (s *Skill) Use(ctx *argsdef.SkillCastContext, caster iface.IEntity) *protocol.SkillCastResult {
+	result := &protocol.SkillCastResult{
 		Success: false,
-		ErrCode: int(protocol.SkillUseErr_SkillUseErrSuccess),
+		ErrCode: protocol.SkillUseErr_SkillUseErrSuccess,
 	}
 
 	targets, ret := s.FindSkillTargets(ctx, caster)
-	if ret != int(protocol.SkillUseErr_SkillUseErrSuccess) {
+	if ret != protocol.SkillUseErr_SkillUseErrSuccess {
 		result.ErrCode = ret
 		return result
 	}
@@ -181,34 +181,33 @@ func (s *Skill) Use(ctx *argsdef.SkillCastContext, caster iface.IEntity) *CastRe
 	validTargets := s.CheckTargetsValId(targets)
 	if len(validTargets) == 0 {
 		log.Warnf("No valid targets after check")
-		result.ErrCode = int(protocol.SkillUseErr_ErrSkillTargetInvalId)
+		result.ErrCode = protocol.SkillUseErr_ErrSkillTargetInvalId
 		return result
 	}
 
 	skillCfg := s.GetConfig()
 	if skillCfg == nil {
-		result.ErrCode = int(protocol.SkillUseErr_ErrSkillNotLearned)
+		result.ErrCode = protocol.SkillUseErr_ErrSkillNotLearned
 		return result
 	}
 
 	if len(skillCfg.Effects) == 0 {
 		log.Warnf("skill %d has empty effects, cast failed, caster=%d", ctx.SkillId, caster.GetHdl())
-		result.ErrCode = int(protocol.SkillUseErr_ErrSkillCannotCast)
+		result.ErrCode = protocol.SkillUseErr_ErrSkillCannotCast
 		return result
 	}
 
 	damageCalc := NewDamageCalculator()
-	result.Hits = make([]*SkillHitResult, 0, len(validTargets))
+	result.Hits = make([]*protocol.SkillHitResult, 0, len(validTargets))
 
 	for _, target := range validTargets {
-		hit := &SkillHitResult{
+		hit := &protocol.SkillHitResult{
 			TargetHdl: target.GetHdl(),
-			Target:    target,
 		}
 		isHit, isDodge := s.checkHit(caster, target)
 		hit.IsHit = isHit
 		hit.IsDodge = isDodge
-		hit.ResultType = SkillResultTypeDamage
+		hit.ResultType = protocol.SkillResultType_SkillResultTypeDamage
 
 		if !isHit || isDodge {
 			result.Hits = append(result.Hits, hit)
@@ -216,22 +215,22 @@ func (s *Skill) Use(ctx *argsdef.SkillCastContext, caster iface.IEntity) *CastRe
 		}
 
 		for _, effect := range skillCfg.Effects {
-			switch SkillResultType(effect.Type) {
-			case SkillResultTypeDamage:
+			switch protocol.SkillResultType(effect.Type) {
+			case protocol.SkillResultType_SkillResultTypeDamage:
 				damage, isCrit, _ := damageCalc.Calculate(caster, target, ctx.SkillId)
 				hit.Damage += damage
 				hit.IsCrit = isCrit
-				hit.ResultType = SkillResultTypeDamage
-				hit.DamageFlags = buildDamageFlags(skillCfg, SkillResultTypeDamage)
-			case SkillResultTypeHeal:
+				hit.ResultType = protocol.SkillResultType_SkillResultTypeDamage
+				hit.DamageFlags = buildDamageFlags(skillCfg, protocol.SkillResultType_SkillResultTypeDamage)
+			case protocol.SkillResultType_SkillResultTypeHeal:
 				heal := damageCalc.CalculateHeal(caster, target, ctx.SkillId)
 				hit.Heal += heal
-				hit.ResultType = SkillResultTypeHeal
-				hit.DamageFlags = buildDamageFlags(skillCfg, SkillResultTypeHeal)
-			case SkillResultTypeAddBuff:
+				hit.ResultType = protocol.SkillResultType_SkillResultTypeHeal
+				hit.DamageFlags = buildDamageFlags(skillCfg, protocol.SkillResultType_SkillResultTypeHeal)
+			case protocol.SkillResultType_SkillResultTypeAddBuff:
 				hit.AddedBuffs = append(hit.AddedBuffs, effect.Value)
-				hit.ResultType = SkillResultTypeAddBuff
-			case SkillResultTypeRemoveBuff:
+				hit.ResultType = protocol.SkillResultType_SkillResultTypeAddBuff
+			case protocol.SkillResultType_SkillResultTypeRemoveBuff:
 			}
 		}
 
@@ -239,7 +238,7 @@ func (s *Skill) Use(ctx *argsdef.SkillCastContext, caster iface.IEntity) *CastRe
 	}
 
 	if len(result.Hits) == 0 {
-		result.ErrCode = int(protocol.SkillUseErr_ErrSkillCannotCast)
+		result.ErrCode = protocol.SkillUseErr_ErrSkillCannotCast
 		return result
 	}
 
@@ -256,11 +255,11 @@ func (s *Skill) Use(ctx *argsdef.SkillCastContext, caster iface.IEntity) *CastRe
 	return result
 }
 
-func buildDamageFlags(cfg *jsonconf.SkillConfig, resultType SkillResultType) uint64 {
+func buildDamageFlags(cfg *jsonconf.SkillConfig, resultType protocol.SkillResultType) uint64 {
 	switch resultType {
-	case SkillResultTypeHeal:
+	case protocol.SkillResultType_SkillResultTypeHeal:
 		return DamageFlagHeal
-	case SkillResultTypeDamage:
+	case protocol.SkillResultType_SkillResultTypeDamage:
 		switch cfg.DamageType {
 		case 1:
 			return DamageFlagPhysical

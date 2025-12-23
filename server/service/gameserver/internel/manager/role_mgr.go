@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"postapocgame/server/pkg/log"
+	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/iface"
 	"sync"
 )
@@ -224,4 +225,33 @@ func (m *PlayerRoleManager) flushAndSaveBatched(ctx context.Context, roles []ifa
 
 	log.Infof("FlushAndSave completed: total=%d, processed=%d", total, processed)
 	return nil
+}
+
+// CloseAll 在停服阶段关闭所有玩家，执行断线与登出流程并移除 Actor
+func (m *PlayerRoleManager) CloseAll(ctx context.Context) {
+	roles := m.GetAll()
+	for _, role := range roles {
+		if role == nil {
+			continue
+		}
+
+		if ctx != nil {
+			select {
+			case <-ctx.Done():
+				log.Warnf("CloseAll cancelled: %v", ctx.Err())
+				return
+			default:
+			}
+		}
+
+		role.OnDisconnect()
+		if err := role.Close(); err != nil {
+			log.Errorf("CloseAll close roleId=%d failed: %v", role.GetPlayerRoleId(), err)
+		}
+		// 移除 Actor，避免停服后残留
+		if err := gshare.RemoveActor(role.GetSessionId()); err != nil {
+			log.Warnf("CloseAll remove actor roleId=%d err=%v", role.GetPlayerRoleId(), err)
+		}
+		m.Remove(role.GetPlayerRoleId())
+	}
 }

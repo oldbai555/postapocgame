@@ -2,6 +2,8 @@ package controller
 
 import (
 	"context"
+	"postapocgame/server/internal/event"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/playeractor/router"
 
@@ -69,8 +71,10 @@ func (c *MoveController) HandleEndMove(ctx context.Context, msg *network.ClientM
 }
 
 func init() {
-	moveController := NewMoveController()
-	router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SStartMove), moveController.HandleStartMove)
-	router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SUpdateMove), moveController.HandleUpdateMove)
-	router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SEndMove), moveController.HandleEndMove)
+	gevent.Subscribe(gevent.OnSrvStart, func(ctx context.Context, _ *event.Event) {
+		moveController := NewMoveController()
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SStartMove), moveController.HandleStartMove)
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SUpdateMove), moveController.HandleUpdateMove)
+		router.RegisterProtocolHandler(uint16(protocol.C2SProtocol_C2SEndMove), moveController.HandleEndMove)
+	})
 }

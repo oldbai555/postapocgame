@@ -39,3 +39,21 @@ enum SkillUseErr {
     ErrSkillCannotCast       = 9;// 无法释放
     ErrSkillNotEnoughMP      = 10;// 魔法值不足
 }
+
+message SkillHitResult {
+    uint64 target_hdl   = 1;
+    bool is_hit         = 2;
+    bool is_dodge       = 3;
+    bool is_crit        = 4;
+    int64 damage        = 5;
+    int64 heal          = 6;
+    repeated uint32 added_buffs = 7;
+    SkillResultType result_type = 8;
+    uint64 damage_flags = 9;
+}
+
+message SkillCastResult {
+    bool success = 1;
+    SkillUseErr err_code = 2;
+    repeated SkillHitResult hits = 3;
+}

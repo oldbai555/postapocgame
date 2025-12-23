@@ -11,6 +11,7 @@ import (
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/iface"
+	"postapocgame/server/service/gameserver/internel/manager"
 	"sync"
 )
 
@@ -93,6 +94,15 @@ func (h *NetworkHandler) handleSessionClose(event *network.SessionEvent) error {
 	h.sessionsMu.Lock()
 	delete(h.sessions, event.SessionId)
 	h.sessionsMu.Unlock()
+
+	// 执行玩家断线与登出清理
+	if playerRole := manager.GetPlayerRoleManager().GetBySession(event.SessionId); playerRole != nil {
+		playerRole.OnDisconnect()
+		if err := playerRole.Close(); err != nil {
+			log.Errorf("player close on session close failed: roleId=%d err=%v", playerRole.GetPlayerRoleId(), err)
+		}
+		manager.GetPlayerRoleManager().Remove(playerRole.GetPlayerRoleId())
+	}
 
 	// 移除玩家Actor
 	err := gshare.RemoveActor(event.SessionId)

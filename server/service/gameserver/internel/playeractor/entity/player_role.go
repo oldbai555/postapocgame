@@ -3,12 +3,14 @@ package entity
 import (
 	"context"
 	"postapocgame/server/internal/database"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/internal/servertime"
 	"postapocgame/server/pkg/customerr"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
 	"postapocgame/server/service/gameserver/internel/gatewaylink"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/iface"
 	"postapocgame/server/service/gameserver/internel/playeractor/deps"
@@ -30,6 +32,9 @@ type PlayerRole struct {
 	ReconnectKey string
 	IsOnline     bool
 	DisconnectAt time.Time
+
+	// 事件总线（每个玩家独立的事件总线）
+	eventBus *event.Bus
 
 	// Runtime 依赖聚合
 	runtime *deps.Runtime
@@ -57,6 +62,8 @@ func NewPlayerRole(sessionId string, roleInfo *protocol.PlayerSimpleData) *Playe
 		SimpleData:   roleInfo,
 		IsOnline:     true,
 		ReconnectKey: generateReconnectKey(sessionId, roleInfo.RoleId),
+		// 为该玩家创建独立的事件总线（按注册表装配）
+		eventBus: gevent.NewPlayerEventBus(),
 		// 创建 Runtime 实例（Phase 2D：聚合依赖，使用 deps 工厂函数）
 		runtime: deps.NewRuntime(
 			deps.NewPlayerGateway(),
@@ -124,8 +131,8 @@ func (pr *PlayerRole) OnLogin() error {
 	pr.timeCursor = newTimeCursorMark(now)
 	pr.handleOfflineRollover(now)
 
-	// 直接触发系统层登录处理
-	pr.sysMgr.OnRoleLogin(pr.WithContext(context.TODO()))
+	// 发布玩家登录事件
+	pr.Publish(gevent.OnPlayerLogin)
 
 	var resp protocol.S2CLoginRoleReq
 	resp.ReconnectKey = pr.ReconnectKey
@@ -389,6 +396,12 @@ func (pr *PlayerRole) SaveToDB() error {
 	}
 	log.Infof("PlayerRole SaveToDB success: RoleId=%d", pr.SimpleData.RoleId)
 	return nil
+}
+
+func (pr *PlayerRole) Publish(typ event.Type, args ...interface{}) {
+	ev := event.NewEvent(typ, args...)
+	ctx := pr.WithContext(context.TODO())
+	pr.eventBus.Publish(ctx, ev)
 }
 
 func newTimeCursorMark(t time.Time) timeCursorMark {

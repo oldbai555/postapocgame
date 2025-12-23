@@ -6,12 +6,14 @@ import (
 	"os/signal"
 	"postapocgame/server/internal/actor"
 	"postapocgame/server/internal/database"
+	"postapocgame/server/internal/event"
 	"postapocgame/server/internal/jsonconf"
 	"postapocgame/server/internal/protocol"
 	"postapocgame/server/pkg/log"
 	"postapocgame/server/pkg/tool"
 	"postapocgame/server/service/gameserver/internel/dungeonactor"
 	engine2 "postapocgame/server/service/gameserver/internel/engine"
+	"postapocgame/server/service/gameserver/internel/gevent"
 	"postapocgame/server/service/gameserver/internel/gshare"
 	"postapocgame/server/service/gameserver/internel/playeractor"
 	"postapocgame/server/service/gameserver/internel/playeractor/deps"
@@ -47,6 +49,7 @@ func main() {
 		deps.NewNetworkGateway(),
 		deps.NewDungeonServerGateway(),
 	)
+	register.All(globalRuntime)
 
 	serverConfig, err := engine2.LoadServerConfig("")
 	if err != nil {
@@ -86,12 +89,8 @@ func main() {
 	// 副本 / 战斗 DungeonActor（单 Actor，常驻运行）
 	dActor := dungeonactor.NewDungeonActor(actor.ModeSingle)
 
-	// 完成所有注册（依赖已装配的 facade）
-	register.All(globalRuntime)
-	dungeonactor.RegisterHandlers()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
 	if err := playerRoleActor.Start(ctx); err != nil {
 		log.Fatalf("Start playerRoleActor failed: %v", err)
@@ -106,14 +105,20 @@ func main() {
 		log.Fatalf("Start DungeonActor failed: %v", err)
 	}
 
+	gevent.Publish(context.Background(), event.NewEvent(gevent.OnSrvStart))
+
 	// 等待退出信号
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-	<-sigChan
+	<-ctx.Done()
 
 	log.Infof("Shutting down GameServer...")
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
+
+	// 发布停服事件，便于各子系统清理资源
+	gevent.Publish(context.Background(), event.NewEvent(gevent.OnSrvStop))
+
+	// 先关闭所有在线玩家，触发登出并移除 Actor
+	deps.GetPlayerRoleManager().CloseAll(shutdownCtx)
 
 	if err := playerRoleActor.Stop(shutdownCtx); err != nil {
 		log.Errorf("Stop playerRoleActor failed: %v", err)

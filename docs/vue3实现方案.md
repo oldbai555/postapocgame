@@ -5,7 +5,8 @@
 2. [核心功能模块](#核心功能模块)
 3. [详细实现步骤](#详细实现步骤)
 4. [项目结构](#项目结构)
-5. [技术栈选择](#技术栈选择)
+5. [前后端协同（goctl 生成）](#前后端协同goctl-生成)
+6. [技术栈选择](#技术栈选择)
 
 ## 项目整体架构
 
@@ -356,6 +357,82 @@ admin-system-vue3/
 ├── package.json
 └── README.md
 ```
+
+## 前后端协同（goctl 生成）
+
+### 工作流程
+```
+后端定义 .api → goctl api go 生成后端 → goctl api ts 生成前端 → 前端在 api/ 手动二次封装 → 页面/业务使用
+```
+
+### 目录约定
+- `src/api/generated/`：goctl 生成的接口函数（禁止手改）
+- `src/types/generated/`：goctl 生成的类型定义（禁止手改）
+- `src/api/*.ts`：对 generated 代码的二次封装、错误处理、适配
+- `scripts/generate-api.sh`：批量生成脚本（示例见下）
+
+### 生成步骤
+- 安装 goctl：
+```bash
+go install github.com/zeromicro/go-zero/tools/goctl@latest
+goctl --version
+```
+- 单文件生成示例：
+```bash
+goctl api ts \
+  -api ../backend/api/user.api \
+  -dir ./src/api/generated \
+  -webapi ./src/utils/request.ts \
+  -caller request \
+  -unwrap
+```
+- 批量脚本示例 `scripts/generate-api.sh`：
+```bash
+#!/bin/bash
+BACKEND_API_DIR="../backend/api"
+FRONTEND_API_DIR="./src/api/generated"
+FRONTEND_TYPE_DIR="./src/types/generated"
+mkdir -p "$FRONTEND_API_DIR" "$FRONTEND_TYPE_DIR"
+modules=("user" "role" "permission" "menu" "config" "dict" "file" "log")
+for module in "${modules[@]}"; do
+  goctl api ts \
+    -api "$BACKEND_API_DIR/$module.api" \
+    -dir "$FRONTEND_API_DIR" \
+    -webapi "./src/utils/request.ts" \
+    -caller "request"
+done
+echo "✅ TypeScript 代码生成完成！"
+```
+
+### 二次封装与类型导出
+- 在 `src/api/{module}.ts` 导入 generated 中的函数/类型，统一错误处理、适配返回结构。
+- 类型优先复用 generated 导出的 interface，再按需 re-export 到业务层。
+- 生成代码保持无副作用，封装层处理 UI 反馈（如消息提示）与数据转换。
+
+### 生成代码规范
+- ✅ 必做：使用 goctl 从 .api 生成 TS 代码；生成文件仅存放 `generated/`。
+- ✅ 必做：封装层统一错误处理；遵守 Page → Component → Store → API 分层。
+- ❌ 禁止：手动编辑 `generated/` 下的代码；重新定义与 generated 重复的类型。
+
+### 版本与 CI 策略
+- 推荐提交 generated 代码便于 code review，并在 `.gitattributes` 标记：
+```
+src/api/generated/** linguist-generated=true
+src/types/generated/** linguist-generated=true
+```
+- CI 示例：在检测到 `backend/api/*.api` 变更时运行生成脚本并提交（GitHub Actions 可参考）。
+
+### 常见问题
+- 生成类型不准确：检查 .api 的 `json` 标签，`optional` 会转为可选字段。
+- 生成函数不符合约定：不要改 generated，改封装层进行适配。
+- 需要自定义模板：`goctl template init --home ./templates` 后指定 `--home` 生成。
+
+### 最佳实践
+1. 共用一份 .api 定义，保持前后端类型一致。
+2. 生成与手写分层：`generated/` 只存生成物，封装层做业务。
+3. 统一错误处理与日志，封装层负责用户提示。
+4. 将生成步骤加入日常开发与 CI，避免类型漂移。
+5. 新模块先补 .api，再生成，再开发页面，最后更新进度文档。
 
 ## 技术栈选择
 
