@@ -1,0 +1,1 @@
+go build -o sqlgen.exe main.go

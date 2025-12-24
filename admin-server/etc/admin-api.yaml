@@ -1,0 +1,29 @@
+Name: admin-api
+Host: 0.0.0.0
+Port: 8888
+
+# 数据库配置
+Database:
+  DSN: "root:game@2023@tcp(192.168.61.231:3306)/postapoc_admin?parseTime=true&loc=Local"
+  MaxOpen: 20
+  MaxIdle: 10
+
+# Redis 配置
+Redis:
+  Address: "192.168.61.231:6379"
+  Password: "123456"
+  DB: 3
+  Timeout: 5        # 读写超时（秒）
+  DialTimeout: 5   # 连接超时（秒）
+
+# JWT 配置
+JWT:
+  AccessSecret: "replace-with-secure-access-secret"
+  RefreshSecret: "replace-with-secure-refresh-secret"
+  AccessExpire: 7200        # 秒
+  RefreshExpire: 604800     # 秒
+  Issuer: "postapoc-admin"
+
+# bcrypt 配置
+Bcrypt:
+  Cost: 10

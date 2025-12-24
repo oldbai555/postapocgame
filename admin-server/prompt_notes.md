@@ -1,5 +1,7 @@
 # Go-Zero 后端开发 Cursor Prompt
 
+> 全局统一的前后端一体化 Prompt 请参考 `docs/fullstack_prompt.md`；本文件为 **admin-server（后端）专用补充说明与模板**。
+
 ## 系统级长期提示（放入 Cursor 项目设置）
 
 ```text
@@ -72,6 +74,7 @@ goctl 使用规范：
 6. 编写单元测试，确保代码质量
 7. 更新进度文档（API 清单、已完成功能、数据库变更等）
 8. 代码可编译、可运行，通过 golangci-lint 检查
+9. 遇到需要分步完成的需求，在"待实现 / 待完善功能"中记录
 ```
 
 ---

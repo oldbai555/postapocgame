@@ -29,6 +29,7 @@
 │         Database Layer (MySQL)      │
 └─────────────────────────────────────┘
 ```
+> 数据访问层统一使用 goctl model 生成的 sqlx + cache 代码，不再保留手写 GORM 版本；Model 生成使用自定义模板，内置 `created_at/updated_at/deleted_at`、软删除、分页与分片查询。
 
 ## 核心功能模块
 
@@ -315,8 +316,24 @@ admin-system/
 
 ### 4. 数据库设计要点
 - 设计合理的索引策略
-- 使用软删除标记（deleted_at）
-- 记录创建时间和更新时间（created_at, updated_at）
+- **数据库初始化规范**：
+  - 在未上线时，`admin-server/db/` 目录只维护一份初始化SQL文件（`db/init.sql`）
+  - 所有表必须包含 `created_at`、`updated_at`、`deleted_at` 字段（BIGINT类型，秒级时间戳，默认值0）
+  - 上线后如需增量变更，再使用 migration 脚本
+- **统一时间戳字段规范**：
+  - 所有 DB 模型必须包含三个字段：`created_at`、`updated_at`、`deleted_at`
+  - 类型统一为 `int64`（数据库字段类型为 BIGINT），存储秒级时间戳（Unix timestamp）
+  - `created_at`：创建时间，创建时自动设置
+  - `updated_at`：更新时间，更新时自动设置
+  - `deleted_at`：删除时间，用于软删除（0 表示未删除，>0 表示已软删除）
+- **软删除实现**：
+  - GORM 默认不支持 int64 类型的软删除，需要手动实现
+  - Repository 层查询时自动过滤 `deleted_at = 0` 的记录
+  - 删除操作通过设置 `deleted_at` 为当前时间戳实现，而非真正删除
+- **分页和分片查询**：
+  - go-zero 生成的 Model 包含 `FindPage` 方法（分页查询）和 `FindChunk` 方法（分片查询）
+  - `FindPage`：适用于列表查询场景，返回数据列表和总数
+  - `FindChunk`：适用于大数据量分批处理场景，基于 lastId 进行分片查询
 - 考虑数据库分表策略（大数据量场景）
 
 ### 5. 缓存策略
@@ -367,13 +384,42 @@ github.com/spf13/cobra
 
 ## 开发建议
 
-1. **使用 goctl 生成代码框架**：充分利用 go-zero 的代码生成能力
-2. **编写详细的接口文档**：便于前后端联调
-3. **建立规范的 commit 历史**：便于版本管理和回溯
-4. **编写单元测试和集成测试**：确保代码质量
-5. **建立 API 版本管理机制**：支持平滑升级
-6. **定期进行代码审查**：保证代码质量一致
-7. **使用数据库迁移工具管理 schema**：避免手动修改数据库
+1. **优先使用 go-zero 工具进行代码生成**：
+   - **Model 代码生成**：使用 `goctl model mysql ddl` 从 SQL 文件生成 Model 代码
+     - **推荐使用脚本**：`./scripts/generate-model.sh db/init.sql`（可在任何目录运行）
+     - 或直接命令：`goctl model mysql ddl -src db/init.sql -dir internal/model -c --home .template`
+     - 使用项目自定义模板（`admin-server/.template`），支持：
+       - 统一时间戳字段（`created_at`、`updated_at`、`deleted_at`，int64类型，秒级时间戳）
+       - 软删除功能
+       - 分页查询方法（`FindPage`）
+       - 分片查询方法（`FindChunk`）
+     - 生成的 Model 包含完整的 CRUD 操作方法，可直接使用
+   - **API Handler 代码生成**：使用 `goctl api go` 从 `.api` 文件生成 Handler 代码骨架
+   - **前端 TypeScript 代码生成**：使用 `goctl api ts` 从 `.api` 文件生成前端类型和 API 代码
+   - **原则**：能使用 go-zero 工具生成的代码，一律使用工具生成；只有在业务需要特殊处理时，才进行自定义开发
+
+2. **自定义模板说明**：
+   - 项目已配置 go-zero 自定义模板（`admin-server/.template`），支持：
+     - 统一时间戳字段（`created_at`、`updated_at`、`deleted_at`，int64 类型，秒级时间戳）
+     - 软删除功能（查询自动过滤 `deleted_at = 0`，删除操作更新 `deleted_at` 而非真正删除）
+     - 分页查询方法（`FindPage(ctx, page, pageSize)`）：返回数据列表和总数
+     - 分片查询方法（`FindChunk(ctx, limit, lastId)`）：基于 lastId 的分片查询，适用于大数据量分批处理
+   - 使用 `goctl` 命令时，必须指定 `--home .template` 参数以使用自定义模板
+   - 模板文件说明详见 `admin-server/.template/README.md`
+
+3. **Types 统一维护约定**：`admin-server/internal/types/types.go` 由人工统一维护，禁止被 goctl 覆盖；从 `.api` 重新生成代码时，只参考生成的临时 types 内容，按需手工合并后丢弃生成文件
+
+4. **编写详细的接口文档**：便于前后端联调
+
+5. **建立规范的 commit 历史**：便于版本管理和回溯
+
+6. **编写单元测试和集成测试**：确保代码质量
+
+7. **建立 API 版本管理机制**：支持平滑升级
+
+8. **定期进行代码审查**：保证代码质量一致
+
+9. **使用数据库迁移工具管理 schema**：避免手动修改数据库
 
 ## 后续扩展建议
 

@@ -1,0 +1,58 @@
+:root {
+  --color-primary: #409eff;
+  --color-success: #67c23a;
+  --color-warning: #e6a23c;
+  --color-danger: #f56c6c;
+  --color-info: #909399;
+  --color-bg: #f5f7fa;
+  --color-text: #1f2d3d;
+  --color-card: #ffffff;
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', 'Liberation Sans', sans-serif;
+  
+  /* 布局颜色变量 - 浅色模式 */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f5f7fa;
+  --color-bg-card: #ffffff;
+  --color-border: #e4e7ed;
+  --color-text-primary: #303133;
+  --color-text-secondary: #909399;
+}
+
+[data-theme='dark'] {
+  --color-primary: #66b1ff;
+  --color-success: #5fb878;
+  --color-warning: #e0a800;
+  --color-danger: #f78989;
+  --color-info: #c0c4cc;
+  --color-bg: #141414;
+  --color-text: #e5eaf3;
+  --color-card: #1f1f1f;
+  
+  /* 布局颜色变量 - 深色模式 */
+  --color-bg-primary: #1f1f1f;
+  --color-bg-secondary: #141414;
+  --color-bg-card: #1f1f1f;
+  --color-border: #303133;
+  --color-text-primary: #e5eaf3;
+  --color-text-secondary: #909399;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  font-family: var(--font-family);
+  color: var(--color-text);
+}
+
+.el-card {
+  background: var(--color-card);
+}
+
+.el-input__wrapper {
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06) inset;
+}
+[data-theme='dark'] .el-input__wrapper {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+}
+

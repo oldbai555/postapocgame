@@ -10,6 +10,7 @@
 /files*.zip
 /server/output/*.exe
 /server/*.exe
+/admin-server/*.exe
 /server/output/log/
 /Claude*framework_*.json
 /.claude/
@@ -21,3 +22,10 @@
 /server/*/postapocgame.db
 *.cs.uid
 /server/service/output/example.exe
+# Admin server executables
+admin-server/*.exe
+/.cursor/
+**/node_modules
+**/*.exe
+/admin-frontend/dist/
+/admin-server/api/*.api.temp

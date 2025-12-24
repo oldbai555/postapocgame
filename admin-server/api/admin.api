@@ -1,0 +1,532 @@
+syntax = "v1"
+
+info (
+	title:   "Admin System API"
+	desc:    "后台管理系统完整接口"
+	version: "1.0.0"
+)
+
+type (
+	// 通用
+	PingResp {
+		message string `json:"message"`
+	}
+	// 认证相关
+	LoginReq {
+		username string `json:"username"`
+		password string `json:"password"`
+	}
+	TokenPair {
+		accessToken  string `json:"accessToken"`
+		refreshToken string `json:"refreshToken"`
+	}
+	RefreshReq {
+		refreshToken string `json:"refreshToken"`
+	}
+	LogoutReq {
+		accessToken  string `json:"accessToken"`
+		refreshToken string `json:"refreshToken"`
+	}
+	ProfileResp {
+		id          uint64   `json:"id"`
+		username    string   `json:"username"`
+		permissions []string `json:"permissions,optional"`
+	}
+	// 用户管理
+	UserItem {
+		id           uint64 `json:"id"`
+		username     string `json:"username"`
+		departmentId uint64 `json:"departmentId"`
+		status       int64  `json:"status"`
+		createdAt    string `json:"createdAt"`
+	}
+	UserListReq {
+		page     int64  `json:"page,optional" form:"page,optional"`
+		pageSize int64  `json:"pageSize,optional" form:"pageSize,optional"`
+		username string `json:"username,optional" form:"username,optional"`
+	}
+	UserListResp {
+		total int64      `json:"total"`
+		list  []UserItem `json:"list"`
+	}
+	UserCreateReq {
+		username     string `json:"username"`
+		password     string `json:"password"`
+		departmentId uint64 `json:"departmentId"`
+		status       int64  `json:"status,optional"`
+	}
+	UserUpdateReq {
+		id           uint64 `json:"id"`
+		username     string `json:"username,optional"`
+		password     string `json:"password,optional"`
+		departmentId uint64 `json:"departmentId,optional"`
+		status       int64  `json:"status,optional"`
+	}
+	UserDeleteReq {
+		id uint64 `json:"id"`
+	}
+	// 角色管理
+	RoleItem {
+		id          uint64 `json:"id"`
+		name        string `json:"name"`
+		code        string `json:"code"`
+		description string `json:"description"`
+		status      int64  `json:"status"`
+	}
+	RoleListReq {
+		page     int64  `json:"page,optional" form:"page,optional"`
+		pageSize int64  `json:"pageSize,optional" form:"pageSize,optional"`
+		name     string `json:"name,optional" form:"name,optional"`
+	}
+	RoleListResp {
+		total int64      `json:"total"`
+		list  []RoleItem `json:"list"`
+	}
+	RoleCreateReq {
+		name        string `json:"name"`
+		code        string `json:"code"`
+		description string `json:"description,optional"`
+		status      int64  `json:"status,optional"`
+	}
+	RoleUpdateReq {
+		id          uint64 `json:"id"`
+		name        string `json:"name"`
+		description string `json:"description,optional"`
+		status      int64  `json:"status,optional"`
+	}
+	RoleDeleteReq {
+		id uint64 `json:"id"`
+	}
+	// 权限管理
+	PermissionItem {
+		id          uint64 `json:"id"`
+		name        string `json:"name"`
+		code        string `json:"code"`
+		description string `json:"description"`
+	}
+	PermissionListReq {
+		page     int64  `json:"page,optional" form:"page,optional"`
+		pageSize int64  `json:"pageSize,optional" form:"pageSize,optional"`
+		name     string `json:"name,optional" form:"name,optional"`
+	}
+	PermissionListResp {
+		total int64            `json:"total"`
+		list  []PermissionItem `json:"list"`
+	}
+	PermissionCreateReq {
+		name        string `json:"name"`
+		code        string `json:"code"`
+		description string `json:"description,optional"`
+	}
+	PermissionUpdateReq {
+		id          uint64 `json:"id"`
+		name        string `json:"name"`
+		description string `json:"description,optional"`
+	}
+	PermissionDeleteReq {
+		id uint64 `json:"id"`
+	}
+	// 部门管理
+	DepartmentItem {
+		id       uint64           `json:"id"`
+		parentId uint64           `json:"parentId"`
+		name     string           `json:"name"`
+		orderNum int64            `json:"orderNum"`
+		status   int64            `json:"status"`
+		children []DepartmentItem `json:"children,optional"`
+	}
+	DepartmentTreeResp {
+		list []DepartmentItem `json:"list"`
+	}
+	DepartmentCreateReq {
+		parentId uint64 `json:"parentId"`
+		name     string `json:"name"`
+		orderNum int64  `json:"orderNum,optional"`
+		status   int64  `json:"status,optional"`
+	}
+	DepartmentUpdateReq {
+		id       uint64 `json:"id"`
+		parentId uint64 `json:"parentId"`
+		name     string `json:"name"`
+		orderNum int64  `json:"orderNum,optional"`
+		status   int64  `json:"status,optional"`
+	}
+	DepartmentDeleteReq {
+		id uint64 `json:"id"`
+	}
+	// 菜单管理
+	MenuItem {
+		id        uint64     `json:"id"`
+		parentId  uint64     `json:"parentId"`
+		name      string     `json:"name"`
+		path      string     `json:"path"`
+		component string     `json:"component"`
+		icon      string     `json:"icon"`
+		menuType  int64      `json:"type"` // 1 目录 2 菜单 3 按钮
+		orderNum  int64      `json:"orderNum"`
+		visible   int64      `json:"visible"`
+		status    int64      `json:"status"`
+		children  []MenuItem `json:"children,optional"`
+	}
+	MenuTreeResp {
+		list []MenuItem `json:"list"`
+	}
+	MenuCreateReq {
+		parentId  uint64 `json:"parentId"`
+		name      string `json:"name"`
+		path      string `json:"path,optional"`
+		component string `json:"component,optional"`
+		icon      string `json:"icon,optional"`
+		menuType  int64  `json:"type"`
+		orderNum  int64  `json:"orderNum,optional"`
+		visible   int64  `json:"visible,optional"`
+		status    int64  `json:"status,optional"`
+	}
+	MenuUpdateReq {
+		id        uint64 `json:"id"`
+		parentId  uint64 `json:"parentId"`
+		name      string `json:"name"`
+		path      string `json:"path,optional"`
+		component string `json:"component,optional"`
+		icon      string `json:"icon,optional"`
+		menuType  int64  `json:"type"`
+		orderNum  int64  `json:"orderNum,optional"`
+		visible   int64  `json:"visible,optional"`
+		status    int64  `json:"status,optional"`
+	}
+	MenuDeleteReq {
+		id uint64 `json:"id"`
+	}
+	// API管理
+	ApiItem {
+		id          uint64 `json:"id"`
+		name        string `json:"name"`
+		method      string `json:"method"`
+		path        string `json:"path"`
+		description string `json:"description"`
+		status      int64  `json:"status"`
+		createdAt   string `json:"createdAt"`
+	}
+	ApiListReq {
+		page     int64  `json:"page,optional" form:"page,optional"`
+		pageSize int64  `json:"pageSize,optional" form:"pageSize,optional"`
+		name     string `json:"name,optional" form:"name,optional"`
+	}
+	ApiListResp {
+		total int64     `json:"total"`
+		list  []ApiItem `json:"list"`
+	}
+	ApiCreateReq {
+		name        string `json:"name"`
+		method      string `json:"method"`
+		path        string `json:"path"`
+		description string `json:"description,optional"`
+		status      int64  `json:"status,optional"`
+	}
+	ApiUpdateReq {
+		id          uint64 `json:"id"`
+		name        string `json:"name,optional"`
+		method      string `json:"method,optional"`
+		path        string `json:"path,optional"`
+		description string `json:"description,optional"`
+		status      int64  `json:"status,optional"`
+	}
+	ApiDeleteReq {
+		id uint64 `json:"id"`
+	}
+	// 用户-角色关联
+	UserRoleListReq {
+		userId uint64 `json:"userId,optional" form:"userId,optional"`
+	}
+	UserRoleListResp {
+		roleIds []uint64 `json:"roleIds"`
+	}
+	UserRoleUpdateReq {
+		userId  uint64   `json:"userId"`
+		roleIds []uint64 `json:"roleIds"`
+	}
+	// 角色-权限关联
+	RolePermissionListReq {
+		roleId uint64 `json:"roleId,optional" form:"roleId,optional"`
+	}
+	RolePermissionListResp {
+		permissionIds []uint64 `json:"permissionIds"`
+	}
+	RolePermissionUpdateReq {
+		roleId        uint64   `json:"roleId"`
+		permissionIds []uint64 `json:"permissionIds"`
+	}
+	// 权限-菜单关联
+	PermissionMenuListReq {
+		permissionId uint64 `json:"permissionId,optional" form:"permissionId,optional"`
+	}
+	PermissionMenuListResp {
+		menuIds []uint64 `json:"menuIds"`
+	}
+	PermissionMenuUpdateReq {
+		permissionId uint64   `json:"permissionId"`
+		menuIds      []uint64 `json:"menuIds"`
+	}
+	// 权限-接口关联
+	PermissionApiListReq {
+		permissionId uint64 `json:"permissionId,optional" form:"permissionId,optional"`
+	}
+	PermissionApiListResp {
+		apiIds []uint64 `json:"apiIds"`
+	}
+	PermissionApiUpdateReq {
+		permissionId uint64   `json:"permissionId"`
+		apiIds       []uint64 `json:"apiIds"`
+	}
+	// 文件管理
+	FileItem {
+		id        uint64 `json:"id"`
+		name      string `json:"name"`
+		status    int64  `json:"status"`
+		createdAt string `json:"createdAt"`
+	}
+	FileListReq {
+		page     int64  `json:"page,optional" form:"page,optional"`
+		pageSize int64  `json:"pageSize,optional" form:"pageSize,optional"`
+		name     string `json:"name,optional" form:"name,optional"`
+	}
+	FileListResp {
+		total int64      `json:"total"`
+		list  []FileItem `json:"list"`
+	}
+	FileCreateReq {
+		name   string `json:"name"`
+		status int64  `json:"status,optional"`
+	}
+	FileUpdateReq {
+		id     uint64 `json:"id"`
+		name   string `json:"name,optional"`
+		status int64  `json:"status,optional"`
+	}
+	FileDeleteReq {
+		id uint64 `json:"id"`
+	}
+)
+
+@server (
+	group:  ping
+	prefix: /api/v1
+)
+service admin-api {
+	@handler Ping
+	get /ping returns (PingResp)
+}
+
+@server (
+	group:  auth
+	prefix: /api/v1
+)
+service admin-api {
+	@handler Login
+	post /login (LoginReq) returns (TokenPair)
+
+	@handler Refresh
+	post /refresh (RefreshReq) returns (TokenPair)
+}
+
+@server (
+	group:      auth
+	prefix:     /api/v1
+	middleware: AuthMiddleware,PermissionMiddleware
+)
+service admin-api {
+	@handler Logout
+	post /logout (LogoutReq)
+
+	@handler Profile
+	get /profile returns (ProfileResp)
+}
+
+@server (
+	group:      user
+	prefix:     /api/v1
+	middleware: AuthMiddleware,PermissionMiddleware
+)
+service admin-api {
+	@handler UserList
+	get /users (UserListReq) returns (UserListResp)
+
+	@handler UserCreate
+	post /users (UserCreateReq)
+
+	@handler UserUpdate
+	put /users (UserUpdateReq)
+
+	@handler UserDelete
+	delete /users (UserDeleteReq)
+}
+
+@server (
+	group:      role
+	prefix:     /api/v1
+	middleware: AuthMiddleware,PermissionMiddleware
+)
+service admin-api {
+	@handler RoleList
+	get /roles (RoleListReq) returns (RoleListResp)
+
+	@handler RoleCreate
+	post /roles (RoleCreateReq)
+
+	@handler RoleUpdate
+	put /roles (RoleUpdateReq)
+
+	@handler RoleDelete
+	delete /roles (RoleDeleteReq)
+}
+
+@server (
+	group:      permission
+	prefix:     /api/v1
+	middleware: AuthMiddleware,PermissionMiddleware
+)
+service admin-api {
+	@handler PermissionList
+	get /permissions (PermissionListReq) returns (PermissionListResp)
+
+	@handler PermissionCreate
+	post /permissions (PermissionCreateReq)
+
+	@handler PermissionUpdate
+	put /permissions (PermissionUpdateReq)
+
+	@handler PermissionDelete
+	delete /permissions (PermissionDeleteReq)
+}
+
+@server (
+	group:      department
+	prefix:     /api/v1
+	middleware: AuthMiddleware,PermissionMiddleware
+)
+service admin-api {
+	@handler DepartmentTree
+	get /departments/tree returns (DepartmentTreeResp)
+
+	@handler DepartmentCreate
+	post /departments (DepartmentCreateReq)
+
+	@handler DepartmentUpdate
+	put /departments (DepartmentUpdateReq)
+
+	@handler DepartmentDelete
+	delete /departments (DepartmentDeleteReq)
+}
+
+@server (
+	group:      menu
+	prefix:     /api/v1
+	middleware: AuthMiddleware,PermissionMiddleware
+)
+service admin-api {
+	@handler MenuTree
+	get /menus/tree returns (MenuTreeResp)
+
+	@handler MenuMyTree
+	get /menus/my-tree returns (MenuTreeResp)
+
+	@handler MenuCreate
+	post /menus (MenuCreateReq)
+
+	@handler MenuUpdate
+	put /menus (MenuUpdateReq)
+
+	@handler MenuDelete
+	delete /menus (MenuDeleteReq)
+}
+
+@server (
+	group:      api
+	prefix:     /api/v1
+	middleware: AuthMiddleware,PermissionMiddleware
+)
+service admin-api {
+	@handler ApiList
+	get /apis (ApiListReq) returns (ApiListResp)
+
+	@handler ApiCreate
+	post /apis (ApiCreateReq)
+
+	@handler ApiUpdate
+	put /apis (ApiUpdateReq)
+
+	@handler ApiDelete
+	delete /apis (ApiDeleteReq)
+}
+
+@server (
+	group:      user_role
+	prefix:     /api/v1
+	middleware: AuthMiddleware,PermissionMiddleware
+)
+service admin-api {
+	@handler UserRoleList
+	get /users/roles (UserRoleListReq) returns (UserRoleListResp)
+
+	@handler UserRoleUpdate
+	put /users/roles (UserRoleUpdateReq)
+}
+
+@server (
+	group:      role_permission
+	prefix:     /api/v1
+	middleware: AuthMiddleware,PermissionMiddleware
+)
+service admin-api {
+	@handler RolePermissionList
+	get /roles/permissions (RolePermissionListReq) returns (RolePermissionListResp)
+
+	@handler RolePermissionUpdate
+	put /roles/permissions (RolePermissionUpdateReq)
+}
+
+@server (
+	group:      permission_menu
+	prefix:     /api/v1
+	middleware: AuthMiddleware,PermissionMiddleware
+)
+service admin-api {
+	@handler PermissionMenuList
+	get /permissions/menus (PermissionMenuListReq) returns (PermissionMenuListResp)
+
+	@handler PermissionMenuUpdate
+	put /permissions/menus (PermissionMenuUpdateReq)
+}
+
+@server (
+	group:      permission_api
+	prefix:     /api/v1
+	middleware: AuthMiddleware,PermissionMiddleware
+)
+service admin-api {
+	@handler PermissionApiList
+	get /permissions/apis (PermissionApiListReq) returns (PermissionApiListResp)
+
+	@handler PermissionApiUpdate
+	put /permissions/apis (PermissionApiUpdateReq)
+}
+
+@server (
+	group:      file
+	prefix:     /api/v1
+	middleware: AuthMiddleware,PermissionMiddleware
+)
+service admin-api {
+	@handler FileList
+	get /files (FileListReq) returns (FileListResp)
+
+	@handler FileCreate
+	post /files (FileCreateReq)
+
+	@handler FileUpdate
+	put /files (FileUpdateReq)
+
+	@handler FileDelete
+	delete /files (FileDeleteReq)
+}
+

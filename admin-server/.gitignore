@@ -1,0 +1,8 @@
+# go-zero 生成的可执行文件
+admin-server.exe
+admin-server
+
+# 临时文件
+*.tmp
+*.log
+

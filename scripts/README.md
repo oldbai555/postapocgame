@@ -1,294 +1,289 @@
-# CI 检查脚本使用说明
+# go-zero 代码生成脚本
 
-本目录包含用于代码质量检查的 CI 脚本，包括静态分析和禁止导入规则检查。
+本目录包含用于生成 go-zero 代码的便捷脚本。
 
 ## 脚本列表
 
-### 1. `ci_check.sh` / `ci_check.ps1`
-主 CI 检查脚本，集成以下检查：
-- `go vet`：Go 官方静态分析工具
-- `staticcheck`：Go 静态分析工具（自动安装）
-- gatewaylink 导入检查：禁止除白名单外的包引用 gatewaylink
+### 1. generate-sql.sh - SQL 脚本生成工具
 
-### 2. `check_gatewaylink_imports.sh` / `check_gatewaylink_imports.ps1`
-独立的 gatewaylink 导入检查脚本，可单独运行。
+用于快速生成新功能模块的初始化 SQL 脚本。
 
-## 快速开始
-
-### 最简单的使用方式
-
-**Windows:**
-```powershell
-# 在项目根目录运行
-powershell -ExecutionPolicy Bypass -File scripts\ci_check.ps1
-```
-
-**Linux/Mac:**
+**使用方法：**
 ```bash
-# 在项目根目录运行
-bash scripts/ci_check.sh
+# 可在任何目录下运行，脚本会自动定位项目目录
+./scripts/generate-sql.sh -group <group> -name <name>
 ```
 
-## 详细使用方法
+**参数：**
+- `-group <group>`: 功能组名（必需，如 `user`, `file`）
+- `-name <name>`: 功能名称（必需，如 `用户管理`, `文件管理`）
 
-### Linux / Mac 环境
-
+**示例：**
 ```bash
-# 方式 1：运行完整 CI 检查（推荐）
-cd /path/to/postapocgame
-bash scripts/ci_check.sh
+# 生成用户管理模块的 SQL
+./scripts/generate-sql.sh -group user -name 用户管理
 
-# 方式 2：只检查 gatewaylink 导入
-bash scripts/check_gatewaylink_imports.sh
-
-# 方式 3：在项目根目录直接运行（脚本会自动定位）
-cd /path/to/postapocgame
-./scripts/ci_check.sh
+# 生成文件管理模块的 SQL
+./scripts/generate-sql.sh -group file -name 文件管理
 ```
 
-### Windows 环境
+**功能说明：**
+- 生成的 SQL 文件位于 `admin-server/db/` 目录下
+- 文件名格式：`init_<group>.sql`
+- 主键为自增，不需要手动赋值
+- 临时目录已在 `data.sql` 中初始化（id=9）
+- 生成的菜单默认归类在临时目录下
+- 包含以下内容：
+  - 菜单数据（主菜单 + 新增/编辑/删除按钮）
+  - 权限数据（list/create/update/delete）
+  - 接口数据（GET/POST/PUT/DELETE）
+  - 权限-菜单关联数据
+  - 权限-接口关联数据
+- **同时生成 `.api` 文件内容**，可直接复制追加到 `admin-server/api/admin.api`
 
-```powershell
-# 方式 1：运行完整 CI 检查（推荐）
-cd C:\path\to\postapocgame
-powershell -ExecutionPolicy Bypass -File scripts\ci_check.ps1
+**输出内容：**
+1. **建表 SQL 文件**：生成到 `admin-server/db/create_table_<group>.sql`
+   - 包含默认字段：`id`（主键自增）、`created_at`、`updated_at`、`deleted_at`
+   - 表名使用 `{{.Group}}`（可根据需要手动修改表名）
+   - 包含主键和 `deleted_at` 索引
+2. **初始化 SQL 文件**：生成到 `admin-server/db/init_<group>.sql`
+   - 包含菜单、权限、接口等初始化数据
+   - 菜单路径：`/temp/<group>`（临时目录下）
+   - 前端组件路径：`temp/<GroupUpper>List`
+3. **.api 文件**：生成到 `admin-server/api/<group>.api.temp`，包含：
+   - 类型定义（Item、ListReq、ListResp、CreateReq、UpdateReq）
+   - 服务定义（@server 块，包含 List/Create/Update/Delete 四个接口）
+4. **Vue 页面文件**：生成到 `admin-frontend/src/views/temp/<GroupUpper>List.vue`
+   - 使用 `D2Table` 组件
+   - 包含搜索、列表、新增、编辑、删除功能
+   - 自动调用生成的 API（`<group>Api.list/create/update/delete`）
 
-# 方式 2：只检查 gatewaylink 导入
-powershell -ExecutionPolicy Bypass -File scripts\check_gatewaylink_imports.ps1
+**使用步骤：**
+1. 执行脚本生成建表SQL、初始化SQL、.api文件和Vue页面
+2. **先执行建表SQL**：将 `create_table_<group>.sql` 在数据库中执行（或手动添加到 `admin-server/db/tables.sql`）
+3. **再执行初始化SQL**：将 `init_<group>.sql` 在数据库中执行
+4. **追加 .api 内容**：将 `<group>.api.temp` 文件的内容追加到 `admin-server/api/admin.api` 的：
+   - 类型定义部分：追加到 `type (` 块内（在 `)` 之前）
+   - 服务定义部分：追加到文件末尾
+5. **生成前端 TypeScript 代码**：执行 `./scripts/generate-ts.sh` 生成前端 API 代码
+6. **前端页面已生成**：Vue 页面已生成到 `admin-frontend/src/views/temp/<GroupUpper>List.vue`，可直接使用
+7. 追加完成后，可以删除 `<group>.api.temp` 文件
 
-# 方式 3：如果已设置执行策略，可以直接运行
-.\scripts\ci_check.ps1
-```
+**注意事项：**
+- 菜单、按钮、接口的启用状态默认为 1（启用），可根据需要修改
+- 菜单默认归类在临时目录下，可在菜单管理中调整
+- 生成的 SQL 文件需要在数据库中执行
+- .api 内容需要手动复制追加到 `admin-server/api/admin.api`
 
-### 执行结果说明
+**技术实现：**
+- 使用 Golang 编写，通过模板文件生成 SQL、.api 和 Vue 页面
+- 建表 SQL 模板文件：`scripts/sqlgen/templates/create_table.sql.tpl`
+- 初始化 SQL 模板文件：`scripts/sqlgen/templates/init_module.sql.tpl`
+- .api 模板文件：`scripts/sqlgen/templates/init_module.api.tpl`
+- Vue 页面模板文件：`scripts/sqlgen/templates/list_page.vue.tpl`
+- 如需修改生成逻辑，只需修改模板文件即可
 
-脚本会输出以下信息：
+**注意事项：**
+- 建表SQL中的表名使用 `{{.Group}}`，可根据实际需要手动修改（如添加 `admin_` 前缀等）
+- 建表SQL只包含默认字段，业务字段需要手动添加
+- 建议将建表SQL添加到 `admin-server/db/tables.sql` 中统一管理
 
-- ✅ **绿色**：检查通过
-- ⚠️ **黄色**：发现问题但继续执行（如 go vet 或 staticcheck 发现警告）
-- ❌ **红色**：检查失败，脚本退出（如 gatewaylink 导入违规）
+### 2. generate-model.sh
+从 SQL DDL 文件生成 Model 代码（使用自定义模板支持软删除、时间戳字段、分页和分片查询）
 
-**注意**：
-- `go vet` 和 `staticcheck` 发现的问题不会导致脚本退出，只会显示警告
-- `gatewaylink` 导入检查失败会导致脚本退出，必须修复后才能继续
-
-### 设置 PowerShell 执行策略（可选）
-
-如果不想每次都使用 `-ExecutionPolicy Bypass`，可以设置执行策略：
-
-```powershell
-# 以管理员身份运行 PowerShell，然后执行：
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-
-# 之后就可以直接运行脚本：
-.\scripts\ci_check.ps1
-```
-
-## 集成到 Git Hooks
-
-### Pre-commit Hook（推荐）
-
-在提交代码前自动运行检查，避免提交有问题的代码。
-
-#### Linux / Mac
-
-创建 `.git/hooks/pre-commit`：
-
+**使用方法：**
 ```bash
-#!/bin/bash
+# 可在任何目录下运行，脚本会自动定位项目目录
+./scripts/generate-model.sh db/init.sql
 
-# 运行 CI 检查
-bash scripts/ci_check.sh
-
-# 如果检查失败，阻止提交
-if [ $? -ne 0 ]; then
-    echo "❌ CI checks failed. Please fix the issues before committing."
-    exit 1
-fi
+# 或使用相对路径
+./scripts/generate-model.sh init.sql
 ```
 
-然后设置执行权限：
+**选项：**
+- `-c, --cache`: 启用缓存（默认启用）
+- `-d, --dir DIR`: 指定输出目录（默认: internal/model）
+- `-h, --help`: 显示帮助信息
+
+**示例：**
 ```bash
-chmod +x .git/hooks/pre-commit
+# 基本用法
+./scripts/generate-model.sh 002_init_rbac.sql
+
+# 禁用缓存
+./scripts/generate-model.sh 002_init_rbac.sql --no-cache
+
+# 指定输出目录
+./scripts/generate-model.sh 002_init_rbac.sql -d internal/model/custom
 ```
 
-#### Windows
+### 3. generate-api.sh
+从 .api 文件生成 API Handler 代码骨架
 
-创建 `.git/hooks/pre-commit`（PowerShell 脚本）：
+**使用方法：**
+```bash
+# 可在任何目录下运行，脚本会自动定位项目目录
+./scripts/generate-api.sh user.api
 
-```powershell
-# 运行 CI 检查
-powershell -ExecutionPolicy Bypass -File scripts\ci_check.ps1
+# 或使用相对路径
+./scripts/generate-api.sh api/user.api
+```
 
-# 如果检查失败，阻止提交
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ CI checks failed. Please fix the issues before committing." -ForegroundColor Red
-    exit 1
+**示例：**
+```bash
+# 生成用户管理 API Handler
+./scripts/generate-api.sh user.api
+
+# 生成角色管理 API Handler
+./scripts/generate-api.sh role.api
+```
+
+### 4. generate-ts.sh
+从 .api 文件生成前端 TypeScript 代码
+
+**使用方法：**
+```bash
+# 可在任何目录下运行，脚本会自动定位项目目录
+# 默认使用 admin-server/api/admin.api
+./scripts/generate-ts.sh
+
+# 或指定 API 文件
+./scripts/generate-ts.sh admin.api
+./scripts/generate-ts.sh api/admin.api
+```
+
+**示例：**
+```bash
+# 使用默认 admin.api 生成 TypeScript 代码
+./scripts/generate-ts.sh
+
+# 指定其他 API 文件
+./scripts/generate-ts.sh user.api
+```
+
+**注意事项：**
+- 生成的代码在 `admin-frontend/src/api/generated/` 目录
+- **禁止手动修改 generated/ 目录下的文件**
+- 在 `src/api/` 中二次封装（错误处理、拦截器集成、统一返回类型）
+- 如果生成的路径包含 `/auth` 前缀（如 `/api/v1/auth/login`），需要在封装时修正路径（去掉 `/auth`，改为 `/api/v1/login`）
+
+## 前置要求
+
+1. **安装 goctl**：
+   ```bash
+   go install github.com/zeromicro/go-zero/tools/goctl@latest
+   # 确保 GOPATH/bin 在 PATH 中
+   export PATH=$PATH:$(go env GOPATH)/bin
+   ```
+
+2. **初始化模板**（首次使用）：
+   ```bash
+   cd admin-server
+   goctl template init --home .template
+   ```
+
+3. **设置脚本执行权限**（Linux/Mac）：
+   ```bash
+   chmod +x scripts/*.sh
+   ```
+
+## 注意事项
+
+### Model 生成
+- 使用自定义模板（`--home .template`），支持：
+  - 统一时间戳字段（`created_at`、`updated_at`、`deleted_at`，int64类型，秒级时间戳）
+  - 软删除功能
+  - 分页查询方法（`FindPage`）
+  - 分片查询方法（`FindChunk`）
+- 生成的 Model 包含完整的 CRUD 操作方法
+- 确保 SQL 文件中的表包含 `created_at`、`updated_at`、`deleted_at` 字段（BIGINT类型，默认值0）
+- **推荐使用 `db/init.sql` 作为初始化SQL文件**（在未上线时只维护这一份）
+
+### API Handler 生成
+- 生成的 Handler 代码在 `internal/handler/` 目录
+- Types 定义会生成临时文件，需要手动合并到 `internal/types/types.go`
+- 生成的代码需要手动改造以使用 Service 层和统一响应格式
+
+### TypeScript 代码生成
+- 生成的代码在 `admin-frontend/src/api/generated/` 目录
+- **禁止手动修改 generated/ 目录下的文件**
+- 在 `src/api/` 中二次封装（错误处理、拦截器集成、统一返回类型）
+- 注意路径修正：go-zero 会根据 group 名称添加路径前缀，如果后端路由没有对应前缀，需要在封装时修正
+
+## 完整工作流示例
+
+### 1. 更新数据库初始化文件
+```sql
+-- db/init.sql（在未上线时只维护这一份初始化SQL）
+CREATE TABLE IF NOT EXISTS `new_table` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(64) NOT NULL,
+  `created_at` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '创建时间(秒级时间戳)',
+  `updated_at` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '更新时间(秒级时间戳)',
+  `deleted_at` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '删除时间(秒级时间戳,0表示未删除)',
+  PRIMARY KEY (`id`),
+  KEY `idx_new_table_deleted_at` (`deleted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+### 2. 生成 Model 代码
+```bash
+# 可在任何目录下运行
+./scripts/generate-model.sh db/init.sql
+```
+
+### 3. 定义 API 文件
+```go
+// api/new_module.api
+syntax = "v1"
+
+service new-module-api {
+    @handler NewModuleList
+    get /new-modules returns (NewModuleListResp)
 }
 ```
 
-或者创建 `.git/hooks/pre-commit.bat`：
-
-```batch
-@echo off
-powershell -ExecutionPolicy Bypass -File scripts\ci_check.ps1
-if %errorlevel% neq 0 (
-    echo ❌ CI checks failed. Please fix the issues before committing.
-    exit 1
-)
-```
-
-## 集成到 CI/CD 流程
-
-### GitHub Actions 示例
-
-创建 `.github/workflows/ci.yml`：
-
-```yaml
-name: CI Checks
-
-on:
-  pull_request:
-    paths:
-      - 'server/service/gameserver/**'
-      - 'scripts/**'
-  push:
-    branches:
-      - main
-
-jobs:
-  check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.24'
-      
-      - name: Run CI checks
-        working-directory: server
-        run: |
-          cd ..
-          bash scripts/ci_check.sh
-```
-
-### GitLab CI 示例
-
-创建 `.gitlab-ci.yml`：
-
-```yaml
-stages:
-  - check
-
-ci-checks:
-  stage: check
-  image: golang:1.24
-  script:
-    - bash scripts/ci_check.sh
-  only:
-    - merge_requests
-    - main
-```
-
-### Jenkins Pipeline 示例
-
-```groovy
-pipeline {
-    agent any
-    
-    stages {
-        stage('CI Checks') {
-            steps {
-                sh 'bash scripts/ci_check.sh'
-            }
-        }
-    }
-}
-```
-
-## 检查项说明
-
-### 1. go vet
-Go 官方静态分析工具，检查常见错误：
-- 格式字符串错误
-- 未使用的变量
-- 其他常见问题
-
-### 2. staticcheck
-更强大的静态分析工具，检查：
-- 未使用的代码
-- 潜在的错误
-- 性能问题
-- 代码风格问题
-
-**注意**：如果未安装，脚本会自动安装到 `$GOPATH/bin` 或 `$HOME/go/bin`。
-
-### 3. gatewaylink 导入检查
-检查是否有违规的 `gatewaylink` 导入。
-
-**白名单文件**（允许导入 gatewaylink）：
-- `server/service/gameserver/internel/app/playeractor/entity/player_network.go`
-- `server/service/gameserver/internel/app/playeractor/entity/player_role.go`
-- `server/service/gameserver/internel/adapter/gateway/network_gateway.go`
-- `server/service/gameserver/internel/adapter/gateway/session_gateway.go`
-- `server/service/gameserver/internel/infrastructure/gatewaylink/*`（所有文件）
-- `server/service/gameserver/internel/app/engine/server.go`
-- `server/service/gameserver/internel/infrastructure/dungeonserverlink/dungeon_cli.go`
-
-**其他文件**：禁止直接导入 `gatewaylink`，应通过 `NetworkGateway` 接口使用。
-
-## 常见问题
-
-### Q: 脚本显示 "go vet found issues" 怎么办？
-A: 这是正常的。`go vet` 和 `staticcheck` 可能会发现一些代码问题（如格式字符串警告），这些不会阻止脚本继续执行。你可以：
-1. 查看具体问题并修复
-2. 如果问题不影响功能，可以暂时忽略
-3. 脚本会继续执行其他检查项
-
-### Q: staticcheck 未找到怎么办？
-A: 脚本会自动安装。如果自动安装失败，可以手动安装：
+### 4. 生成 Handler 代码
 ```bash
-go install honnef.co/go/tools/cmd/staticcheck@latest
+./scripts/generate-api.sh new_module.api
 ```
 
-确保 `$GOPATH/bin` 或 `$HOME/go/bin` 在 PATH 中。
-
-### Q: 如何跳过某个检查？
-A: 可以修改脚本，注释掉不需要的检查项，或者直接运行单独的检查脚本：
+### 5. 生成前端 TypeScript 代码
 ```bash
-# 只运行 go vet
-go vet ./server/service/gameserver/...
-
-# 只运行 staticcheck
-staticcheck ./server/service/gameserver/...
-
-# 只检查 gatewaylink 导入
-bash scripts/check_gatewaylink_imports.sh
+# 生成前端 TypeScript 代码
+./scripts/generate-ts.sh
 ```
 
-### Q: 如何添加新的白名单文件？
-A: 编辑 `scripts/check_gatewaylink_imports.sh` 和 `scripts/check_gatewaylink_imports.ps1`，在 `ALLOWED_FILES` 数组中添加新文件路径。
+### 6. 手动完善
+- 合并 types 到 `internal/types/types.go`
+- 实现 Service 层业务逻辑
+- 改造 Handler 使用 Service 和统一响应格式
+- 在 `src/api/` 中封装前端 API（修正路径、错误处理、拦截器集成）
 
-### Q: Windows 下脚本执行失败？
-A: 确保使用 PowerShell 运行，并使用 `-ExecutionPolicy Bypass` 参数，或者设置执行策略。
+## 故障排查
 
-### Q: 如何查看详细的错误信息？
-A: 脚本会输出详细的错误信息。如果检查失败，会显示：
-- `go vet` 的错误位置和描述
-- `staticcheck` 的问题列表
-- 违规的 gatewaylink 导入文件列表
+### goctl 未找到
+```bash
+# 检查是否在 PATH 中
+which goctl  # Linux/Mac
+Get-Command goctl  # Windows
 
-## 最佳实践
+# 如果未安装，执行：
+go install github.com/zeromicro/go-zero/tools/goctl@latest
 
-1. **提交前检查**：使用 pre-commit hook 在提交前自动运行检查
-2. **PR 前检查**：在创建 Pull Request 前运行完整检查
-3. **CI 集成**：在 CI/CD 流程中集成检查，确保所有代码都通过检查
-4. **定期检查**：定期运行检查，及时发现和修复问题
+# 确保 GOPATH/bin 在 PATH 中
+export PATH=$PATH:$(go env GOPATH)/bin  # Linux/Mac
+$env:PATH += ";$(go env GOPATH)\bin"  # Windows PowerShell
+```
 
-## 相关文档
+### 模板目录不存在
+```bash
+cd admin-server
+goctl template init --home .template
+```
 
-- 详细规则说明：`docs/过度设计整改清单.md`
-- 架构文档：`docs/服务端开发进度文档_full.md`
+### 权限问题（Linux/Mac）
+```bash
+chmod +x scripts/*.sh
+```
 
