@@ -10,6 +10,8 @@ import (
 type PermissionMenuRepository interface {
 	ListMenuIDsByPermissionID(ctx context.Context, permissionID uint64) ([]uint64, error)
 	UpdatePermissionMenus(ctx context.Context, permissionID uint64, menuIDs []uint64) error
+	// ListMenuPermissionCodes 返回「菜单ID -> 绑定的权限编码列表」的完整映射，用于按权限过滤菜单树
+	ListMenuPermissionCodes(ctx context.Context) (map[uint64][]string, error)
 }
 
 type permissionMenuRepository struct {
@@ -61,4 +63,30 @@ func (r *permissionMenuRepository) UpdatePermissionMenus(ctx context.Context, pe
 	}
 
 	return nil
+}
+
+// ListMenuPermissionCodes 查询所有菜单与权限编码的关联关系
+// 用于菜单树过滤：绑定了权限的菜单/按钮，必须命中其中至少一个权限编码才可见
+func (r *permissionMenuRepository) ListMenuPermissionCodes(ctx context.Context) (map[uint64][]string, error) {
+	type row struct {
+		MenuId uint64 `db:"menu_id"`
+		Code   string `db:"code"`
+	}
+
+	var rows []row
+	query := `
+SELECT pm.menu_id, p.code
+FROM admin_permission_menu pm
+JOIN admin_permission p ON pm.permission_id = p.id
+WHERE p.deleted_at = 0
+`
+	if err := r.conn.QueryRowsCtx(ctx, &rows, query); err != nil {
+		return nil, err
+	}
+
+	result := make(map[uint64][]string)
+	for _, r := range rows {
+		result[r.MenuId] = append(result[r.MenuId], r.Code)
+	}
+	return result, nil
 }

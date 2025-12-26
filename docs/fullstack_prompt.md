@@ -21,12 +21,12 @@
 二、整体架构与分层原则（必须遵守）
 
 【后端 go-zero 分层】（代码路径：admin-server）
-- 分层架构：API Layer → Service Layer → Repository Layer → Model Layer
+- 分层架构：API Layer → Handler Layer → Logic Layer → Repository Layer → Model Layer
 - 依赖方向：上层依赖下层，下层不依赖上层，使用接口解耦
-- Handler 职责：路由处理、参数验证、调用 Service、构造响应（不包含业务逻辑）
-- Service 职责：核心业务逻辑、事务控制、权限校验（业务层面）
-- Repository 职责：数据访问、CRUD 封装、查询优化
-- Model 职责：数据结构定义、数据库映射
+- Handler 职责：路由处理、参数验证、调用 Logic、构造响应（不包含业务逻辑）
+- Logic 职责：核心业务逻辑、事务控制、权限校验（业务层面），由 goctl 自动生成骨架
+- Repository 职责：数据访问、CRUD 封装、查询优化，封装 goctl 生成的 Model
+- Model 职责：数据结构定义、数据库映射，由 goctl 从 SQL DDL 自动生成（使用 sqlx + cache）
 
 【前端 Vue3 分层】（代码路径：admin-frontend）
 - 分层架构：Page → Component → Store(Pinia) → API(Service) → Backend
@@ -40,7 +40,7 @@
 - 代码风格：遵循 Go 官方规范，通过 golangci-lint 检查
 - 错误处理：统一错误码体系，使用 `errors.Wrap` 追踪调用栈
 - 日志规范：使用 `logx`，区分 Info/Warn/Error，包含关键上下文
-- 数据库：使用 GORM，避免 N+1 查询，合理使用 Preload/Join
+- 数据库：使用 go-zero sqlx + cache，避免 N+1 查询，合理使用缓存策略
 - **数据库初始化规范**：
   - 在未上线时，`admin-server/db/` 目录只维护一份初始化SQL文件（`db/init.sql`）
   - 所有业务表必须包含 `created_at`、`updated_at`、`deleted_at` 字段（BIGINT类型，秒级时间戳，默认值0）
@@ -115,14 +115,15 @@
 
 - 后端（admin-server）
   - api/                    - API 定义文件（.api）
-  - internal/handler/       - HTTP Handler（路由处理）
-  - internal/service/       - Service 层（业务逻辑）
-  - internal/repository/    - Repository 层（数据访问）
-  - internal/model/         - Model 层（数据库映射，GORM）
+  - internal/handler/       - HTTP Handler（路由处理，由 goctl 生成）
+  - internal/logic/         - Logic 层（业务逻辑，由 goctl 生成骨架）
+  - internal/repository/    - Repository 层（数据访问，封装 goctl 生成的 Model）
+  - internal/model/         - Model 层（数据库映射，由 goctl 从 SQL DDL 生成，使用 sqlx + cache）
   - internal/middleware/    - 中间件（认证、日志、限流）
   - internal/config/        - 配置管理
+  - internal/types/         - 类型定义（由 goctl 生成，人工维护）
   - pkg/                    - 公共工具包（可复用）
-  - db/migrations/          - 数据库迁移脚本
+  - db/                     - 数据库脚本（tables.sql 表定义，data.sql 初始化数据）
 
 - 前端（admin-frontend）
   - src/api/                - API 接口封装（按模块分文件）
@@ -162,9 +163,11 @@
         - 无需认证的路由（如 Login、Refresh）不声明 middleware
         - 需要认证的路由必须声明 middleware，模板会自动应用中间件
     - `internal/types/types.go` 由人工统一维护，禁止被 goctl 覆盖：若重新生成 `.api`，只能参考生成的临时 types 内容，按需手工合并到现有 `types.go`，然后丢弃生成文件
-  - **Service/Repository 层**：
+  - **Logic/Repository 层**：
+    - Logic 层由 goctl 自动生成骨架，需要实现具体的业务逻辑
+    - Repository 层封装 goctl 生成的 Model，提供统一的接口
     - 如果 go-zero 生成的 Model 代码已满足需求，可直接使用
-    - 如需特殊业务逻辑，可在 Service/Repository 层进行扩展或封装
+    - 如需特殊业务逻辑，可在 Logic/Repository 层进行扩展或封装
     - 优先使用 go-zero 生成的代码，减少手工实现
 
 - 前端（admin-frontend）：
@@ -210,17 +213,112 @@
 
 3. 功能开发阶段（每个功能都遵循：后端 → 前端 → 联调 → 测试通过）
    - **开发流程规范（强制遵守）**：
-     1. **先开发后端**：完成 API 定义、Handler、Service、Repository 实现，确保后端接口可独立测试通过
-     2. **再开发前端**：基于后端接口，使用 goctl 生成 TS 代码，实现前端页面和组件
-     3. **最后联调**：前后端联调接口，测试完整流程，确保功能正常
-     4. **测试通过后再开发下一个功能**：每个功能必须完整实现并测试通过后，才能开始下一个功能的开发
+     1. **确定要开发的功能**：明确功能需求，确定模块名称和功能描述
+     2. **评估是否需要使用数据字典**：
+        - **优先考虑使用字典的情况**：
+          - 前端需要在下拉选择框、单选框、多选框等组件中展示的选项
+          - 需要在多个页面或模块中复用的枚举值
+          - 需要由业务人员或管理员动态维护的选项（不需要改代码）
+          - 需要支持多语言或国际化显示的选项
+          - 需要在表格列中显示标签的状态或类型字段
+          - 需要在搜索条件中使用的筛选选项
+        - **字典的使用场景**：
+          - **状态枚举**：用户状态、订单状态、审核状态等
+          - **类型分类**：文件类型、存储类型、支付方式、物流方式等
+          - **选项列表**：性别、是否、地区、行业等
+          - **业务常量**：用户等级、会员类型等需要在多个模块中复用的常量值
+          - **配置选项**：通知类型、消息模板类型等需要动态调整的配置项
+        - **如果确定需要使用字典**：
+          - **编写增量字典插入 SQL 语句**（见下方「字典 SQL 插入规范」）
+          - 将字典 SQL 语句添加到 `admin-server/db/data.sql` 文件中
+          - 执行 SQL 语句，创建字典类型和字典项
+          - 前端通过 `/api/v1/dict?code={dict_code}` 接口获取字典项列表
+          - 后端在 Logic 层可以通过 Repository 查询字典项进行验证或转换
+     3. **字典 SQL 插入规范（必须遵守）**：
+        - **字典数据通过 SQL 语句新增**：所有字典类型和字典项的数据都通过 SQL 语句插入，不在管理界面中手动创建
+        - **增量 SQL 格式**：在 `admin-server/db/data.sql` 文件中，字典相关的 SQL 应放在统一位置，使用注释标识功能模块
+        - **字典类型 SQL 模板**：
+          ```sql
+          -- {功能模块}相关字典类型
+          INSERT INTO `admin_dict_type` (`id`, `name`, `code`, `description`, `status`, `created_at`, `updated_at`, `deleted_at`)
+          VALUES 
+            ({id}, '{字典类型名称}', '{字典类型编码}', '{字典类型描述}', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+          ON DUPLICATE KEY UPDATE 
+            `name`=VALUES(`name`), 
+            `description`=VALUES(`description`), 
+            `updated_at`=UNIX_TIMESTAMP(), 
+            `deleted_at`=0;
+          ```
+        - **字典项 SQL 模板**：
+          ```sql
+          -- {字典类型名称}字典项
+          INSERT INTO `admin_dict_item` (`id`, `type_id`, `label`, `value`, `sort`, `status`, `remark`, `created_at`, `updated_at`, `deleted_at`)
+          VALUES 
+            ({id1}, {type_id}, '{字典项标签1}', '{字典项值1}', 1, 1, '{备注1}', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+            ({id2}, {type_id}, '{字典项标签2}', '{字典项值2}', 2, 1, '{备注2}', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+          ON DUPLICATE KEY UPDATE 
+            `label`=VALUES(`label`), 
+            `value`=VALUES(`value`), 
+            `sort`=VALUES(`sort`), 
+            `status`=VALUES(`status`), 
+            `remark`=VALUES(`remark`), 
+            `updated_at`=UNIX_TIMESTAMP(), 
+            `deleted_at`=0;
+          ```
+        - **ID 分配规范**：
+          - 字典类型 ID：从 1 开始连续递增，参考 `admin-server/db/data.sql` 中已有的最大 ID
+          - 字典项 ID：从 1 开始连续递增，参考 `admin-server/db/data.sql` 中已有的最大 ID
+          - 确保 ID 不冲突，建议在现有最大 ID 基础上递增
+        - **SQL 执行时机**：
+          - 在开发新功能时，确定需要使用的字典后，立即编写并执行字典 SQL 语句
+          - 字典 SQL 应在创建业务表之前或同时执行，确保字典数据可用
+          - 执行后验证字典数据是否正确插入，可通过字典管理界面或直接查询数据库验证
+        - **示例**：假设开发订单管理功能，需要订单状态字典
+          ```sql
+          -- 订单管理相关字典类型
+          INSERT INTO `admin_dict_type` (`id`, `name`, `code`, `description`, `status`, `created_at`, `updated_at`, `deleted_at`)
+          VALUES 
+            (5, '订单状态', 'order_status', '订单状态字典', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+          ON DUPLICATE KEY UPDATE 
+            `name`=VALUES(`name`), 
+            `description`=VALUES(`description`), 
+            `updated_at`=UNIX_TIMESTAMP(), 
+            `deleted_at`=0;
+          
+          -- 订单状态字典项
+          INSERT INTO `admin_dict_item` (`id`, `type_id`, `label`, `value`, `sort`, `status`, `remark`, `created_at`, `updated_at`, `deleted_at`)
+          VALUES 
+            (10, 5, '待支付', 'pending', 1, 1, '订单待支付状态', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+            (11, 5, '已支付', 'paid', 2, 1, '订单已支付状态', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+            (12, 5, '已发货', 'shipped', 3, 1, '订单已发货状态', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+            (13, 5, '已完成', 'completed', 4, 1, '订单已完成状态', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+            (14, 5, '已取消', 'cancelled', 5, 1, '订单已取消状态', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+          ON DUPLICATE KEY UPDATE 
+            `label`=VALUES(`label`), 
+            `value`=VALUES(`value`), 
+            `sort`=VALUES(`sort`), 
+            `status`=VALUES(`status`), 
+            `remark`=VALUES(`remark`), 
+            `updated_at`=UNIX_TIMESTAMP(), 
+            `deleted_at`=0;
+          ```
+     4. **生成初始化 SQL**：使用 `scripts/generate-sql.sh -group <group> -name <name>` 生成初始化表 SQL 语句，以及对应的权限菜单接口等 SQL 语句、前端页面 xxx.vue、xxx.api 文件
+     5. **补齐初始化表 SQL**：检查生成的 SQL，补齐初始化表 SQL 语句所需要的字段（如 created_at、updated_at、deleted_at 等）
+     6. **补齐 CRUD 接口参数**：检查生成的 .api 文件，补齐 CRUD 接口的参数定义
+     7. **生成 Model 代码**：使用 `scripts/generate-model.sh <sql_file>` 生成对应的 Model 代码
+     8. **生成 API 代码**：使用 `scripts/generate-api.sh <api_file>` 生成对应的 Handler/Logic 代码骨架
+     9. **开发功能**：实现 Repository、Logic、Handler 的业务逻辑，完成后执行对应的 SQL 语句（包括字典 SQL、业务表 SQL、权限菜单 SQL），创表和写入对应的权限菜单等
+     10. **启动后端服务**：确保后端服务能正常启动，接口可独立测试通过
+     11. **完成前端页面**：将生成的前端 xxx.vue 进行页面完善，然后能正常启动前端项目，进行前后端联调
+     12. **测试通过后再开发下一个功能**：每个功能必须完整实现并测试通过后，才能开始下一个功能的开发
    - Step 3.1 后端实现（最小可用）
-     - 在 `admin-server/api/` 中编写或更新 `.api` 定义
-     - 使用 goctl 生成代码骨架
-     - 在 `admin-server/db/init.sql` 中设计/更新数据库表结构（未上线时只维护这一份初始化SQL）
-       - 所有表必须包含 `created_at`、`updated_at`、`deleted_at` 字段（BIGINT类型，秒级时间戳，默认值0）
-     - 使用 `./scripts/generate-model.sh db/init.sql` 生成 Model 代码
-     - 实现 `internal/repository/` → `internal/service/` → `internal/handler/`
+     - 使用 `scripts/generate-sql.sh -group <group> -name <name>` 生成初始化 SQL 和 .api 文件骨架
+     - 检查并补齐生成的 SQL 文件中的表结构字段（created_at、updated_at、deleted_at 等）
+     - 检查并补齐生成的 .api 文件中的接口参数定义
+     - 使用 `./scripts/generate-model.sh <sql_file>` 生成 Model 代码
+     - 使用 `./scripts/generate-api.sh <api_file>` 生成 Handler/Logic 代码骨架
+     - 实现 `internal/repository/` → `internal/logic/` → `internal/handler/`（logic 层由 goctl 生成骨架，需实现业务逻辑）
+     - 执行生成的 SQL 语句，创建表和初始化权限菜单等数据
      - **权限 SQL 生成规范（必须遵守）**：
        - 每新增一个功能模块（如用户管理、菜单管理等），必须同时生成对应的权限列表 SQL
        - SQL 文件命名：`admin-server/db/permissions_{module_name}.sql`
@@ -246,10 +344,11 @@
        - 「已完成功能」「API 清单」「数据库变更记录」「技术决策记录」「关键代码位置」
 
    - Step 3.2 前端实现（基于后端接口）
+     - 使用 `scripts/generate-sql.sh` 生成的前端页面骨架文件（xxx.vue）作为基础
      - 使用 `./scripts/generate-ts.sh` 从后端 `.api` 生成 TS 代码到 `admin-frontend/src/api/generated/`
      - 检查并修复生成的代码适配问题（路径、参数等，参考「代码适配说明」）
      - 在 `src/services/` 组织业务逻辑（如需要）
-     - 开发或更新对应 Page、Component、Store
+     - 完善生成的页面骨架，开发或更新对应 Page、Component、Store
        - **表格+表单业务**：优先使用 `D2Table` 组件（`src/components/common/D2Table.vue`）
        - **树形数据业务**：使用 `el-tree` 组件（如部门管理、菜单管理）
        - 参考示例：`src/views/system/RoleList.vue`、`src/views/system/UserList.vue`、`src/views/system/DepartmentList.vue`

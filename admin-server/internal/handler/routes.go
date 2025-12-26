@@ -8,7 +8,12 @@ import (
 
 	api "postapocgame/admin-server/internal/handler/api"
 	auth "postapocgame/admin-server/internal/handler/auth"
+	cache "postapocgame/admin-server/internal/handler/cache"
+	config "postapocgame/admin-server/internal/handler/config"
 	department "postapocgame/admin-server/internal/handler/department"
+	dict "postapocgame/admin-server/internal/handler/dict"
+	dict_item "postapocgame/admin-server/internal/handler/dict_item"
+	dict_type "postapocgame/admin-server/internal/handler/dict_type"
 	file "postapocgame/admin-server/internal/handler/file"
 	menu "postapocgame/admin-server/internal/handler/menu"
 	permission "postapocgame/admin-server/internal/handler/permission"
@@ -94,6 +99,54 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 			[]rest.Middleware{serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware},
 			[]rest.Route{
 				{
+					Method:  http.MethodGet,
+					Path:    "/configs",
+					Handler: config.ConfigListHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/configs",
+					Handler: config.ConfigCreateHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPut,
+					Path:    "/configs",
+					Handler: config.ConfigUpdateHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodDelete,
+					Path:    "/configs",
+					Handler: config.ConfigDeleteHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/configs/get",
+					Handler: config.ConfigGetHandler(serverCtx),
+				},
+			}...,
+		),
+		rest.WithPrefix("/api/v1"),
+	)
+
+	server.AddRoutes(
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware},
+			[]rest.Route{
+				{
+					Method:  http.MethodPost,
+					Path:    "/cache/refresh",
+					Handler: cache.CacheRefreshHandler(serverCtx),
+				},
+			}...,
+		),
+		rest.WithPrefix("/api/v1"),
+	)
+
+	server.AddRoutes(
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware},
+			[]rest.Route{
+				{
 					Method:  http.MethodPost,
 					Path:    "/departments",
 					Handler: department.DepartmentCreateHandler(serverCtx),
@@ -112,6 +165,75 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 					Method:  http.MethodGet,
 					Path:    "/departments/tree",
 					Handler: department.DepartmentTreeHandler(serverCtx),
+				},
+			}...,
+		),
+		rest.WithPrefix("/api/v1"),
+	)
+
+	server.AddRoutes(
+		[]rest.Route{
+			{
+				Method:  http.MethodGet,
+				Path:    "/dict",
+				Handler: dict.DictGetHandler(serverCtx),
+			},
+		},
+		rest.WithPrefix("/api/v1"),
+	)
+
+	server.AddRoutes(
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware},
+			[]rest.Route{
+				{
+					Method:  http.MethodGet,
+					Path:    "/dict-items",
+					Handler: dict_item.DictItemListHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/dict-items",
+					Handler: dict_item.DictItemCreateHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPut,
+					Path:    "/dict-items",
+					Handler: dict_item.DictItemUpdateHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodDelete,
+					Path:    "/dict-items",
+					Handler: dict_item.DictItemDeleteHandler(serverCtx),
+				},
+			}...,
+		),
+		rest.WithPrefix("/api/v1"),
+	)
+
+	server.AddRoutes(
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware},
+			[]rest.Route{
+				{
+					Method:  http.MethodGet,
+					Path:    "/dict-types",
+					Handler: dict_type.DictTypeListHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/dict-types",
+					Handler: dict_type.DictTypeCreateHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPut,
+					Path:    "/dict-types",
+					Handler: dict_type.DictTypeUpdateHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodDelete,
+					Path:    "/dict-types",
+					Handler: dict_type.DictTypeDeleteHandler(serverCtx),
 				},
 			}...,
 		),
@@ -141,6 +263,16 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 					Method:  http.MethodDelete,
 					Path:    "/files",
 					Handler: file.FileDeleteHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/files/:id/download",
+					Handler: file.FileDownloadHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/files/upload",
+					Handler: file.FileUploadHandler(serverCtx),
 				},
 			}...,
 		),

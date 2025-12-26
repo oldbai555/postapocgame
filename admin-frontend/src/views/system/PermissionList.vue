@@ -25,6 +25,9 @@
         :drawer-add-columns="drawerAddColumns"
         :have-edit="true"
         :have-detail="true"
+        create-permission="permission:create"
+        update-permission="permission:update"
+        delete-permission="permission:delete"
         @size-change="handleSizeChange"
         @current-change="handlePageChange"
         @onclick-delete="handleDelete"
@@ -33,10 +36,22 @@
       >
         <!-- 自定义操作列 -->
         <template #action="{row}">
-          <el-button type="primary" link size="small" @click="handleAssignMenus(row)">
+          <el-button
+            type="primary"
+            link
+            size="small"
+            v-permission="'permission:update'"
+            @click="handleAssignMenus(row)"
+          >
             {{ t('common.assignMenus') }}
           </el-button>
-          <el-button type="primary" link size="small" @click="handleAssignApis(row)">
+          <el-button
+            type="primary"
+            link
+            size="small"
+            v-permission="'permission:update'"
+            @click="handleAssignApis(row)"
+          >
             {{ t('common.assignApis') }}
           </el-button>
         </template>

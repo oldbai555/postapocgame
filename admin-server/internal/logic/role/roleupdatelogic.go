@@ -44,7 +44,8 @@ func (l *RoleUpdateLogic) RoleUpdate(req *types.RoleUpdateReq) error {
 	if req.Description != "" {
 		role.Description = sql.NullString{String: req.Description, Valid: true}
 	}
-	if req.Status != 0 {
+	// Status 字段：0 是有效值（禁用），需要特殊处理
+	if req.Status == 0 || req.Status == 1 {
 		role.Status = req.Status
 	}
 

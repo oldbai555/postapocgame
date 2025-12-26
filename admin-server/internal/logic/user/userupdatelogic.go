@@ -61,7 +61,8 @@ func (l *UserUpdateLogic) UserUpdate(req *types.UserUpdateReq) error {
 		user.DepartmentId = req.DepartmentId
 	}
 
-	if req.Status != 0 {
+	// Status 字段：0 是有效值（禁用），需要特殊处理
+	if req.Status == 0 || req.Status == 1 {
 		user.Status = req.Status
 	}
 

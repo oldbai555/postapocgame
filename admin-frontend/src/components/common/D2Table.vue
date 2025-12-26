@@ -1,7 +1,10 @@
 <template>
   <div class="d2-table">
     <!-- 新增按钮 -->
-    <div v-if="drawerAddColumns && drawerAddColumns.length > 0" class="d2-table__toolbar">
+    <div
+      v-if="drawerAddColumns && drawerAddColumns.length > 0 && canCreate"
+      class="d2-table__toolbar"
+    >
       <el-button type="primary" @click="showAdd">
         {{ t('common.create') }}
       </el-button>
@@ -104,7 +107,7 @@
         <template #default="scope">
           <slot name="action" :row="scope.row" :index="scope.$index">
             <el-button
-              v-if="haveDetail"
+              v-if="haveDetail && canDetail"
               size="small"
               type="primary"
               link
@@ -113,7 +116,7 @@
               {{ t('common.view') }}
             </el-button>
             <el-button
-              v-if="havCustomBtn"
+              v-if="havCustomBtn && canCustom"
               size="small"
               type="primary"
               link
@@ -122,7 +125,7 @@
               {{ havCustomStr }}
             </el-button>
             <el-button
-              v-if="haveEdit"
+              v-if="haveEdit && canUpdate"
               size="small"
               type="warning"
               link
@@ -131,6 +134,7 @@
               {{ t('common.edit') }}
             </el-button>
             <el-button
+              v-if="canDelete"
               size="small"
               type="danger"
               link
@@ -266,7 +270,7 @@
           </el-tag>
         </el-form-item>
 
-        <el-form-item v-if="haveEdit && isEdit">
+        <el-form-item v-if="haveEdit && isEdit && canUpdate">
           <el-button type="primary" @click="updateItem">
             {{ t('common.save') }}
           </el-button>
@@ -337,7 +341,7 @@
         </el-form-item>
 
         <el-form-item>
-          <el-button type="primary" @click="handleAdd">
+          <el-button v-if="canCreate" type="primary" @click="handleAdd">
             {{ t('common.create') }}
           </el-button>
           <el-button @click="cancelAdd">
@@ -355,12 +359,14 @@ import {ElMessage} from 'element-plus';
 import {Picture} from '@element-plus/icons-vue';
 import {useI18n} from 'vue-i18n';
 import {useUserStore} from '@/stores/user';
+import {usePermission} from '@/hooks/usePermission';
 import {D2TableElemType, type TableColumn, type DrawerColumn} from '@/types/table';
 import {formatUnixTime} from '@/utils/date';
 import {copyToClipboard} from '@/utils/clipboard';
 
 const {t} = useI18n();
 const userStore = useUserStore();
+const {hasPermission} = usePermission();
 
 // Props
 interface Props {
@@ -398,6 +404,16 @@ interface Props {
   pageSizes?: number[];
   /** 分页布局 */
   paginationLayout?: string;
+  /** 新增权限编码（可选） */
+  createPermission?: string;
+  /** 编辑权限编码（可选） */
+  updatePermission?: string;
+  /** 删除权限编码（可选） */
+  deletePermission?: string;
+  /** 查看详情权限编码（可选） */
+  detailPermission?: string;
+  /** 自定义按钮权限编码（可选） */
+  customPermission?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -412,7 +428,12 @@ const props = withDefaults(defineProps<Props>(), {
   actionColumnWidth: 220,
   drawerWidth: '50%',
   pageSizes: () => [10, 20, 50, 100],
-  paginationLayout: 'total, sizes, prev, pager, next, jumper'
+  paginationLayout: 'total, sizes, prev, pager, next, jumper',
+  createPermission: '',
+  updatePermission: '',
+  deletePermission: '',
+  detailPermission: '',
+  customPermission: ''
 });
 
 // Emits
@@ -451,6 +472,23 @@ const pageSizeModel = computed({
 
 // 计算属性
 const displayedData = computed(() => props.data);
+
+// 权限相关计算属性（未传权限编码时默认允许）
+const canCreate = computed(
+  () => !props.createPermission || hasPermission(props.createPermission)
+);
+const canUpdate = computed(
+  () => !props.updatePermission || hasPermission(props.updatePermission)
+);
+const canDelete = computed(
+  () => !props.deletePermission || hasPermission(props.deletePermission)
+);
+const canDetail = computed(
+  () => !props.detailPermission || hasPermission(props.detailPermission)
+);
+const canCustom = computed(
+  () => !props.customPermission || hasPermission(props.customPermission)
+);
 
 // 上传请求头
 const uploadHeaders = computed(() => {

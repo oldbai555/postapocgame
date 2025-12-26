@@ -45,6 +45,54 @@ type ApiUpdateReq struct {
 	Status      int64  `json:"status,optional"`
 }
 
+type ConfigCreateReq struct {
+	Group       string `json:"group"`
+	Key         string `json:"key"`
+	Value       string `json:"value"`
+	ConfigType  string `json:"type,optional"`
+	Description string `json:"description,optional"`
+}
+
+type ConfigDeleteReq struct {
+	Id uint64 `json:"id"`
+}
+
+type ConfigGetReq struct {
+	Key string `json:"key,optional" form:"key,optional"`
+}
+
+type ConfigGetResp struct {
+	Value string `json:"value"`
+}
+
+type ConfigItem struct {
+	Id          uint64 `json:"id"`
+	Group       string `json:"group"`
+	Key         string `json:"key"`
+	Value       string `json:"value"`
+	ConfigType  string `json:"type"`
+	Description string `json:"description"`
+	CreatedAt   string `json:"createdAt"`
+}
+
+type ConfigListReq struct {
+	Page     int64  `json:"page,optional" form:"page,optional"`
+	PageSize int64  `json:"pageSize,optional" form:"pageSize,optional"`
+	Group    string `json:"group,optional" form:"group,optional"`
+	Key      string `json:"key,optional" form:"key,optional"`
+}
+
+type ConfigListResp struct {
+	Total int64        `json:"total"`
+	List  []ConfigItem `json:"list"`
+}
+
+type ConfigUpdateReq struct {
+	Id          uint64 `json:"id"`
+	Value       string `json:"value,optional"`
+	Description string `json:"description,optional"`
+}
+
 type DepartmentCreateReq struct {
 	ParentId uint64 `json:"parentId"`
 	Name     string `json:"name"`
@@ -77,6 +125,103 @@ type DepartmentUpdateReq struct {
 	Status   int64  `json:"status,optional"`
 }
 
+type DictGetReq struct {
+	Code string `json:"code,optional" form:"code,optional"`
+}
+
+type DictGetResp struct {
+	Code  string         `json:"code"`
+	Items []DictItemItem `json:"items"`
+}
+
+type CacheRefreshResp struct {
+	Message string `json:"message"`
+}
+
+type DictItemCreateReq struct {
+	TypeId uint64 `json:"typeId"`
+	Label  string `json:"label"`
+	Value  string `json:"value"`
+	Sort   int64  `json:"sort,optional"`
+	Status int64  `json:"status,optional"`
+	Remark string `json:"remark,optional"`
+}
+
+type DictItemDeleteReq struct {
+	Id uint64 `json:"id"`
+}
+
+type DictItemItem struct {
+	Id        uint64 `json:"id"`
+	TypeId    uint64 `json:"typeId"`
+	Label     string `json:"label"`
+	Value     string `json:"value"`
+	Sort      int64  `json:"sort"`
+	Status    int64  `json:"status"`
+	Remark    string `json:"remark"`
+	CreatedAt string `json:"createdAt"`
+}
+
+type DictItemListReq struct {
+	Page     int64  `json:"page,optional" form:"page,optional"`
+	PageSize int64  `json:"pageSize,optional" form:"pageSize,optional"`
+	TypeId   uint64 `json:"typeId,optional" form:"typeId,optional"`
+	Label    string `json:"label,optional" form:"label,optional"`
+}
+
+type DictItemListResp struct {
+	Total int64          `json:"total"`
+	List  []DictItemItem `json:"list"`
+}
+
+type DictItemUpdateReq struct {
+	Id     uint64 `json:"id"`
+	Label  string `json:"label,optional"`
+	Value  string `json:"value,optional"`
+	Sort   int64  `json:"sort,optional"`
+	Status int64  `json:"status,optional"`
+	Remark string `json:"remark,optional"`
+}
+
+type DictTypeCreateReq struct {
+	Name        string `json:"name"`
+	Code        string `json:"code"`
+	Description string `json:"description,optional"`
+	Status      int64  `json:"status,optional"`
+}
+
+type DictTypeDeleteReq struct {
+	Id uint64 `json:"id"`
+}
+
+type DictTypeItem struct {
+	Id          uint64 `json:"id"`
+	Name        string `json:"name"`
+	Code        string `json:"code"`
+	Description string `json:"description"`
+	Status      int64  `json:"status"`
+	CreatedAt   string `json:"createdAt"`
+}
+
+type DictTypeListReq struct {
+	Page     int64  `json:"page,optional" form:"page,optional"`
+	PageSize int64  `json:"pageSize,optional" form:"pageSize,optional"`
+	Name     string `json:"name,optional" form:"name,optional"`
+	Code     string `json:"code,optional" form:"code,optional"`
+}
+
+type DictTypeListResp struct {
+	Total int64          `json:"total"`
+	List  []DictTypeItem `json:"list"`
+}
+
+type DictTypeUpdateReq struct {
+	Id          uint64 `json:"id"`
+	Name        string `json:"name,optional"`
+	Description string `json:"description,optional"`
+	Status      int64  `json:"status,optional"`
+}
+
 type FileCreateReq struct {
 	Name   string `json:"name"`
 	Status int64  `json:"status,optional"`
@@ -84,6 +229,10 @@ type FileCreateReq struct {
 
 type FileDeleteReq struct {
 	Id uint64 `json:"id"`
+}
+
+type FileDownloadResp struct {
+	Url string `json:"url"`
 }
 
 type FileItem struct {
@@ -108,6 +257,17 @@ type FileUpdateReq struct {
 	Id     uint64 `json:"id"`
 	Name   string `json:"name,optional"`
 	Status int64  `json:"status,optional"`
+}
+
+type FileUploadResp struct {
+	Id           uint64 `json:"id"`
+	Name         string `json:"name"`
+	OriginalName string `json:"originalName"`
+	Path         string `json:"path"`
+	Url          string `json:"url"`
+	Size         uint64 `json:"size"`
+	MimeType     string `json:"mimeType"`
+	Ext          string `json:"ext"`
 }
 
 type LoginReq struct {

@@ -43,6 +43,54 @@ export interface ApiUpdateReq {
 	status?: number
 }
 
+export interface ConfigCreateReq {
+	group: string
+	key: string
+	value: string
+	type?: string
+	description?: string
+}
+
+export interface ConfigDeleteReq {
+	id: number
+}
+
+export interface ConfigGetReq {
+	key?: string
+}
+
+export interface ConfigGetResp {
+	value: string
+}
+
+export interface ConfigItem {
+	id: number
+	group: string
+	key: string
+	value: string
+	type: string
+	description: string
+	createdAt: string
+}
+
+export interface ConfigListReq {
+	page?: number
+	pageSize?: number
+	group?: string
+	key?: string
+}
+
+export interface ConfigListResp {
+	total: number
+	list: Array<ConfigItem>
+}
+
+export interface ConfigUpdateReq {
+	id: number
+	value?: string
+	description?: string
+}
+
 export interface DepartmentCreateReq {
 	parentId: number
 	name: string
@@ -75,6 +123,99 @@ export interface DepartmentUpdateReq {
 	status?: number
 }
 
+export interface DictGetReq {
+	code?: string
+}
+
+export interface DictGetResp {
+	code: string
+	items: Array<DictItemItem>
+}
+
+export interface DictItemCreateReq {
+	typeId: number
+	label: string
+	value: string
+	sort?: number
+	status?: number
+	remark?: string
+}
+
+export interface DictItemDeleteReq {
+	id: number
+}
+
+export interface DictItemItem {
+	id: number
+	typeId: number
+	label: string
+	value: string
+	sort: number
+	status: number
+	remark: string
+	createdAt: string
+}
+
+export interface DictItemListReq {
+	page?: number
+	pageSize?: number
+	typeId?: number
+	label?: string
+}
+
+export interface DictItemListResp {
+	total: number
+	list: Array<DictItemItem>
+}
+
+export interface DictItemUpdateReq {
+	id: number
+	label?: string
+	value?: string
+	sort?: number
+	status?: number
+	remark?: string
+}
+
+export interface DictTypeCreateReq {
+	name: string
+	code: string
+	description?: string
+	status?: number
+}
+
+export interface DictTypeDeleteReq {
+	id: number
+}
+
+export interface DictTypeItem {
+	id: number
+	name: string
+	code: string
+	description: string
+	status: number
+	createdAt: string
+}
+
+export interface DictTypeListReq {
+	page?: number
+	pageSize?: number
+	name?: string
+	code?: string
+}
+
+export interface DictTypeListResp {
+	total: number
+	list: Array<DictTypeItem>
+}
+
+export interface DictTypeUpdateReq {
+	id: number
+	name?: string
+	description?: string
+	status?: number
+}
+
 export interface FileCreateReq {
 	name: string
 	status?: number
@@ -82,6 +223,10 @@ export interface FileCreateReq {
 
 export interface FileDeleteReq {
 	id: number
+}
+
+export interface FileDownloadResp {
+	url: string
 }
 
 export interface FileItem {
@@ -106,6 +251,17 @@ export interface FileUpdateReq {
 	id: number
 	name?: string
 	status?: number
+}
+
+export interface FileUploadResp {
+	id: number
+	name: string
+	originalName: string
+	path: string
+	url: string
+	size: number
+	mimeType: string
+	ext: string
 }
 
 export interface LoginReq {
@@ -166,7 +322,7 @@ export interface MenuUpdateReq {
 }
 
 export interface PermissionApiListReq {
-	permissionId: number
+	permissionId?: number
 }
 
 export interface PermissionApiListResp {
@@ -207,7 +363,7 @@ export interface PermissionListResp {
 }
 
 export interface PermissionMenuListReq {
-	permissionId: number
+	permissionId?: number
 }
 
 export interface PermissionMenuListResp {
@@ -270,7 +426,7 @@ export interface RoleListResp {
 }
 
 export interface RolePermissionListReq {
-	roleId: number
+	roleId?: number
 }
 
 export interface RolePermissionListResp {
@@ -325,7 +481,7 @@ export interface UserListResp {
 }
 
 export interface UserRoleListReq {
-	userId: number
+	userId?: number
 }
 
 export interface UserRoleListResp {
@@ -343,5 +499,9 @@ export interface UserUpdateReq {
 	password?: string
 	departmentId?: number
 	status?: number
+}
+
+export interface CacheRefreshResp {
+	message: string
 }
 

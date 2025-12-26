@@ -166,3 +166,80 @@ CREATE TABLE IF NOT EXISTS `admin_permission_api` (
   KEY `idx_admin_permission_api_api` (`api_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='权限-接口关联表';
 
+-- ============================================
+-- 11. 系统配置表
+-- ============================================
+CREATE TABLE IF NOT EXISTS `admin_config` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '配置ID',
+  `group` VARCHAR(64) NOT NULL DEFAULT 'default' COMMENT '配置分组（如 system、app、theme 等）',
+  `key` VARCHAR(128) NOT NULL COMMENT '配置键（唯一，格式：group:key）',
+  `value` TEXT COMMENT '配置值（JSON 格式存储复杂数据）',
+  `type` VARCHAR(32) NOT NULL DEFAULT 'string' COMMENT '配置类型（string、number、boolean、json）',
+  `description` VARCHAR(255) DEFAULT NULL COMMENT '配置描述',
+  `created_at` BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间(秒级时间戳)',
+  `updated_at` BIGINT NOT NULL DEFAULT 0 COMMENT '更新时间(秒级时间戳)',
+  `deleted_at` BIGINT NOT NULL DEFAULT 0 COMMENT '删除时间(秒级时间戳,0表示未删除)',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_admin_config_key` (`key`),
+  KEY `idx_admin_config_group` (`group`),
+  KEY `idx_admin_config_deleted_at` (`deleted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统配置表';
+
+-- ============================================
+-- 12. 数据字典类型表
+-- ============================================
+CREATE TABLE IF NOT EXISTS `admin_dict_type` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '字典类型ID',
+  `name` VARCHAR(64) NOT NULL COMMENT '字典类型名称',
+  `code` VARCHAR(64) NOT NULL COMMENT '字典类型编码（唯一）',
+  `description` VARCHAR(255) DEFAULT NULL COMMENT '字典类型描述',
+  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1 启用，0 禁用',
+  `created_at` BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间(秒级时间戳)',
+  `updated_at` BIGINT NOT NULL DEFAULT 0 COMMENT '更新时间(秒级时间戳)',
+  `deleted_at` BIGINT NOT NULL DEFAULT 0 COMMENT '删除时间(秒级时间戳,0表示未删除)',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_admin_dict_type_code` (`code`),
+  KEY `idx_admin_dict_type_deleted_at` (`deleted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='数据字典类型表';
+
+-- ============================================
+-- 13. 数据字典项表
+-- ============================================
+CREATE TABLE IF NOT EXISTS `admin_dict_item` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '字典项ID',
+  `type_id` BIGINT UNSIGNED NOT NULL COMMENT '字典类型ID',
+  `label` VARCHAR(64) NOT NULL COMMENT '字典项标签（显示名称）',
+  `value` VARCHAR(128) NOT NULL COMMENT '字典项值',
+  `sort` INT NOT NULL DEFAULT 0 COMMENT '排序值',
+  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1 启用，0 禁用',
+  `remark` VARCHAR(255) DEFAULT NULL COMMENT '备注',
+  `created_at` BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间(秒级时间戳)',
+  `updated_at` BIGINT NOT NULL DEFAULT 0 COMMENT '更新时间(秒级时间戳)',
+  `deleted_at` BIGINT NOT NULL DEFAULT 0 COMMENT '删除时间(秒级时间戳,0表示未删除)',
+  PRIMARY KEY (`id`),
+  KEY `idx_admin_dict_item_type` (`type_id`),
+  KEY `idx_admin_dict_item_deleted_at` (`deleted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='数据字典项表';
+
+-- ============================================
+-- 14. 文件表
+-- ============================================
+CREATE TABLE IF NOT EXISTS `admin_file` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '文件ID',
+  `name` VARCHAR(255) NOT NULL COMMENT '文件名称',
+  `original_name` VARCHAR(255) NOT NULL COMMENT '原始文件名称',
+  `path` VARCHAR(512) NOT NULL COMMENT '文件存储路径（相对路径）',
+  `url` VARCHAR(512) NOT NULL COMMENT '文件访问URL',
+  `size` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '文件大小（字节）',
+  `mime_type` VARCHAR(128) DEFAULT NULL COMMENT 'MIME类型',
+  `ext` VARCHAR(16) DEFAULT NULL COMMENT '文件扩展名',
+  `storage_type` VARCHAR(32) NOT NULL DEFAULT 'local' COMMENT '存储类型（local、oss、s3等）',
+  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1 正常，0 禁用',
+  `created_at` BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间(秒级时间戳)',
+  `updated_at` BIGINT NOT NULL DEFAULT 0 COMMENT '更新时间(秒级时间戳)',
+  `deleted_at` BIGINT NOT NULL DEFAULT 0 COMMENT '删除时间(秒级时间戳,0表示未删除)',
+  PRIMARY KEY (`id`),
+  KEY `idx_admin_file_storage_type` (`storage_type`),
+  KEY `idx_admin_file_deleted_at` (`deleted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='文件表';
+

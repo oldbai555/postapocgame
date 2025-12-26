@@ -306,6 +306,142 @@ type (
 	FileDeleteReq {
 		id uint64 `json:"id"`
 	}
+	FileUploadResp {
+		id           uint64 `json:"id"`
+		name         string `json:"name"`
+		originalName string `json:"originalName"`
+		path         string `json:"path"`
+		url          string `json:"url"`
+		size         uint64 `json:"size"`
+		mimeType     string `json:"mimeType"`
+		ext          string `json:"ext"`
+	}
+	FileDownloadResp {
+		url string `json:"url"`
+	}
+	// 系统配置管理
+	ConfigItem {
+		id          uint64 `json:"id"`
+		group       string `json:"group"`
+		key         string `json:"key"`
+		value       string `json:"value"`
+		configType  string `json:"type"`
+		description string `json:"description"`
+		createdAt   string `json:"createdAt"`
+	}
+	ConfigListReq {
+		page     int64  `json:"page,optional" form:"page,optional"`
+		pageSize int64  `json:"pageSize,optional" form:"pageSize,optional"`
+		group    string `json:"group,optional" form:"group,optional"`
+		key      string `json:"key,optional" form:"key,optional"`
+	}
+	ConfigListResp {
+		total int64        `json:"total"`
+		list  []ConfigItem `json:"list"`
+	}
+	ConfigCreateReq {
+		group       string `json:"group"`
+		key         string `json:"key"`
+		value       string `json:"value"`
+		configType  string `json:"type,optional"`
+		description string `json:"description,optional"`
+	}
+	ConfigUpdateReq {
+		id          uint64 `json:"id"`
+		value       string `json:"value,optional"`
+		description string `json:"description,optional"`
+	}
+	ConfigDeleteReq {
+		id uint64 `json:"id"`
+	}
+	ConfigGetReq {
+		key string `json:"key,optional" form:"key,optional"`
+	}
+	ConfigGetResp {
+		value string `json:"value"`
+	}
+	// 数据字典类型管理
+	DictTypeItem {
+		id          uint64 `json:"id"`
+		name        string `json:"name"`
+		code        string `json:"code"`
+		description string `json:"description"`
+		status      int64  `json:"status"`
+		createdAt   string `json:"createdAt"`
+	}
+	DictTypeListReq {
+		page     int64  `json:"page,optional" form:"page,optional"`
+		pageSize int64  `json:"pageSize,optional" form:"pageSize,optional"`
+		name     string `json:"name,optional" form:"name,optional"`
+		code     string `json:"code,optional" form:"code,optional"`
+	}
+	DictTypeListResp {
+		total int64          `json:"total"`
+		list  []DictTypeItem `json:"list"`
+	}
+	DictTypeCreateReq {
+		name        string `json:"name"`
+		code        string `json:"code"`
+		description string `json:"description,optional"`
+		status      int64  `json:"status,optional"`
+	}
+	DictTypeUpdateReq {
+		id          uint64 `json:"id"`
+		name        string `json:"name,optional"`
+		description string `json:"description,optional"`
+		status      int64  `json:"status,optional"`
+	}
+	DictTypeDeleteReq {
+		id uint64 `json:"id"`
+	}
+	// 数据字典项管理
+	DictItemItem {
+		id        uint64 `json:"id"`
+		typeId    uint64 `json:"typeId"`
+		label     string `json:"label"`
+		value     string `json:"value"`
+		sort      int64  `json:"sort"`
+		status    int64  `json:"status"`
+		remark    string `json:"remark"`
+		createdAt string `json:"createdAt"`
+	}
+	DictItemListReq {
+		page     int64  `json:"page,optional" form:"page,optional"`
+		pageSize int64  `json:"pageSize,optional" form:"pageSize,optional"`
+		typeId   uint64 `json:"typeId,optional" form:"typeId,optional"`
+		label    string `json:"label,optional" form:"label,optional"`
+	}
+	DictItemListResp {
+		total int64          `json:"total"`
+		list  []DictItemItem `json:"list"`
+	}
+	DictItemCreateReq {
+		typeId uint64 `json:"typeId"`
+		label  string `json:"label"`
+		value  string `json:"value"`
+		sort   int64  `json:"sort,optional"`
+		status int64  `json:"status,optional"`
+		remark string `json:"remark,optional"`
+	}
+	DictItemUpdateReq {
+		id     uint64 `json:"id"`
+		label  string `json:"label,optional"`
+		value  string `json:"value,optional"`
+		sort   int64  `json:"sort,optional"`
+		status int64  `json:"status,optional"`
+		remark string `json:"remark,optional"`
+	}
+	DictItemDeleteReq {
+		id uint64 `json:"id"`
+	}
+	// 字典查询接口（供前端使用）
+	DictGetReq {
+		code string `json:"code,optional" form:"code,optional"`
+	}
+	DictGetResp {
+		code  string         `json:"code"`
+		items []DictItemItem `json:"items"`
+	}
 )
 
 @server (
@@ -528,5 +664,96 @@ service admin-api {
 
 	@handler FileDelete
 	delete /files (FileDeleteReq)
+
+	@handler FileUpload
+	post /files/upload returns (FileUploadResp)
+
+	@handler FileDownload
+	get /files/:id/download returns (FileDownloadResp)
 }
+
+@server (
+	group:      config
+	prefix:     /api/v1
+	middleware: AuthMiddleware,PermissionMiddleware
+)
+service admin-api {
+	@handler ConfigList
+	get /configs (ConfigListReq) returns (ConfigListResp)
+
+	@handler ConfigGet
+	get /configs/get (ConfigGetReq) returns (ConfigGetResp)
+
+	@handler ConfigCreate
+	post /configs (ConfigCreateReq)
+
+	@handler ConfigUpdate
+	put /configs (ConfigUpdateReq)
+
+	@handler ConfigDelete
+	delete /configs (ConfigDeleteReq)
+}
+
+@server (
+	group:      dict_type
+	prefix:     /api/v1
+	middleware: AuthMiddleware,PermissionMiddleware
+)
+service admin-api {
+	@handler DictTypeList
+	get /dict-types (DictTypeListReq) returns (DictTypeListResp)
+
+	@handler DictTypeCreate
+	post /dict-types (DictTypeCreateReq)
+
+	@handler DictTypeUpdate
+	put /dict-types (DictTypeUpdateReq)
+
+	@handler DictTypeDelete
+	delete /dict-types (DictTypeDeleteReq)
+}
+
+@server (
+	group:      dict_item
+	prefix:     /api/v1
+	middleware: AuthMiddleware,PermissionMiddleware
+)
+service admin-api {
+	@handler DictItemList
+	get /dict-items (DictItemListReq) returns (DictItemListResp)
+
+	@handler DictItemCreate
+	post /dict-items (DictItemCreateReq)
+
+	@handler DictItemUpdate
+	put /dict-items (DictItemUpdateReq)
+
+	@handler DictItemDelete
+	delete /dict-items (DictItemDeleteReq)
+}
+
+@server (
+	group:  dict
+	prefix: /api/v1
+)
+service admin-api {
+	@handler DictGet
+	get /dict (DictGetReq) returns (DictGetResp)
+}
+
+@server (
+	group:      cache
+	prefix:     /api/v1
+	middleware: AuthMiddleware,PermissionMiddleware
+)
+service admin-api {
+	@handler CacheRefresh
+	post /cache/refresh returns (CacheRefreshResp)
+}
+
+type (
+	CacheRefreshResp {
+		message string `json:"message"`
+	}
+)
 

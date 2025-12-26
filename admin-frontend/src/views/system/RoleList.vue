@@ -25,6 +25,9 @@
         :drawer-add-columns="drawerAddColumns"
         :have-edit="true"
         :have-detail="true"
+        create-permission="role:create"
+        update-permission="role:update"
+        delete-permission="role:delete"
         @size-change="handleSizeChange"
         @current-change="handlePageChange"
         @onclick-delete="handleDelete"
@@ -42,6 +45,7 @@
           <!-- 超级管理员角色（id=1 或 code='super_admin'）不允许分配权限 -->
           <el-button
             v-if="!isSuperAdminRole(row)"
+            v-permission="'role:update'"
             type="primary"
             link
             size="small"

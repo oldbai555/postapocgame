@@ -25,6 +25,9 @@
         :drawer-add-columns="drawerAddColumns"
         :have-edit="true"
         :have-detail="true"
+        create-permission="user:create"
+        update-permission="user:update"
+        delete-permission="user:delete"
         @size-change="handleSizeChange"
         @current-change="handlePageChange"
         @onclick-delete="handleDelete"
@@ -45,6 +48,7 @@
           <!-- 超级管理员用户（id=1）不允许分配角色 -->
           <el-button
             v-if="!isSuperAdminUser(row)"
+            v-permission="'user:update'"
             type="primary"
             link
             size="small"
@@ -72,7 +76,7 @@
         <el-checkbox
           v-for="role in availableRoles"
           :key="role.id"
-          :label="role.id"
+          :value="role.id"
         >
           {{ role.name }}
         </el-checkbox>
@@ -90,7 +94,7 @@
 <script setup lang="ts">
 import {reactive, ref, onMounted, computed} from 'vue';
 import {ElMessage, ElMessageBox} from 'element-plus';
-import {userList, userCreate, userUpdate, userDelete, userRoleList, userRoleUpdate, roleList, departmentTree} from '@/api/generated/admin';
+import {userList, userCreate, userUpdate, userDelete, userRoleList, userRoleUpdate, roleList as getRoleList, departmentTree} from '@/api/generated/admin';
 import type {UserItem, UserCreateReq, UserUpdateReq, DepartmentItem, RoleItem, UserRoleUpdateReq} from '@/api/generated/admin';
 import {useI18n} from 'vue-i18n';
 import D2Table from '@/components/common/D2Table.vue';
@@ -289,10 +293,14 @@ const handleDelete = (index: number, row: UserItem) => {
 // 加载角色列表
 const loadRoles = async () => {
   try {
-    const resp = await roleList({page: 1, pageSize: 1000});
+    const resp = await getRoleList({page: 1, pageSize: 1000});
     roleList.value = resp.list || [];
+    if (roleList.value.length === 0) {
+      ElMessage.warning('暂无可用角色，请先在角色管理中创建角色');
+    }
   } catch (err: any) {
     console.error('Failed to load roles:', err);
+    throw err; // 重新抛出错误，让调用者处理
   }
 };
 
@@ -306,9 +314,12 @@ const handleAssignRoles = async (row: UserItem) => {
   currentUserId.value = row.id;
   roleDialogVisible.value = true;
   
-  // 加载角色列表
-  if (roleList.value.length === 0) {
+  // 每次打开对话框时都重新加载角色列表，确保数据最新
+  try {
     await loadRoles();
+  } catch (err: any) {
+    ElMessage.error(err.message || '加载角色列表失败');
+    return;
   }
   
   // 加载当前用户的角色

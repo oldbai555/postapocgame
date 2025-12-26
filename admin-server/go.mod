@@ -2,16 +2,12 @@ module postapocgame/admin-server
 
 go 1.24.0
 
-toolchain go1.24.11
-
 require (
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/pkg/errors v0.9.1
 	github.com/redis/go-redis/v9 v9.16.0
 	github.com/zeromicro/go-zero v1.9.3
 	golang.org/x/crypto v0.46.0
-	gorm.io/driver/mysql v1.6.0
-	gorm.io/gorm v1.31.1
 )
 
 require (
@@ -28,8 +24,6 @@ require (
 	github.com/grafana/pyroscope-go v1.2.7 // indirect
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.9 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.20.0 // indirect
-	github.com/jinzhu/inflection v1.0.0 // indirect
-	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

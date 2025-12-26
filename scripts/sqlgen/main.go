@@ -182,15 +182,12 @@ func generateCreateTableSQL(templateDir string, data TemplateData, outputFile st
 		return fmt.Errorf("无法读取模板文件: %v", err)
 	}
 
-	// 创建输出文件（使用 UTF-8 编码）
+	// 创建输出文件（使用 UTF-8 编码，不写入 BOM，避免 goctl 解析问题）
 	file, err := os.Create(outputFile)
 	if err != nil {
 		return fmt.Errorf("无法创建输出文件: %v", err)
 	}
 	defer file.Close()
-
-	// 写入 UTF-8 BOM（可选，确保某些编辑器正确识别编码）
-	file.WriteString("\xEF\xBB\xBF")
 
 	// 执行模板
 	if err := tmpl.Execute(file, data); err != nil {

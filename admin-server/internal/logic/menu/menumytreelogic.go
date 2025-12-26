@@ -76,22 +76,11 @@ func (l *MenuMyTreeLogic) MenuMyTree() (resp *types.MenuTreeResp, err error) {
 		return treeLogic.MenuTree()
 	}
 
-	// 获取菜单与权限的关联关系
+	// 获取「菜单ID -> 绑定的权限编码列表」的完整映射
 	permissionMenuRepo := repository.NewPermissionMenuRepository(l.svcCtx.Repository)
-	menuPermissionMap := make(map[uint64][]string) // menuID -> permission codes
-
-	// 获取所有权限关联的菜单
-	for _, perm := range perms {
-		menuIDs, err := permissionMenuRepo.ListMenuIDsByPermissionID(l.ctx, perm.Id)
-		if err != nil {
-			continue
-		}
-		for _, menuID := range menuIDs {
-			if _, ok := menuPermissionMap[menuID]; !ok {
-				menuPermissionMap[menuID] = []string{}
-			}
-			menuPermissionMap[menuID] = append(menuPermissionMap[menuID], perm.Code)
-		}
+	menuPermissionMap, err := permissionMenuRepo.ListMenuPermissionCodes(l.ctx)
+	if err != nil {
+		return nil, errs.Wrap(errs.CodeInternalError, "查询菜单权限关联失败", err)
 	}
 
 	// 获取完整菜单树

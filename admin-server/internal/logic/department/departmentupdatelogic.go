@@ -41,10 +41,12 @@ func (l *DepartmentUpdateLogic) DepartmentUpdate(req *types.DepartmentUpdateReq)
 
 	dept.ParentId = req.ParentId
 	dept.Name = req.Name
-	if req.OrderNum != 0 {
+	// OrderNum 字段：0 也是有效值，需要特殊处理
+	if req.OrderNum >= 0 {
 		dept.OrderNum = req.OrderNum
 	}
-	if req.Status != 0 {
+	// Status 字段：0 是有效值（禁用），需要特殊处理
+	if req.Status == 0 || req.Status == 1 {
 		dept.Status = req.Status
 	}
 

@@ -5,10 +5,11 @@ package main
 
 import (
 	"flag"
-	"fmt"
-	"log"
-
 	"github.com/zeromicro/go-zero/core/logx"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"postapocgame/admin-server/internal/config"
 	"postapocgame/admin-server/internal/handler"
@@ -50,6 +51,18 @@ func main() {
 
 	handler.RegisterHandlers(server, ctx)
 
-	fmt.Printf("Starting server at %s:%d...\n", c.Host, c.Port)
-	server.Start()
+	// 设置优雅关闭：监听系统信号
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// 在 goroutine 中启动服务器
+	go func() {
+		logx.Infof("Starting server at %s:%d...", c.Host, c.Port)
+		server.Start()
+	}()
+
+	// 等待关闭信号
+	<-sigChan
+	logx.Infof("收到关闭信号，开始优雅关闭...")
+	logx.Infof("服务器已关闭")
 }

@@ -29,3 +29,4 @@ admin-server/*.exe
 **/*.exe
 /admin-frontend/dist/
 /admin-server/api/*.api.temp
+/admin-server/uploads/**

@@ -69,6 +69,46 @@ export function profile() {
  * @description 
  * @param req
  */
+export function configList(req: components.ConfigListReq) {
+	return webapi.get<components.ConfigListResp>(`/api/v1/configs`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function configCreate(req: components.ConfigCreateReq) {
+	return webapi.post<null>(`/api/v1/configs`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function configUpdate(req: components.ConfigUpdateReq) {
+	return webapi.put<null>(`/api/v1/configs`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function configDelete(req: components.ConfigDeleteReq) {
+	return webapi.delete<null>(`/api/v1/configs`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function configGet(req: components.ConfigGetReq) {
+	return webapi.get<components.ConfigGetResp>(`/api/v1/configs/get`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
 export function departmentCreate(req: components.DepartmentCreateReq) {
 	return webapi.post<null>(`/api/v1/departments`, req)
 }
@@ -94,6 +134,78 @@ export function departmentDelete(req: components.DepartmentDeleteReq) {
  */
 export function departmentTree() {
 	return webapi.get<components.DepartmentTreeResp>(`/api/v1/departments/tree`)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function dictGet(req: components.DictGetReq) {
+	return webapi.get<components.DictGetResp>(`/api/v1/dict`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function dictItemList(req: components.DictItemListReq) {
+	return webapi.get<components.DictItemListResp>(`/api/v1/dict-items`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function dictItemCreate(req: components.DictItemCreateReq) {
+	return webapi.post<null>(`/api/v1/dict-items`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function dictItemUpdate(req: components.DictItemUpdateReq) {
+	return webapi.put<null>(`/api/v1/dict-items`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function dictItemDelete(req: components.DictItemDeleteReq) {
+	return webapi.delete<null>(`/api/v1/dict-items`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function dictTypeList(req: components.DictTypeListReq) {
+	return webapi.get<components.DictTypeListResp>(`/api/v1/dict-types`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function dictTypeCreate(req: components.DictTypeCreateReq) {
+	return webapi.post<null>(`/api/v1/dict-types`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function dictTypeUpdate(req: components.DictTypeUpdateReq) {
+	return webapi.put<null>(`/api/v1/dict-types`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function dictTypeDelete(req: components.DictTypeDeleteReq) {
+	return webapi.delete<null>(`/api/v1/dict-types`, req)
 }
 
 /**
@@ -126,6 +238,20 @@ export function fileUpdate(req: components.FileUpdateReq) {
  */
 export function fileDelete(req: components.FileDeleteReq) {
 	return webapi.delete<null>(`/api/v1/files`, req)
+}
+
+/**
+ * @description 
+ */
+export function fileDownload() {
+	return webapi.get<components.FileDownloadResp>(`/api/v1/files/${id}/download`)
+}
+
+/**
+ * @description 
+ */
+export function fileUpload() {
+	return webapi.post<components.FileUploadResp>(`/api/v1/files/upload`)
 }
 
 /**
@@ -331,4 +457,11 @@ export function userRoleList(req: components.UserRoleListReq) {
  */
 export function userRoleUpdate(req: components.UserRoleUpdateReq) {
 	return webapi.put<null>(`/api/v1/users/roles`, req)
+}
+
+/**
+ * @description 刷新缓存（字典和配置缓存）
+ */
+export function cacheRefresh() {
+	return webapi.post<components.CacheRefreshResp>(`/api/v1/cache/refresh`)
 }

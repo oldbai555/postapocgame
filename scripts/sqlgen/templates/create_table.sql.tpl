@@ -1,6 +1,3 @@
--- ============================================
--- {{.Name}}表
--- ============================================
 CREATE TABLE IF NOT EXISTS `{{.Group}}` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
   `created_at` BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间(秒级时间戳)',
