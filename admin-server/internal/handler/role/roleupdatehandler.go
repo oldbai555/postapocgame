@@ -10,6 +10,7 @@ import (
 	"postapocgame/admin-server/internal/logic/role"
 	"postapocgame/admin-server/internal/svc"
 	"postapocgame/admin-server/internal/types"
+	"postapocgame/admin-server/pkg/audit"
 )
 
 func RoleUpdateHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
@@ -25,6 +26,12 @@ func RoleUpdateHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		if err != nil {
 			httpx.ErrorCtx(r.Context(), w, err)
 		} else {
+			// 记录审计日志：角色变更（更新角色）
+			audit.RecordAuditLog(svcCtx, r.Context(), r, audit.AuditTypeRoleChange, audit.AuditObjectRole, map[string]interface{}{
+				"action": "update",
+				"id":     req.Id,
+				"name":   req.Name,
+			})
 			httpx.Ok(w)
 		}
 	}

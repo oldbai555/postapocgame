@@ -367,8 +367,8 @@ gorm.io/driver/mysql
 github.com/golang-jwt/jwt/v4
 golang.org/x/crypto
 
-// 缓存
-github.com/redis/go-redis/v9
+// 缓存（统一使用 go-zero stores/redis 组件，避免直接依赖 go-redis/v9）
+github.com/zeromicro/go-zero/core/stores/redis
 
 // 日志
 go.uber.org/zap
@@ -381,6 +381,14 @@ github.com/spf13/viper
 github.com/google/uuid
 github.com/spf13/cobra
 ```
+
+### 8. 常量与枚举管理
+- 系统级固定枚举（如通用状态 `"ok"/"error"`、Redis Key 前缀、固定路径 `/api/v1/ping`、限流提示文案等）统一在 `admin-server/internal/consts` 包中集中维护，禁止在业务代码中直接硬编码字符串。
+- 业务可配置枚举（需要运营/管理员通过界面维护的选项，例如订单状态、通知类型等）统一走「数据字典」方案（参见 `docs/后端开发进度.md` 中的数据字典规范）。
+- 新增模块时，先判断是**系统常量**还是**业务字典**：
+  - **系统常量**：和基础设施/协议/技术实现强绑定、不会通过数据库动态调整的值 → 放入 `consts` 包。
+  - **业务字典**：和业务含义强相关，需要被业务/运营调整或在多模块复用的值 → 使用字典表 + 字典接口。
+- 常量命名使用 `PascalCase`，按功能分组（状态、Redis、限流、路径等）并添加注释，确保语义清晰，便于后续人员理解和全局检索。
 
 ## 开发建议
 

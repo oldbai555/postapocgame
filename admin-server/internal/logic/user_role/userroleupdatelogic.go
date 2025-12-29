@@ -58,5 +58,17 @@ func (l *UserRoleUpdateLogic) UserRoleUpdate(req *types.UserRoleUpdateReq) error
 	if err := userRoleRepo.UpdateUserRoles(l.ctx, req.UserId, req.RoleIds); err != nil {
 		return errs.Wrap(errs.CodeInternalError, "更新用户角色失败", err)
 	}
+
+	// 清除该用户的权限和菜单树缓存
+	cache := l.svcCtx.Repository.BusinessCache
+	go func() {
+		if err := cache.DeleteUserPermissions(context.Background(), req.UserId); err != nil {
+			l.Errorf("清除用户权限缓存失败: userId=%d, error=%v", req.UserId, err)
+		}
+		if err := cache.DeleteUserMenuTree(context.Background(), req.UserId); err != nil {
+			l.Errorf("清除用户菜单树缓存失败: userId=%d, error=%v", req.UserId, err)
+		}
+	}()
+
 	return nil
 }

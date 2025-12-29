@@ -42,5 +42,14 @@ func (l *MenuDeleteLogic) MenuDelete(req *types.MenuDeleteReq) error {
 	if err := menuRepo.DeleteByID(l.ctx, req.Id); err != nil {
 		return errs.Wrap(errs.CodeInternalError, "删除菜单失败", err)
 	}
+
+	// 清除菜单树缓存
+	cache := l.svcCtx.Repository.BusinessCache
+	go func() {
+		if err := cache.DeleteMenuTree(context.Background()); err != nil {
+			l.Errorf("清除菜单树缓存失败: %v", err)
+		}
+	}()
+
 	return nil
 }

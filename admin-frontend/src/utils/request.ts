@@ -19,15 +19,15 @@ instance.interceptors.request.use((config) => {
 instance.interceptors.response.use(
   (resp) => {
     const res = resp.data;
-    // 标准包裹结构
-    if (res && typeof res === 'object' && 'code' in res) {
-      if (res.code === 0) {
+    // 标准包裹结构：code 为数字（统一错误码）时才按 Envelope 处理
+    if (res && typeof res === 'object' && 'code' in res && typeof (res as any).code === 'number') {
+      if ((res as any).code === 0) {
         return (res as any).data;
       }
       const msg = (res as any).msg || '请求失败';
       return Promise.reject(new Error(msg));
     }
-    // 非标准结构，直接返回原始 data（兼容特殊接口）
+    // 非标准结构，直接返回原始 data（兼容字典等特殊接口）
     return res;
   },
   (error) => {

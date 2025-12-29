@@ -74,6 +74,10 @@
 - 菜单默认归类在临时目录下，可在菜单管理中调整
 - 生成的 SQL 文件需要在数据库中执行
 - .api 内容需要手动复制追加到 `admin-server/api/admin.api`
+- **Windows 编码问题**：如果在 Windows PowerShell 中遇到中文乱码（如 "婕旂ず鍔熻兘"），请：
+  1. 使用 `chcp 65001` 设置代码页为 UTF-8
+  2. 或在 PowerShell 中设置：`$OutputEncoding = [System.Text.Encoding]::UTF8`
+  3. 或直接手动修复生成的文件中的乱码（将乱码替换为正确的中文）
 
 **技术实现：**
 - 使用 Golang 编写，通过模板文件生成 SQL、.api 和 Vue 页面

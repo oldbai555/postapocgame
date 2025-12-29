@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="page">
     <!-- 搜索表单 -->
     <el-card class="mb-12">
@@ -25,6 +25,9 @@
         :drawer-add-columns="drawerAddColumns"
         :have-edit="true"
         :have-detail="true"
+        create-permission="demo:create"
+        update-permission="demo:update"
+        delete-permission="demo:delete"
         @size-change="handleSizeChange"
         @current-change="handlePageChange"
         @onclick-delete="handleDelete"
@@ -45,8 +48,8 @@
 <script setup lang="ts">
 import {reactive, ref, onMounted, computed} from 'vue';
 import {ElMessage, ElMessageBox} from 'element-plus';
-import { fileList, fileCreate, fileUpdate, fileDelete } from '@/api/generated/admin';
-import type { FileItem, FileCreateReq, FileUpdateReq, FileDeleteReq } from '@/api/generated/admin';
+import { demoList, demoCreate, demoUpdate, demoDelete } from '@/api/generated/admin';
+import type { DemoItem, DemoCreateReq, DemoUpdateReq, DemoDeleteReq } from '@/api/generated/admin';
 import {useI18n} from 'vue-i18n';
 import D2Table from '@/components/common/D2Table.vue';
 import {D2TableElemType, type TableColumn, type DrawerColumn} from '@/types/table';
@@ -58,7 +61,7 @@ const query = reactive({
   pageSize: 10,
   name: ''
 });
-const list = ref<FileItem[]>([]);
+const list = ref<DemoItem[]>([]);
 const total = ref(0);
 const loading = ref(false);
 
@@ -102,7 +105,7 @@ const drawerAddColumns = computed<DrawerColumn[]>(() => [
 const loadData = async () => {
   loading.value = true;
   try {
-    const resp = await fileList({...query});
+    const resp = await demoList({...query});
     list.value = resp.list;
     total.value = resp.total;
   } catch (err: any) {
@@ -130,9 +133,9 @@ const handleSizeChange = (size: number) => {
   loadData();
 };
 
-const handleUpdate = async (row: FileItem) => {
+const handleUpdate = async (row: DemoItem) => {
   try {
-    await fileUpdate(row as FileUpdateReq);
+    await demoUpdate(row as DemoUpdateReq);
     ElMessage.success('更新成功');
     loadData();
   } catch (err: any) {
@@ -142,7 +145,7 @@ const handleUpdate = async (row: FileItem) => {
 
 const handleAdd = async (row: any) => {
   try {
-    await fileCreate(row as FileCreateReq);
+    await demoCreate(row as DemoCreateReq);
     ElMessage.success('新增成功');
     loadData();
   } catch (err: any) {
@@ -150,10 +153,10 @@ const handleAdd = async (row: any) => {
   }
 };
 
-const handleDelete = (index: number, row: FileItem) => {
+const handleDelete = (index: number, row: DemoItem) => {
   ElMessageBox.confirm(t('common.confirmDelete'), t('common.confirm'), {type: 'warning'})
     .then(async () => {
-      await fileDelete({id: row.id});
+      await demoDelete({id: row.id});
       ElMessage.success(t('common.delete'));
       loadData();
     })

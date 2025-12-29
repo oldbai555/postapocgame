@@ -41,6 +41,14 @@ func (l *MenuMyTreeLogic) MenuMyTree() (resp *types.MenuTreeResp, err error) {
 		return treeLogic.MenuTree()
 	}
 
+	// 尝试从缓存获取用户菜单树
+	cache := l.svcCtx.Repository.BusinessCache
+	var cachedResp types.MenuTreeResp
+	err = cache.GetUserMenuTree(l.ctx, user.UserID, &cachedResp)
+	if err == nil {
+		return &cachedResp, nil
+	}
+
 	// 获取用户权限编码
 	userRoleRepo := repository.NewUserRoleRepository(l.svcCtx.Repository)
 	roleIDs, err := userRoleRepo.ListRoleIDsByUserID(l.ctx, user.UserID)
@@ -139,7 +147,16 @@ func (l *MenuMyTreeLogic) MenuMyTree() (resp *types.MenuTreeResp, err error) {
 		}
 	}
 
-	return &types.MenuTreeResp{
+	resp = &types.MenuTreeResp{
 		List: filteredRoots,
-	}, nil
+	}
+
+	// 写入缓存（异步，不阻塞返回）
+	go func() {
+		if err := cache.SetUserMenuTree(context.Background(), user.UserID, resp); err != nil {
+			l.Errorf("设置用户菜单树缓存失败: userId=%d, error=%v", user.UserID, err)
+		}
+	}()
+
+	return resp, nil
 }

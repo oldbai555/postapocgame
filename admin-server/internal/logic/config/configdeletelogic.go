@@ -34,8 +34,23 @@ func (l *ConfigDeleteLogic) ConfigDelete(req *types.ConfigDeleteReq) error {
 	}
 
 	configRepo := repository.NewConfigRepository(l.svcCtx.Repository)
+	// 先查询配置，获取 key
+	config, err := configRepo.FindByID(l.ctx, req.Id)
+	if err != nil {
+		return errs.Wrap(errs.CodeInternalError, "查询配置失败", err)
+	}
+
 	if err := configRepo.DeleteByID(l.ctx, req.Id); err != nil {
 		return errs.Wrap(errs.CodeInternalError, "删除配置失败", err)
 	}
+
+	// 清除配置缓存
+	cache := l.svcCtx.Repository.BusinessCache
+	go func() {
+		if err := cache.DeleteConfigKey(context.Background(), config.Key); err != nil {
+			l.Errorf("清除配置缓存失败: key=%s, error=%v", config.Key, err)
+		}
+	}()
+
 	return nil
 }

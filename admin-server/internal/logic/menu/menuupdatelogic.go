@@ -56,5 +56,14 @@ func (l *MenuUpdateLogic) MenuUpdate(req *types.MenuUpdateReq) error {
 	if err := menuRepo.Update(l.ctx, m); err != nil {
 		return errs.Wrap(errs.CodeInternalError, "更新菜单失败", err)
 	}
+
+	// 清除菜单树缓存
+	cache := l.svcCtx.Repository.BusinessCache
+	go func() {
+		if err := cache.DeleteMenuTree(context.Background()); err != nil {
+			l.Errorf("清除菜单树缓存失败: %v", err)
+		}
+	}()
+
 	return nil
 }

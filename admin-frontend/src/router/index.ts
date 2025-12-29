@@ -1,4 +1,4 @@
-import {createRouter, createWebHistory, RouteRecordRaw} from 'vue-router';
+import {createRouter, createWebHashHistory, RouteRecordRaw} from 'vue-router';
 import {useUserStore} from '@/stores/user';
 import {usePermission} from '@/hooks/usePermission';
 import type {MenuItem} from '@/api/generated/admin';
@@ -48,6 +48,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/system/ApiList.vue')
       },
       {
+        path: '/system/profile',
+        name: 'Profile',
+        meta: {keepAlive: true},
+        component: () => import('@/views/system/Profile.vue')
+      },
+      {
         path: '/403',
         name: 'NoAccess',
         component: () => import('@/views/error/NoAccess.vue')
@@ -62,7 +68,7 @@ const routes: RouteRecordRaw[] = [
 ];
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHashHistory(),
   routes
 });
 
@@ -150,6 +156,16 @@ router.beforeEach(async (to, _from, next) => {
           dynamicAdded.add(r.path as string);
         }
       });
+
+      // 首次加载时，如果当前路由是 404，但动态路由刚刚注入，需要重新匹配一次
+      if (to.name === 'NotFound') {
+        const resolved = router.resolve(to.fullPath);
+        // 只有在新匹配结果不是 NotFound 时才重定向，避免死循环
+        if (resolved.name && resolved.name !== 'NotFound') {
+          next({...resolved, replace: true});
+          return;
+        }
+      }
     }
   }
 

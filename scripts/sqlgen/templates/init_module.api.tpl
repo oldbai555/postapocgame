@@ -35,7 +35,7 @@ type (
 @server (
 	group:      {{.Group}}
 	prefix:     /api/v1
-	middleware: AuthMiddleware,PermissionMiddleware
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
 )
 service admin-api {
 	@handler {{.GroupUpper}}List

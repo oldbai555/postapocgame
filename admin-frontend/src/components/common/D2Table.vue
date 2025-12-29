@@ -241,7 +241,12 @@
           </el-tag>
           <!-- 图片 -->
           <div v-else-if="column.type === D2TableElemType.Image" class="d2-table__image">
+            <ImageUpload
+              v-if="isEdit"
+              v-model="drawerRow[column.prop]"
+            />
             <el-image
+              v-else
               style="width: 100px; height: 100px"
               :src="drawerRow[column.prop]"
               fit="cover"
@@ -252,17 +257,6 @@
                 </div>
               </template>
             </el-image>
-            <!-- 图片上传（如果可编辑） -->
-            <el-upload
-              v-if="column.canEdit && isEdit"
-              :action="`${baseUrl}/upload`"
-              :headers="uploadHeaders"
-              :on-success="(response) => handleImageUploadSuccess(response, column.prop)"
-              :show-file-list="false"
-              class="d2-table__upload"
-            >
-              <el-button type="primary" size="small">{{ t('common.upload') }}</el-button>
-            </el-upload>
           </div>
           <!-- 默认标签 -->
           <el-tag v-else>
@@ -310,27 +304,7 @@
           </el-select>
           <!-- 图片 -->
           <div v-else-if="column.type === D2TableElemType.Image" class="d2-table__image">
-            <el-image
-              v-if="drawerAddRow[column.prop]"
-              style="width: 100px; height: 100px"
-              :src="drawerAddRow[column.prop]"
-              fit="cover"
-            >
-              <template #error>
-                <div class="image-slot">
-                  <el-icon><Picture /></el-icon>
-                </div>
-              </template>
-            </el-image>
-            <el-upload
-              :action="`${baseUrl}/upload`"
-              :headers="uploadHeaders"
-              :on-success="(response) => handleImageUploadSuccess(response, column.prop, true)"
-              :show-file-list="false"
-              class="d2-table__upload"
-            >
-              <el-button type="primary" size="small">{{ t('common.upload') }}</el-button>
-            </el-upload>
+            <ImageUpload v-model="drawerAddRow[column.prop]" />
           </div>
           <!-- 默认输入框 -->
           <el-input
@@ -363,6 +337,7 @@ import {usePermission} from '@/hooks/usePermission';
 import {D2TableElemType, type TableColumn, type DrawerColumn} from '@/types/table';
 import {formatUnixTime} from '@/utils/date';
 import {copyToClipboard} from '@/utils/clipboard';
+import ImageUpload from './ImageUpload.vue';
 
 const {t} = useI18n();
 const userStore = useUserStore();

@@ -45,6 +45,108 @@ type ApiUpdateReq struct {
 	Status      int64  `json:"status,optional"`
 }
 
+type AuditLogDetailResp struct {
+	AuditLogItem
+}
+
+type AuditLogExportReq struct {
+	UserId      uint64 `json:"userId,optional" form:"userId,optional"`
+	Username    string `json:"username,optional" form:"username,optional"`
+	AuditType   string `json:"auditType,optional" form:"auditType,optional"`
+	AuditObject string `json:"auditObject,optional" form:"auditObject,optional"`
+	StartTime   string `json:"startTime,optional" form:"startTime,optional"`
+	EndTime     string `json:"endTime,optional" form:"endTime,optional"`
+}
+
+type AuditLogExportResp struct {
+	Url string `json:"url"`
+}
+
+type AuditLogItem struct {
+	Id          uint64 `json:"id"`
+	UserId      uint64 `json:"userId"`
+	Username    string `json:"username"`
+	AuditType   string `json:"auditType"`   // 审计类型：permission_assign/role_change/config_modify/data_delete等
+	AuditObject string `json:"auditObject"` // 审计对象（模块/表名，如user_role/role_permission/role/config）
+	AuditDetail string `json:"auditDetail"` // 审计详情（JSON格式，记录变更前后的数据）
+	IpAddress   string `json:"ipAddress"`
+	UserAgent   string `json:"userAgent"`
+	CreatedAt   int64  `json:"createdAt"`
+}
+
+type AuditLogListReq struct {
+	Page        int    `json:"page,optional,default=1" form:"page,optional,default=1"`
+	PageSize    int    `json:"pageSize,optional,default=20" form:"pageSize,optional,default=20"`
+	UserId      uint64 `json:"userId,optional" form:"userId,optional"`
+	Username    string `json:"username,optional" form:"username,optional"`
+	AuditType   string `json:"auditType,optional" form:"auditType,optional"`     // 审计类型
+	AuditObject string `json:"auditObject,optional" form:"auditObject,optional"` // 审计对象
+	StartTime   string `json:"startTime,optional" form:"startTime,optional"`     // 格式：YYYY-MM-DD HH:mm:ss
+	EndTime     string `json:"endTime,optional" form:"endTime,optional"`         // 格式：YYYY-MM-DD HH:mm:ss
+}
+
+type AuditLogListResp struct {
+	List     []AuditLogItem `json:"list"`
+	Total    int64          `json:"total"`
+	Page     int            `json:"page"`
+	PageSize int            `json:"pageSize"`
+}
+
+type CPUInfo struct {
+	Usage float64 `json:"usage"` // CPU使用率（百分比）
+	Cores int     `json:"cores"` // CPU核心数
+}
+
+type CacheRefreshResp struct {
+	Message string `json:"message"`
+}
+
+type ChatMessageItem struct {
+	Id           uint64 `json:"id"`
+	FromUserId   uint64 `json:"fromUserId"`
+	FromUserName string `json:"fromUserName"`
+	ToUserId     uint64 `json:"toUserId"`
+	ToUserName   string `json:"toUserName"`
+	RoomId       string `json:"roomId"`
+	Content      string `json:"content"`
+	MessageType  int64  `json:"messageType"`
+	Status       int64  `json:"status"`
+	CreatedAt    string `json:"createdAt"`
+}
+
+type ChatMessageListReq struct {
+	Page     int64  `json:"page,optional" form:"page,optional"`
+	PageSize int64  `json:"pageSize,optional" form:"pageSize,optional"`
+	RoomId   string `json:"roomId,optional" form:"roomId,optional"`
+	UserId   uint64 `json:"userId,optional" form:"userId,optional"`
+}
+
+type ChatMessageListResp struct {
+	Total int64             `json:"total"`
+	List  []ChatMessageItem `json:"list"`
+}
+
+type ChatMessageSendReq struct {
+	ToUserId    uint64 `json:"toUserId"`             // 接收用户 ID（0表示群聊）
+	RoomId      string `json:"roomId"`               // 聊天室 ID
+	Content     string `json:"content"`              // 消息内容
+	MessageType int64  `json:"messageType,optional"` // 消息类型：1文本，2图片，3文件
+}
+
+type ChatMessageSendResp struct {
+	Id uint64 `json:"id"`
+}
+
+type ChatOnlineUserItem struct {
+	UserId   uint64 `json:"userId"`
+	UserName string `json:"userName"`
+	Avatar   string `json:"avatar,optional"`
+}
+
+type ChatOnlineUserResp struct {
+	List []ChatOnlineUserItem `json:"list"`
+}
+
 type ConfigCreateReq struct {
 	Group       string `json:"group"`
 	Key         string `json:"key"`
@@ -93,6 +195,39 @@ type ConfigUpdateReq struct {
 	Description string `json:"description,optional"`
 }
 
+type DemoCreateReq struct {
+	Name   string `json:"name"`
+	Status int64  `json:"status,optional"`
+}
+
+type DemoDeleteReq struct {
+	Id uint64 `json:"id"`
+}
+
+type DemoItem struct {
+	Id        uint64 `json:"id"`
+	Name      string `json:"name"`
+	Status    int64  `json:"status"`
+	CreatedAt string `json:"createdAt"`
+}
+
+type DemoListReq struct {
+	Page     int64  `json:"page,optional" form:"page,optional"`
+	PageSize int64  `json:"pageSize,optional" form:"pageSize,optional"`
+	Name     string `json:"name,optional" form:"name,optional"`
+}
+
+type DemoListResp struct {
+	Total int64      `json:"total"`
+	List  []DemoItem `json:"list"`
+}
+
+type DemoUpdateReq struct {
+	Id     uint64 `json:"id"`
+	Name   string `json:"name,optional"`
+	Status int64  `json:"status,optional"`
+}
+
 type DepartmentCreateReq struct {
 	ParentId uint64 `json:"parentId"`
 	Name     string `json:"name"`
@@ -132,10 +267,6 @@ type DictGetReq struct {
 type DictGetResp struct {
 	Code  string         `json:"code"`
 	Items []DictItemItem `json:"items"`
-}
-
-type CacheRefreshResp struct {
-	Message string `json:"message"`
 }
 
 type DictItemCreateReq struct {
@@ -222,6 +353,13 @@ type DictTypeUpdateReq struct {
 	Status      int64  `json:"status,optional"`
 }
 
+type DiskInfo struct {
+	Total     uint64  `json:"total"`     // 总磁盘空间（字节）
+	Used      uint64  `json:"used"`      // 已用磁盘空间（字节）
+	Available uint64  `json:"available"` // 可用磁盘空间（字节）
+	Usage     float64 `json:"usage"`     // 磁盘使用率（百分比）
+}
+
 type FileCreateReq struct {
 	Name   string `json:"name"`
 	Status int64  `json:"status,optional"`
@@ -270,6 +408,65 @@ type FileUploadResp struct {
 	Ext          string `json:"ext"`
 }
 
+type LoginLogDetailResp struct {
+	LoginLogItem
+}
+
+type LoginLogExportReq struct {
+	UserId    uint64 `json:"userId,optional" form:"userId,optional"`
+	Username  string `json:"username,optional" form:"username,optional"`
+	Status    int    `json:"status,optional" form:"status,optional"`
+	StartTime string `json:"startTime,optional" form:"startTime,optional"`
+	EndTime   string `json:"endTime,optional" form:"endTime,optional"`
+}
+
+type LoginLogExportResp struct {
+	Url string `json:"url"`
+}
+
+type LoginLogItem struct {
+	Id        uint64 `json:"id"`
+	UserId    uint64 `json:"userId"`
+	Username  string `json:"username"`
+	IpAddress string `json:"ipAddress"`
+	Location  string `json:"location"`
+	Browser   string `json:"browser"`
+	Os        string `json:"os"`
+	UserAgent string `json:"userAgent"`
+	Status    int    `json:"status"` // 0失败 1成功
+	Message   string `json:"message"`
+	LoginAt   int64  `json:"loginAt"`
+	LogoutAt  int64  `json:"logoutAt"`
+	CreatedAt int64  `json:"createdAt"`
+}
+
+type LoginLogListReq struct {
+	Page      int    `json:"page,optional,default=1" form:"page,optional,default=1"`
+	PageSize  int    `json:"pageSize,optional,default=20" form:"pageSize,optional,default=20"`
+	UserId    uint64 `json:"userId,optional" form:"userId,optional"`
+	Username  string `json:"username,optional" form:"username,optional"`
+	Status    int    `json:"status,optional" form:"status,optional"`       // 0失败 1成功
+	StartTime string `json:"startTime,optional" form:"startTime,optional"` // 格式：YYYY-MM-DD HH:mm:ss
+	EndTime   string `json:"endTime,optional" form:"endTime,optional"`     // 格式：YYYY-MM-DD HH:mm:ss
+}
+
+type LoginLogListResp struct {
+	List     []LoginLogItem `json:"list"`
+	Total    int64          `json:"total"`
+	Page     int            `json:"page"`
+	PageSize int            `json:"pageSize"`
+}
+
+type LoginLogStatsResp struct {
+	TotalCount      int64 `json:"totalCount"`      // 总登录次数
+	SuccessCount    int64 `json:"successCount"`    // 成功次数
+	FailureCount    int64 `json:"failureCount"`    // 失败次数
+	TodayCount      int64 `json:"todayCount"`      // 今日登录次数
+	TodaySuccess    int64 `json:"todaySuccess"`    // 今日成功次数
+	TodayFailure    int64 `json:"todayFailure"`    // 今日失败次数
+	OnlineUserCount int64 `json:"onlineUserCount"` // 当前在线用户数（需要从其他表查询）
+}
+
 type LoginReq struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -278,6 +475,13 @@ type LoginReq struct {
 type LogoutReq struct {
 	AccessToken  string `json:"accessToken"`
 	RefreshToken string `json:"refreshToken"`
+}
+
+type MemoryInfo struct {
+	Total     uint64  `json:"total"`     // 总内存（字节）
+	Used      uint64  `json:"used"`      // 已用内存（字节）
+	Available uint64  `json:"available"` // 可用内存（字节）
+	Usage     float64 `json:"usage"`     // 内存使用率（百分比）
 }
 
 type MenuCreateReq struct {
@@ -325,6 +529,119 @@ type MenuUpdateReq struct {
 	OrderNum  int64  `json:"orderNum,optional"`
 	Visible   int64  `json:"visible,optional"`
 	Status    int64  `json:"status,optional"`
+}
+
+type MonitorStatsResp struct {
+	UserCount         int64 `json:"userCount"`         // 用户总数
+	RoleCount         int64 `json:"roleCount"`         // 角色总数
+	PermissionCount   int64 `json:"permissionCount"`   // 权限总数
+	MenuCount         int64 `json:"menuCount"`         // 菜单总数
+	OnlineUserCount   int64 `json:"onlineUserCount"`   // 在线用户数
+	OperationLogCount int64 `json:"operationLogCount"` // 操作日志总数
+	LoginLogCount     int64 `json:"loginLogCount"`     // 登录日志总数
+}
+
+type MonitorStatusResp struct {
+	Cpu     CPUInfo     `json:"cpu"`     // CPU信息
+	Memory  MemoryInfo  `json:"memory"`  // 内存信息
+	Disk    DiskInfo    `json:"disk"`    // 磁盘信息
+	Network NetworkInfo `json:"network"` // 网络信息
+}
+
+type NetworkInfo struct {
+	BytesSent   uint64 `json:"bytesSent"`   // 发送字节数
+	BytesRecv   uint64 `json:"bytesRecv"`   // 接收字节数
+	PacketsSent uint64 `json:"packetsSent"` // 发送包数
+	PacketsRecv uint64 `json:"packetsRecv"` // 接收包数
+}
+
+type OperationLogDetailResp struct {
+	OperationLog OperationLogItem `json:"operationLog"`
+}
+
+type OperationLogExportReq struct {
+	UserId          uint64 `json:"userId,optional" form:"userId,optional"`
+	Username        string `json:"username,optional" form:"username,optional"`
+	OperationType   string `json:"operationType,optional" form:"operationType,optional"`
+	OperationObject string `json:"operationObject,optional" form:"operationObject,optional"`
+	Method          string `json:"method,optional" form:"method,optional"`
+	StartTime       string `json:"startTime,optional" form:"startTime,optional"`
+	EndTime         string `json:"endTime,optional" form:"endTime,optional"`
+}
+
+type OperationLogExportResp struct {
+	Url string `json:"url"`
+}
+
+type OperationLogItem struct {
+	Id              uint64 `json:"id"`
+	UserId          uint64 `json:"userId"`
+	Username        string `json:"username"`
+	OperationType   string `json:"operationType"`
+	OperationObject string `json:"operationObject"`
+	Method          string `json:"method"`
+	Path            string `json:"path"`
+	RequestParams   string `json:"requestParams,optional"`
+	ResponseCode    int    `json:"responseCode"`
+	ResponseMsg     string `json:"responseMsg"`
+	IpAddress       string `json:"ipAddress"`
+	UserAgent       string `json:"userAgent,optional"`
+	Duration        int    `json:"duration"`
+	CreatedAt       string `json:"createdAt"`
+}
+
+type OperationLogListReq struct {
+	Page            int64  `json:"page,optional" form:"page,optional"`
+	PageSize        int64  `json:"pageSize,optional" form:"pageSize,optional"`
+	UserId          uint64 `json:"userId,optional" form:"userId,optional"`
+	Username        string `json:"username,optional" form:"username,optional"`
+	OperationType   string `json:"operationType,optional" form:"operationType,optional"`
+	OperationObject string `json:"operationObject,optional" form:"operationObject,optional"`
+	Method          string `json:"method,optional" form:"method,optional"`
+	StartTime       string `json:"startTime,optional" form:"startTime,optional"`
+	EndTime         string `json:"endTime,optional" form:"endTime,optional"`
+}
+
+type OperationLogListResp struct {
+	Total int64              `json:"total"`
+	List  []OperationLogItem `json:"list"`
+}
+
+type PasswordChangeReq struct {
+	OldPassword string `json:"oldPassword"`
+	NewPassword string `json:"newPassword"`
+}
+
+type PerformanceLogItem struct {
+	Id            uint64 `json:"id"`
+	UserId        uint64 `json:"userId"`
+	Username      string `json:"username"`
+	Method        string `json:"method"`
+	Path          string `json:"path"`
+	StatusCode    int64  `json:"statusCode"`
+	Duration      int64  `json:"duration"`      // 耗时（毫秒）
+	IsSlow        int64  `json:"isSlow"`        // 是否慢接口：0 否，1 是
+	SlowThreshold int64  `json:"slowThreshold"` // 慢接口阈值（毫秒）
+	IpAddress     string `json:"ipAddress"`
+	UserAgent     string `json:"userAgent"`
+	ErrorMsg      string `json:"errorMsg"`
+	CreatedAt     int64  `json:"createdAt"`
+}
+
+type PerformanceLogListReq struct {
+	Page       int64  `json:"page,optional" form:"page,optional"`
+	PageSize   int64  `json:"pageSize,optional" form:"pageSize,optional"`
+	Method     string `json:"method,optional" form:"method,optional"`
+	Path       string `json:"path,optional" form:"path,optional"`
+	IsSlow     int64  `json:"isSlow,optional" form:"isSlow,optional"`         // 0/1 过滤，其他值表示不过滤
+	StatusCode int64  `json:"statusCode,optional" form:"statusCode,optional"` // 精确匹配状态码
+	StartTime  string `json:"startTime,optional" form:"startTime,optional"`   // 开始时间（yyyy-MM-dd HH:mm:ss）
+	EndTime    string `json:"endTime,optional" form:"endTime,optional"`       // 结束时间
+}
+
+type PerformanceLogListResp struct {
+	Total int64                `json:"total"`
+	List  []PerformanceLogItem `json:"list"`
 }
 
 type PermissionApiListReq struct {
@@ -388,13 +705,26 @@ type PermissionUpdateReq struct {
 }
 
 type PingResp struct {
-	Message string `json:"message"`
+	Status    string `json:"status"`    // 服务状态：ok/error
+	Message   string `json:"message"`   // 响应消息
+	Database  string `json:"database"`  // 数据库状态：ok/error
+	Redis     string `json:"redis"`     // Redis状态：ok/error
+	Version   string `json:"version"`   // 服务版本
+	StartTime int64  `json:"startTime"` // 启动时间（秒级时间戳）
+	Uptime    int64  `json:"uptime"`    // 运行时长（秒）
 }
 
 type ProfileResp struct {
 	Id          uint64   `json:"id"`
 	Username    string   `json:"username"`
+	Avatar      string   `json:"avatar,optional"`
+	Signature   string   `json:"signature,optional"`
 	Permissions []string `json:"permissions,optional"`
+}
+
+type ProfileUpdateReq struct {
+	Avatar    string `json:"avatar,optional"`
+	Signature string `json:"signature,optional"`
 }
 
 type RefreshReq struct {
@@ -459,6 +789,8 @@ type TokenPair struct {
 type UserCreateReq struct {
 	Username     string `json:"username"`
 	Password     string `json:"password"`
+	Avatar       string `json:"avatar,optional"`
+	Signature    string `json:"signature,optional"`
 	DepartmentId uint64 `json:"departmentId"`
 	Status       int64  `json:"status,optional"`
 }
@@ -470,6 +802,8 @@ type UserDeleteReq struct {
 type UserItem struct {
 	Id           uint64 `json:"id"`
 	Username     string `json:"username"`
+	Avatar       string `json:"avatar,optional"`
+	Signature    string `json:"signature,optional"`
 	DepartmentId uint64 `json:"departmentId"`
 	Status       int64  `json:"status"`
 	CreatedAt    string `json:"createdAt"`
@@ -503,6 +837,8 @@ type UserUpdateReq struct {
 	Id           uint64 `json:"id"`
 	Username     string `json:"username,optional"`
 	Password     string `json:"password,optional"`
+	Avatar       string `json:"avatar,optional"`
+	Signature    string `json:"signature,optional"`
 	DepartmentId uint64 `json:"departmentId,optional"`
 	Status       int64  `json:"status,optional"`
 }

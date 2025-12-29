@@ -61,6 +61,14 @@ func (l *UserUpdateLogic) UserUpdate(req *types.UserUpdateReq) error {
 		user.DepartmentId = req.DepartmentId
 	}
 
+	// 更新头像和个性签名
+	if req.Avatar != "" {
+		user.Avatar = req.Avatar
+	}
+	if req.Signature != "" {
+		user.Signature = req.Signature
+	}
+
 	// Status 字段：0 是有效值（禁用），需要特殊处理
 	if req.Status == 0 || req.Status == 1 {
 		user.Status = req.Status

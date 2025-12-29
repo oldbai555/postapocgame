@@ -38,6 +38,29 @@ export function apiDelete(req: components.ApiDeleteReq) {
  * @description 
  * @param req
  */
+export function auditLogList(req: components.AuditLogListReq) {
+	return webapi.get<components.AuditLogListResp>(`/api/v1/audit-logs`, req)
+}
+
+/**
+ * @description 
+ */
+export function auditLogDetail() {
+	return webapi.get<components.AuditLogDetailResp>(`/api/v1/audit-logs/${id}`)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function auditLogExport(req: components.AuditLogExportReq) {
+	return webapi.get<components.AuditLogExportResp>(`/api/v1/audit-logs/export`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
 export function login(req: components.LoginReq) {
 	return webapi.post<components.TokenPair>(`/api/v1/login`, req)
 }
@@ -63,6 +86,52 @@ export function logout(req: components.LogoutReq) {
  */
 export function profile() {
 	return webapi.get<components.ProfileResp>(`/api/v1/profile`)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function profileUpdate(req: components.ProfileUpdateReq) {
+	return webapi.put<null>(`/api/v1/profile`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function passwordChange(req: components.PasswordChangeReq) {
+	return webapi.post<null>(`/api/v1/profile/password`, req)
+}
+
+/**
+ * @description 
+ */
+export function cacheRefresh() {
+	return webapi.post<components.CacheRefreshResp>(`/api/v1/cache/refresh`)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function chatMessageList(req: components.ChatMessageListReq) {
+	return webapi.get<components.ChatMessageListResp>(`/api/v1/chats/messages`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function chatMessageSend(req: components.ChatMessageSendReq) {
+	return webapi.post<components.ChatMessageSendResp>(`/api/v1/chats/messages`, req)
+}
+
+/**
+ * @description 
+ */
+export function chatOnlineUsers() {
+	return webapi.get<components.ChatOnlineUserResp>(`/api/v1/chats/online-users`)
 }
 
 /**
@@ -103,6 +172,38 @@ export function configDelete(req: components.ConfigDeleteReq) {
  */
 export function configGet(req: components.ConfigGetReq) {
 	return webapi.get<components.ConfigGetResp>(`/api/v1/configs/get`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function demoList(req: components.DemoListReq) {
+	return webapi.get<components.DemoListResp>(`/api/v1/demos`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function demoCreate(req: components.DemoCreateReq) {
+	return webapi.post<null>(`/api/v1/demos`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function demoUpdate(req: components.DemoUpdateReq) {
+	return webapi.put<null>(`/api/v1/demos`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function demoDelete(req: components.DemoDeleteReq) {
+	return webapi.delete<null>(`/api/v1/demos`, req)
 }
 
 /**
@@ -258,6 +359,36 @@ export function fileUpload() {
  * @description 
  * @param req
  */
+export function loginLogList(req: components.LoginLogListReq) {
+	return webapi.get<components.LoginLogListResp>(`/api/v1/login-logs`, req)
+}
+
+/**
+ * @description 
+ */
+export function loginLogDetail() {
+	return webapi.get<components.LoginLogDetailResp>(`/api/v1/login-logs/${id}`)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function loginLogExport(req: components.LoginLogExportReq) {
+	return webapi.get<components.LoginLogExportResp>(`/api/v1/login-logs/export`, req)
+}
+
+/**
+ * @description 
+ */
+export function loginLogStats() {
+	return webapi.get<components.LoginLogStatsResp>(`/api/v1/login-logs/stats`)
+}
+
+/**
+ * @description 
+ * @param req
+ */
 export function menuCreate(req: components.MenuCreateReq) {
 	return webapi.post<null>(`/api/v1/menus`, req)
 }
@@ -290,6 +421,51 @@ export function menuMyTree() {
  */
 export function menuTree() {
 	return webapi.get<components.MenuTreeResp>(`/api/v1/menus/tree`)
+}
+
+/**
+ * @description 
+ */
+export function monitorStats() {
+	return webapi.get<components.MonitorStatsResp>(`/api/v1/monitor/stats`)
+}
+
+/**
+ * @description 
+ */
+export function monitorStatus() {
+	return webapi.get<components.MonitorStatusResp>(`/api/v1/monitor/status`)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function operationLogList(req: components.OperationLogListReq) {
+	return webapi.get<components.OperationLogListResp>(`/api/v1/operation-logs`, req)
+}
+
+/**
+ * @description 
+ */
+export function operationLogDetail() {
+	return webapi.get<components.OperationLogDetailResp>(`/api/v1/operation-logs/${id}`)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function operationLogExport(req: components.OperationLogExportReq) {
+	return webapi.get<components.OperationLogExportResp>(`/api/v1/operation-logs/export`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function performanceLogList(req: components.PerformanceLogListReq) {
+	return webapi.get<components.PerformanceLogListResp>(`/api/v1/performance-logs`, req)
 }
 
 /**
@@ -457,11 +633,4 @@ export function userRoleList(req: components.UserRoleListReq) {
  */
 export function userRoleUpdate(req: components.UserRoleUpdateReq) {
 	return webapi.put<null>(`/api/v1/users/roles`, req)
-}
-
-/**
- * @description 刷新缓存（字典和配置缓存）
- */
-export function cacheRefresh() {
-	return webapi.post<components.CacheRefreshResp>(`/api/v1/cache/refresh`)
 }

@@ -5,11 +5,12 @@ package main
 
 import (
 	"flag"
-	"github.com/zeromicro/go-zero/core/logx"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/zeromicro/go-zero/core/logx"
 
 	"postapocgame/admin-server/internal/config"
 	"postapocgame/admin-server/internal/handler"
@@ -46,10 +47,18 @@ func main() {
 	// 初始化中间件（避免循环依赖，在外部初始化）
 	authMiddleware := middleware.NewAuthMiddleware(ctx)
 	permissionMiddleware := middleware.NewPermissionMiddleware(ctx)
+	operationLogMiddleware := middleware.NewOperationLogMiddleware(ctx)
+	rateLimitMiddleware := middleware.NewRateLimitMiddleware(ctx)
+	performanceMiddleware := middleware.NewPerformanceMiddleware(ctx)
 	ctx.AuthMiddleware = authMiddleware.Handle
 	ctx.PermissionMiddleware = permissionMiddleware.Handle
+	ctx.OperationLogMiddleware = operationLogMiddleware.Handle
+	ctx.RateLimitMiddleware = rateLimitMiddleware.Handle
+	ctx.PerformanceMiddleware = performanceMiddleware.Handle
 
 	handler.RegisterHandlers(server, ctx)
+	// 注册自定义路由（WebSocket 等）
+	handler.RegisterCustomRoutes(server, ctx)
 
 	// 设置优雅关闭：监听系统信号
 	sigChan := make(chan os.Signal, 1)

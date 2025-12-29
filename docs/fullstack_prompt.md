@@ -67,6 +67,16 @@
 - 缓存策略：对用户、权限、菜单等热数据使用 Redis 缓存，设置合理过期时间，防止穿透/击穿/雪崩
 - 事务管理：Service 层控制事务边界，避免大事务
 - API 设计：RESTful、统一响应格式、版本化管理
+- **常量与枚举管理规范（必须遵守）**：
+  - **系统级固定枚举统一管理**：所有系统级固定枚举（通用状态、Redis Key 前缀、固定路径、限流提示文案等）必须统一放在 `admin-server/internal/consts` 包中，禁止在业务代码中直接硬编码字符串
+  - **常量包使用场景**：
+    - 通用状态字符串（如 `"ok"`、`"error"`）→ `consts.StatusOK`、`consts.StatusError`
+    - Redis Key 前缀（如 `"jwt:blacklist:"`、`"rate_limit:global"`）→ `consts.RedisJWTBlacklistPrefix`、`consts.RedisRateLimitGlobalPrefix`
+    - 固定路径（如 `"/api/v1/ping"`）→ `consts.PathPing`
+    - 固定提示文案（如限流提示信息）→ `consts.RateLimitMessage*`
+    - 其他系统级固定字符串
+  - **业务可配置枚举使用数据字典**：业务相关的可配置枚举（如用户状态、订单状态等）应使用数据字典方案，通过 `/api/v1/dict` 接口获取
+  - **禁止硬编码**：业务代码中禁止直接使用字符串字面量，必须使用常量或数据字典
 - **API 定义文件（.api）规范**：
   - Group 命名必须使用下划线蛇形规则（snake_case），如 `user_role`、`role_permission`
   - 中间件声明：需要认证的路由组必须在 `@server` 注解中声明 `middleware: AuthMiddleware, PermissionMiddleware`
@@ -179,6 +189,7 @@
       # 或使用默认路径
       ./scripts/generate-ts.sh
       ```
+    - **脚本执行规范**：如果需要执行 `scripts/` 目录下的脚本，需要用户执行后再通知进行下一步；如果是其他脚本（如数据库 SQL 脚本），AI 可以直接执行
     - 生成的代码输出到 `admin-frontend/src/api/generated/` 目录
     - **禁止手动修改 `generated/` 目录下的任何文件**（除了必要的适配修改，见下方说明）
   - **统一 API 使用规范（必须遵守）**：
@@ -303,22 +314,36 @@
             `deleted_at`=0;
           ```
      4. **生成初始化 SQL**：使用 `scripts/generate-sql.sh -group <group> -name <name>` 生成初始化表 SQL 语句，以及对应的权限菜单接口等 SQL 语句、前端页面 xxx.vue、xxx.api 文件
+        - **脚本执行规范**：如果需要执行 `scripts/` 目录下的脚本，需要用户执行后再通知进行下一步；如果是其他脚本（如数据库 SQL 脚本），AI 可以直接执行
      5. **补齐初始化表 SQL**：检查生成的 SQL，补齐初始化表 SQL 语句所需要的字段（如 created_at、updated_at、deleted_at 等）
      6. **补齐 CRUD 接口参数**：检查生成的 .api 文件，补齐 CRUD 接口的参数定义
      7. **生成 Model 代码**：使用 `scripts/generate-model.sh <sql_file>` 生成对应的 Model 代码
+        - **脚本执行规范**：如果需要执行 `scripts/` 目录下的脚本，需要用户执行后再通知进行下一步；如果是其他脚本（如数据库 SQL 脚本），AI 可以直接执行
      8. **生成 API 代码**：使用 `scripts/generate-api.sh <api_file>` 生成对应的 Handler/Logic 代码骨架
+        - **脚本执行规范**：如果需要执行 `scripts/` 目录下的脚本，需要用户执行后再通知进行下一步；如果是其他脚本（如数据库 SQL 脚本），AI 可以直接执行
      9. **开发功能**：实现 Repository、Logic、Handler 的业务逻辑，完成后执行对应的 SQL 语句（包括字典 SQL、业务表 SQL、权限菜单 SQL），创表和写入对应的权限菜单等
      10. **启动后端服务**：确保后端服务能正常启动，接口可独立测试通过
      11. **完成前端页面**：将生成的前端 xxx.vue 进行页面完善，然后能正常启动前端项目，进行前后端联调
      12. **测试通过后再开发下一个功能**：每个功能必须完整实现并测试通过后，才能开始下一个功能的开发
+     - **增量 SQL 处理规范（上线版本）**：
+       - **上线版本**：使用独立的增量 SQL 文件（`create_table_<group>.sql`、`init_<group>.sql`），不合并到 `tables.sql` 和 `data.sql`
+       - **开发版本**：可以将 SQL 合并到 `tables.sql` 和 `data.sql` 统一管理
+       - **执行顺序**：先执行 `create_table_<group>.sql` 创建表结构，再执行 `init_<group>.sql` 初始化权限、菜单、接口等数据
+       - **参考示例**：demo 功能的增量 SQL 文件（`db/create_table_demo.sql`、`db/init_demo.sql`）
    - Step 3.1 后端实现（最小可用）
      - 使用 `scripts/generate-sql.sh -group <group> -name <name>` 生成初始化 SQL 和 .api 文件骨架
+       - **脚本执行规范**：如果需要执行 `scripts/` 目录下的脚本，需要用户执行后再通知进行下一步；如果是其他脚本（如数据库 SQL 脚本），AI 可以直接执行
      - 检查并补齐生成的 SQL 文件中的表结构字段（created_at、updated_at、deleted_at 等）
      - 检查并补齐生成的 .api 文件中的接口参数定义
      - 使用 `./scripts/generate-model.sh <sql_file>` 生成 Model 代码
+       - **脚本执行规范**：如果需要执行 `scripts/` 目录下的脚本，需要用户执行后再通知进行下一步；如果是其他脚本（如数据库 SQL 脚本），AI 可以直接执行
      - 使用 `./scripts/generate-api.sh <api_file>` 生成 Handler/Logic 代码骨架
+       - **脚本执行规范**：如果需要执行 `scripts/` 目录下的脚本，需要用户执行后再通知进行下一步；如果是其他脚本（如数据库 SQL 脚本），AI 可以直接执行
      - 实现 `internal/repository/` → `internal/logic/` → `internal/handler/`（logic 层由 goctl 生成骨架，需实现业务逻辑）
+     - **上线版本**：使用独立的增量 SQL 文件（`create_table_<group>.sql`、`init_<group>.sql`），按顺序执行
+     - **开发版本**：可以将 SQL 合并到 `tables.sql` 和 `data.sql` 统一管理
      - 执行生成的 SQL 语句，创建表和初始化权限菜单等数据
+     - **参考示例**：demo 功能开发流程（见 `docs/后端开发进度.md` 和 `docs/前端开发进度.md`）
      - **权限 SQL 生成规范（必须遵守）**：
        - 每新增一个功能模块（如用户管理、菜单管理等），必须同时生成对应的权限列表 SQL
        - SQL 文件命名：`admin-server/db/permissions_{module_name}.sql`
@@ -345,13 +370,16 @@
 
    - Step 3.2 前端实现（基于后端接口）
      - 使用 `scripts/generate-sql.sh` 生成的前端页面骨架文件（xxx.vue）作为基础
+       - **脚本执行规范**：如果需要执行 `scripts/` 目录下的脚本，需要用户执行后再通知进行下一步；如果是其他脚本（如数据库 SQL 脚本），AI 可以直接执行
      - 使用 `./scripts/generate-ts.sh` 从后端 `.api` 生成 TS 代码到 `admin-frontend/src/api/generated/`
+       - **脚本执行规范**：如果需要执行 `scripts/` 目录下的脚本，需要用户执行后再通知进行下一步；如果是其他脚本（如数据库 SQL 脚本），AI 可以直接执行
      - 检查并修复生成的代码适配问题（路径、参数等，参考「代码适配说明」）
      - 在 `src/services/` 组织业务逻辑（如需要）
      - 完善生成的页面骨架，开发或更新对应 Page、Component、Store
        - **表格+表单业务**：优先使用 `D2Table` 组件（`src/components/common/D2Table.vue`）
+       - **权限绑定**：生成的 Vue 页面已包含权限绑定（`create-permission`、`update-permission`、`delete-permission`），格式为 `{group}:create/update/delete`
        - **树形数据业务**：使用 `el-tree` 组件（如部门管理、菜单管理）
-       - 参考示例：`src/views/system/RoleList.vue`、`src/views/system/UserList.vue`、`src/views/system/DepartmentList.vue`
+       - 参考示例：`src/views/system/RoleList.vue`、`src/views/system/UserList.vue`、`src/views/system/DepartmentList.vue`、`src/views/temp/DemoList.vue`
      - 所有 API 调用统一从 `@/api/generated/admin` 导入，类型也从 `@/api/generated/admin` 导入
      - 补充前端单元测试（如适用）
      - 更新 `docs/前端开发进度.md`：

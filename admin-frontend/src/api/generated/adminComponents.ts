@@ -43,6 +43,116 @@ export interface ApiUpdateReq {
 	status?: number
 }
 
+export interface AuditLogDetailResp {
+	id: number
+	userId: number
+	username: string
+	auditType: string // 审计类型：permission_assign/role_change/config_modify/data_delete等
+	auditObject: string // 审计对象（模块/表名，如user_role/role_permission/role/config）
+	auditDetail: string // 审计详情（JSON格式，记录变更前后的数据）
+	ipAddress: string
+	userAgent: string
+	createdAt: number
+}
+
+export interface AuditLogExportReq {
+	userId?: number
+	username?: string
+	auditType?: string
+	auditObject?: string
+	startTime?: string
+	endTime?: string
+}
+
+export interface AuditLogExportResp {
+	url: string
+}
+
+export interface AuditLogItem {
+	id: number
+	userId: number
+	username: string
+	auditType: string // 审计类型：permission_assign/role_change/config_modify/data_delete等
+	auditObject: string // 审计对象（模块/表名，如user_role/role_permission/role/config）
+	auditDetail: string // 审计详情（JSON格式，记录变更前后的数据）
+	ipAddress: string
+	userAgent: string
+	createdAt: number
+}
+
+export interface AuditLogListReq {
+	page?: number
+	pageSize?: number
+	userId?: number
+	username?: string
+	auditType?: string // 审计类型
+	auditObject?: string // 审计对象
+	startTime?: string // 格式：YYYY-MM-DD HH:mm:ss
+	endTime?: string // 格式：YYYY-MM-DD HH:mm:ss
+}
+
+export interface AuditLogListResp {
+	list: Array<AuditLogItem>
+	total: number
+	page: number
+	pageSize: number
+}
+
+export interface CPUInfo {
+	usage: number // CPU使用率（百分比）
+	cores: number // CPU核心数
+}
+
+export interface CacheRefreshResp {
+	message: string
+}
+
+export interface ChatMessageItem {
+	id: number
+	fromUserId: number
+	fromUserName: string
+	toUserId: number
+	toUserName: string
+	roomId: string
+	content: string
+	messageType: number
+	status: number
+	createdAt: string
+}
+
+export interface ChatMessageListReq {
+	page?: number
+	pageSize?: number
+	roomId?: string
+	userId?: number
+}
+
+export interface ChatMessageListResp {
+	total: number
+	list: Array<ChatMessageItem>
+}
+
+export interface ChatMessageSendReq {
+	toUserId: number // 接收用户 ID（0表示群聊）
+	roomId: string // 聊天室 ID
+	content: string // 消息内容
+	messageType?: number // 消息类型：1文本，2图片，3文件
+}
+
+export interface ChatMessageSendResp {
+	id: number
+}
+
+export interface ChatOnlineUserItem {
+	userId: number
+	userName: string
+	avatar?: string
+}
+
+export interface ChatOnlineUserResp {
+	list: Array<ChatOnlineUserItem>
+}
+
 export interface ConfigCreateReq {
 	group: string
 	key: string
@@ -89,6 +199,40 @@ export interface ConfigUpdateReq {
 	id: number
 	value?: string
 	description?: string
+}
+
+export interface DemoCreateReq {
+	name: string
+	status?: number
+}
+
+export interface DemoDeleteReq {
+	id: number
+}
+
+export interface DemoItem {
+	id: number
+	name: string
+	status: number
+	createdAt: string
+}
+
+export interface DemoListReq {
+	// 注意：GET 请求的查询参数需要同时包含 json 和 form 标签// json 标签用于请求体（POST/PUT/DELETE），form 标签用于查询参数（GET）// 重要：form 标签中必须包含 optional，否则 httpx.Parse 无法正确解析查询参数
+	page?: number
+	pageSize?: number
+	name?: string
+}
+
+export interface DemoListResp {
+	total: number
+	list: Array<DemoItem>
+}
+
+export interface DemoUpdateReq {
+	id: number
+	name?: string
+	status?: number
 }
 
 export interface DepartmentCreateReq {
@@ -216,6 +360,13 @@ export interface DictTypeUpdateReq {
 	status?: number
 }
 
+export interface DiskInfo {
+	total: number // 总磁盘空间（字节）
+	used: number // 已用磁盘空间（字节）
+	available: number // 可用磁盘空间（字节）
+	usage: number // 磁盘使用率（百分比）
+}
+
 export interface FileCreateReq {
 	name: string
 	status?: number
@@ -264,6 +415,77 @@ export interface FileUploadResp {
 	ext: string
 }
 
+export interface LoginLogDetailResp {
+	id: number
+	userId: number
+	username: string
+	ipAddress: string
+	location: string
+	browser: string
+	os: string
+	userAgent: string
+	status: number // 0失败 1成功
+	message: string
+	loginAt: number
+	logoutAt: number
+	createdAt: number
+}
+
+export interface LoginLogExportReq {
+	userId?: number
+	username?: string
+	status?: number
+	startTime?: string
+	endTime?: string
+}
+
+export interface LoginLogExportResp {
+	url: string
+}
+
+export interface LoginLogItem {
+	id: number
+	userId: number
+	username: string
+	ipAddress: string
+	location: string
+	browser: string
+	os: string
+	userAgent: string
+	status: number // 0失败 1成功
+	message: string
+	loginAt: number
+	logoutAt: number
+	createdAt: number
+}
+
+export interface LoginLogListReq {
+	page?: number
+	pageSize?: number
+	userId?: number
+	username?: string
+	status?: number // 0失败 1成功
+	startTime?: string // 格式：YYYY-MM-DD HH:mm:ss
+	endTime?: string // 格式：YYYY-MM-DD HH:mm:ss
+}
+
+export interface LoginLogListResp {
+	list: Array<LoginLogItem>
+	total: number
+	page: number
+	pageSize: number
+}
+
+export interface LoginLogStatsResp {
+	totalCount: number // 总登录次数
+	successCount: number // 成功次数
+	failureCount: number // 失败次数
+	todayCount: number // 今日登录次数
+	todaySuccess: number // 今日成功次数
+	todayFailure: number // 今日失败次数
+	onlineUserCount: number // 当前在线用户数（需要从其他表查询）
+}
+
 export interface LoginReq {
 	username: string
 	password: string
@@ -272,6 +494,13 @@ export interface LoginReq {
 export interface LogoutReq {
 	accessToken: string
 	refreshToken: string
+}
+
+export interface MemoryInfo {
+	total: number // 总内存（字节）
+	used: number // 已用内存（字节）
+	available: number // 可用内存（字节）
+	usage: number // 内存使用率（百分比）
 }
 
 export interface MenuCreateReq {
@@ -319,6 +548,119 @@ export interface MenuUpdateReq {
 	orderNum?: number
 	visible?: number
 	status?: number
+}
+
+export interface MonitorStatsResp {
+	userCount: number // 用户总数
+	roleCount: number // 角色总数
+	permissionCount: number // 权限总数
+	menuCount: number // 菜单总数
+	onlineUserCount: number // 在线用户数
+	operationLogCount: number // 操作日志总数
+	loginLogCount: number // 登录日志总数
+}
+
+export interface MonitorStatusResp {
+	cpu: CPUInfo // CPU信息
+	memory: MemoryInfo // 内存信息
+	disk: DiskInfo // 磁盘信息
+	network: NetworkInfo // 网络信息
+}
+
+export interface NetworkInfo {
+	bytesSent: number // 发送字节数
+	bytesRecv: number // 接收字节数
+	packetsSent: number // 发送包数
+	packetsRecv: number // 接收包数
+}
+
+export interface OperationLogDetailResp {
+	operationLog: OperationLogItem
+}
+
+export interface OperationLogExportReq {
+	userId?: number
+	username?: string
+	operationType?: string
+	operationObject?: string
+	method?: string
+	startTime?: string
+	endTime?: string
+}
+
+export interface OperationLogExportResp {
+	url: string
+}
+
+export interface OperationLogItem {
+	id: number
+	userId: number
+	username: string
+	operationType: string
+	operationObject: string
+	method: string
+	path: string
+	requestParams?: string
+	responseCode: number
+	responseMsg: string
+	ipAddress: string
+	userAgent?: string
+	duration: number
+	createdAt: string
+}
+
+export interface OperationLogListReq {
+	page?: number
+	pageSize?: number
+	userId?: number
+	username?: string
+	operationType?: string
+	operationObject?: string
+	method?: string
+	startTime?: string
+	endTime?: string
+}
+
+export interface OperationLogListResp {
+	total: number
+	list: Array<OperationLogItem>
+}
+
+export interface PasswordChangeReq {
+	oldPassword: string
+	newPassword: string
+}
+
+export interface PerformanceLogItem {
+	id: number
+	userId: number
+	username: string
+	method: string
+	path: string
+	statusCode: number
+	duration: number // 耗时（毫秒）
+	isSlow: number // 是否慢接口：0 否，1 是
+	slowThreshold: number // 慢接口阈值（毫秒）
+	ipAddress: string
+	userAgent: string
+	errorMsg: string
+	createdAt: number
+}
+
+export interface PerformanceLogListReq {
+	page?: number
+	pageSize?: number
+	method?: string
+	path?: string
+	isSlow?: number // 0/1 过滤，其他值表示不过滤
+	statusCode?: number // 精确匹配状态码
+	startTime?: string // 开始时间（yyyy-MM-dd HH:mm:ss）
+	endTime?: string // 结束时间
+}
+
+export interface PerformanceLogListResp {
+	total: number
+	list: Array<PerformanceLogItem>
 }
 
 export interface PermissionApiListReq {
@@ -382,13 +724,26 @@ export interface PermissionUpdateReq {
 }
 
 export interface PingResp {
-	message: string
+	status: string // 服务状态：ok/error
+	message: string // 响应消息
+	database: string // 数据库状态：ok/error
+	redis: string // Redis状态：ok/error
+	version: string // 服务版本
+	startTime: number // 启动时间（秒级时间戳）
+	uptime: number // 运行时长（秒）
 }
 
 export interface ProfileResp {
 	id: number
 	username: string
+	avatar?: string
+	signature?: string
 	permissions?: Array<string>
+}
+
+export interface ProfileUpdateReq {
+	avatar?: string
+	signature?: string
 }
 
 export interface RefreshReq {
@@ -453,6 +808,8 @@ export interface TokenPair {
 export interface UserCreateReq {
 	username: string
 	password: string
+	avatar?: string
+	signature?: string
 	departmentId: number
 	status?: number
 }
@@ -464,6 +821,8 @@ export interface UserDeleteReq {
 export interface UserItem {
 	id: number
 	username: string
+	avatar?: string
+	signature?: string
 	departmentId: number
 	status: number
 	createdAt: string
@@ -497,11 +856,9 @@ export interface UserUpdateReq {
 	id: number
 	username?: string
 	password?: string
+	avatar?: string
+	signature?: string
 	departmentId?: number
 	status?: number
-}
-
-export interface CacheRefreshResp {
-	message: string
 }
 

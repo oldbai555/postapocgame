@@ -30,6 +30,15 @@ func NewMenuTreeLogic(ctx context.Context, svcCtx *svc.ServiceContext) *MenuTree
 }
 
 func (l *MenuTreeLogic) MenuTree() (resp *types.MenuTreeResp, err error) {
+	// 尝试从缓存获取
+	cache := l.svcCtx.Repository.BusinessCache
+	var cachedResp types.MenuTreeResp
+	err = cache.GetMenuTree(l.ctx, &cachedResp)
+	if err == nil {
+		return &cachedResp, nil
+	}
+
+	// 缓存未命中，从数据库查询
 	menuRepo := repository.NewMenuRepository(l.svcCtx.Repository)
 	list, err := menuRepo.ListAll(l.ctx)
 	if err != nil {
@@ -84,9 +93,18 @@ func (l *MenuTreeLogic) MenuTree() (resp *types.MenuTreeResp, err error) {
 		sortMenuItems(&roots[i].Children)
 	}
 
-	return &types.MenuTreeResp{
+	resp = &types.MenuTreeResp{
 		List: roots,
-	}, nil
+	}
+
+	// 写入缓存（异步，不阻塞返回）
+	go func() {
+		if err := cache.SetMenuTree(context.Background(), resp); err != nil {
+			l.Errorf("设置菜单树缓存失败: %v", err)
+		}
+	}()
+
+	return resp, nil
 }
 
 // sortMenuItems 按 orderNum 和 id 排序菜单项

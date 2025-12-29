@@ -50,5 +50,14 @@ func (l *ConfigUpdateLogic) ConfigUpdate(req *types.ConfigUpdateReq) error {
 	if err := configRepo.Update(l.ctx, config); err != nil {
 		return errs.Wrap(errs.CodeInternalError, "更新配置失败", err)
 	}
+
+	// 清除配置缓存
+	cache := l.svcCtx.Repository.BusinessCache
+	go func() {
+		if err := cache.DeleteConfigKey(context.Background(), config.Key); err != nil {
+			l.Errorf("清除配置缓存失败: key=%s, error=%v", config.Key, err)
+		}
+	}()
+
 	return nil
 }

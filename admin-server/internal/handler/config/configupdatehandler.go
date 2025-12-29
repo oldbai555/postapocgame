@@ -10,6 +10,7 @@ import (
 	"postapocgame/admin-server/internal/logic/config"
 	"postapocgame/admin-server/internal/svc"
 	"postapocgame/admin-server/internal/types"
+	"postapocgame/admin-server/pkg/audit"
 )
 
 func ConfigUpdateHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
@@ -25,6 +26,12 @@ func ConfigUpdateHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		if err != nil {
 			httpx.ErrorCtx(r.Context(), w, err)
 		} else {
+			// 记录审计日志：配置修改
+			audit.RecordAuditLog(svcCtx, r.Context(), r, audit.AuditTypeConfigModify, audit.AuditObjectConfig, map[string]interface{}{
+				"id":          req.Id,
+				"value":       req.Value,
+				"description": req.Description,
+			})
 			httpx.Ok(w)
 		}
 	}

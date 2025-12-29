@@ -36,31 +36,53 @@ func (l *ProfileLogic) Profile() (resp *types.ProfileResp, err error) {
 	}
 
 	// 获取用户权限
-	userRoleRepo := repository.NewUserRoleRepository(l.svcCtx.Repository)
-	roleIDs, err := userRoleRepo.ListRoleIDsByUserID(l.ctx, user.UserID)
+	// 获取用户详细信息（包括头像和个性签名）
+	userRepo := repository.NewUserRepository(l.svcCtx.Repository)
+	userInfo, err := userRepo.FindByID(l.ctx, user.UserID)
 	if err != nil {
-		return nil, errs.Wrap(errs.CodeInternalError, "获取用户角色失败", err)
+		return nil, errs.Wrap(errs.CodeInternalError, "获取用户信息失败", err)
 	}
 
-	permissionRepo := repository.NewPermissionRepository(l.svcCtx.Repository)
-	perms, err := permissionRepo.ListByRoleIDs(l.ctx, roleIDs)
+	// 尝试从缓存获取用户权限列表
+	cache := l.svcCtx.Repository.BusinessCache
+	codes, err := cache.GetUserPermissions(l.ctx, user.UserID)
 	if err != nil {
-		return nil, errs.Wrap(errs.CodeInternalError, "获取用户权限失败", err)
-	}
-
-	codes := make([]string, 0, len(perms))
-	seen := make(map[string]struct{}, len(perms))
-	for _, p := range perms {
-		if _, ok := seen[p.Code]; ok {
-			continue
+		// 缓存未命中，从数据库查询
+		userRoleRepo := repository.NewUserRoleRepository(l.svcCtx.Repository)
+		roleIDs, err := userRoleRepo.ListRoleIDsByUserID(l.ctx, user.UserID)
+		if err != nil {
+			return nil, errs.Wrap(errs.CodeInternalError, "获取用户角色失败", err)
 		}
-		seen[p.Code] = struct{}{}
-		codes = append(codes, p.Code)
+
+		permissionRepo := repository.NewPermissionRepository(l.svcCtx.Repository)
+		perms, err := permissionRepo.ListByRoleIDs(l.ctx, roleIDs)
+		if err != nil {
+			return nil, errs.Wrap(errs.CodeInternalError, "获取用户权限失败", err)
+		}
+
+		codes = make([]string, 0, len(perms))
+		seen := make(map[string]struct{}, len(perms))
+		for _, p := range perms {
+			if _, ok := seen[p.Code]; ok {
+				continue
+			}
+			seen[p.Code] = struct{}{}
+			codes = append(codes, p.Code)
+		}
+
+		// 写入缓存（异步，不阻塞返回）
+		go func() {
+			if err := cache.SetUserPermissions(context.Background(), user.UserID, codes); err != nil {
+				l.Errorf("设置用户权限缓存失败: userId=%d, error=%v", user.UserID, err)
+			}
+		}()
 	}
 
 	return &types.ProfileResp{
 		Id:          user.UserID,
 		Username:    user.Username,
+		Avatar:      userInfo.Avatar,
+		Signature:   userInfo.Signature,
 		Permissions: codes,
 	}, nil
 }

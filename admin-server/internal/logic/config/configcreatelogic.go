@@ -58,5 +58,22 @@ func (l *ConfigCreateLogic) ConfigCreate(req *types.ConfigCreateReq) error {
 	if err := configRepo.Create(l.ctx, &config); err != nil {
 		return errs.Wrap(errs.CodeInternalError, "创建配置失败", err)
 	}
+
+	// 清除配置缓存（如果配置有值，则设置缓存；否则清除缓存）
+	cache := l.svcCtx.Repository.BusinessCache
+	go func() {
+		if req.Value != "" {
+			// 新创建的配置有值，设置缓存
+			if err := cache.SetConfigKey(context.Background(), req.Key, req.Value); err != nil {
+				l.Errorf("设置配置缓存失败: key=%s, error=%v", req.Key, err)
+			}
+		} else {
+			// 清除缓存
+			if err := cache.DeleteConfigKey(context.Background(), req.Key); err != nil {
+				l.Errorf("清除配置缓存失败: key=%s, error=%v", req.Key, err)
+			}
+		}
+	}()
+
 	return nil
 }

@@ -51,6 +51,8 @@ func (l *UserCreateLogic) UserCreate(req *types.UserCreateReq) error {
 	user := model.AdminUser{
 		Username:     req.Username,
 		PasswordHash: string(hash),
+		Avatar:       req.Avatar,
+		Signature:    req.Signature,
 		DepartmentId: req.DepartmentId,
 		Status:       req.Status,
 	}

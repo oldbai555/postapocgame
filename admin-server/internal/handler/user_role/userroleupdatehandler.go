@@ -10,6 +10,7 @@ import (
 	userrole "postapocgame/admin-server/internal/logic/user_role"
 	"postapocgame/admin-server/internal/svc"
 	"postapocgame/admin-server/internal/types"
+	"postapocgame/admin-server/pkg/audit"
 )
 
 func UserRoleUpdateHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
@@ -25,6 +26,11 @@ func UserRoleUpdateHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		if err != nil {
 			httpx.ErrorCtx(r.Context(), w, err)
 		} else {
+			// 记录审计日志：权限分配（用户-角色关联）
+			audit.RecordAuditLog(svcCtx, r.Context(), r, audit.AuditTypePermissionAssign, audit.AuditObjectUserRole, map[string]interface{}{
+				"userId":  req.UserId,
+				"roleIds": req.RoleIds,
+			})
 			httpx.Ok(w)
 		}
 	}

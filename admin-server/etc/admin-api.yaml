@@ -5,8 +5,11 @@ Port: 8888
 # 数据库配置
 Database:
   DSN: "root:game@2023@tcp(192.168.61.231:3306)/postapoc_admin?parseTime=true&loc=Local"
-  MaxOpen: 20
-  MaxIdle: 10
+  MaxOpen: 20              # 最大打开连接数
+  MaxIdle: 10              # 最大空闲连接数
+  ConnMaxLifetime: 300     # 连接最大生存时间（秒），默认 5 分钟
+  ConnMaxIdleTime: 600     # 连接最大空闲时间（秒），默认 10 分钟
+  SlowQueryThreshold: 1000 # 慢查询阈值（毫秒），默认 1000ms
 
 # Redis 配置
 Redis:
@@ -27,3 +30,23 @@ JWT:
 # bcrypt 配置
 Bcrypt:
   Cost: 10
+
+# 限流配置
+RateLimit:
+  enabled: true
+  ipLimit:
+    enabled: true
+    quota: 100    # 每个IP每秒最多100个请求
+    period: 1     # 时间窗口（秒）
+  userLimit:
+    enabled: true
+    quota: 200   # 每个用户每秒最多200个请求
+    period: 1    # 时间窗口（秒）
+  apiLimit:
+    enabled: true
+    quota: 50    # 每个接口每秒最多50个请求
+    period: 1    # 时间窗口（秒）
+  globalLimit:
+    enabled: true
+    quota: 1000  # 全局每秒最多1000个请求
+    period: 1    # 时间窗口（秒）

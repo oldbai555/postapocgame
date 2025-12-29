@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"postapocgame/admin-server/internal/consts"
+
 	"github.com/pkg/errors"
 )
 
@@ -25,11 +27,12 @@ func (r *tokenBlacklistRepository) IsBlacklisted(ctx context.Context, token stri
 		return false, nil
 	}
 	key := blacklistKey(token)
-	res, err := r.repo.Redis.Exists(ctx, key).Result()
+	// go-zero Redis Exists 返回 bool
+	exists, err := r.repo.Redis.Exists(key)
 	if err != nil {
 		return false, errors.Wrap(err, "redis exists token blacklist")
 	}
-	return res > 0, nil
+	return exists, nil
 }
 
 func (r *tokenBlacklistRepository) Blacklist(ctx context.Context, token string, ttl time.Duration) error {
@@ -37,12 +40,13 @@ func (r *tokenBlacklistRepository) Blacklist(ctx context.Context, token string, 
 		return nil
 	}
 	key := blacklistKey(token)
-	if err := r.repo.Redis.SetEx(ctx, key, "1", ttl).Err(); err != nil {
+	// go-zero Redis Setex 方法名是小写 x，参数：key, value, seconds
+	if err := r.repo.Redis.Setex(key, "1", int(ttl.Seconds())); err != nil {
 		return errors.Wrap(err, "redis setex token blacklist")
 	}
 	return nil
 }
 
 func blacklistKey(token string) string {
-	return "jwt:blacklist:" + token
+	return consts.RedisJWTBlacklistPrefix + token
 }

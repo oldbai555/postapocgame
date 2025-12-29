@@ -39,13 +39,14 @@
 </template>
 
 <script setup lang="ts">
-import {computed, watch, onMounted} from 'vue';
+import {computed, watch, onMounted, onUnmounted} from 'vue';
 import {useRoute, useRouter} from 'vue-router';
 import {ElMessage} from 'element-plus';
 import {useI18n} from 'vue-i18n';
 import {useUserStore} from '@/stores/user';
 import {usePermission} from '@/hooks/usePermission';
 import {useAppStore} from '@/stores/app';
+import {useWebSocketStore} from '@/stores/websocket';
 import AppHeader from '@/components/layout/AppHeader.vue';
 import AppSidebar from '@/components/layout/AppSidebar.vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
@@ -58,6 +59,7 @@ const router = useRouter();
 const userStore = useUserStore();
 const {hasPermission} = usePermission();
 const appStore = useAppStore();
+const wsStore = useWebSocketStore();
 const {t} = useI18n();
 
 // 初始化应用
@@ -66,6 +68,42 @@ onMounted(() => {
   if (userStore.token && (!userStore.menus || userStore.menus.length === 0)) {
     userStore.fetchMenus().catch(() => {});
   }
+
+  // 登录后自动连接 WebSocket
+  if (userStore.token) {
+    wsStore.connect();
+  }
+});
+
+// 监听登录状态变化
+watch(
+  () => userStore.token,
+  (newToken, oldToken) => {
+    if (newToken && !oldToken) {
+      // 用户登录，连接 WebSocket
+      wsStore.connect();
+    } else if (!newToken && oldToken) {
+      // 用户退出，断开 WebSocket
+      wsStore.disconnect();
+    }
+  }
+);
+
+// 监听路由变化，页面切换时保持连接
+watch(
+  () => route.path,
+  () => {
+    // 如果连接断开，尝试重连
+    if (userStore.token && !wsStore.connected && !wsStore.connecting) {
+      wsStore.connect();
+    }
+  }
+);
+
+// 组件卸载时断开连接
+onUnmounted(() => {
+  // 注意：这里不断开连接，因为可能在其他页面还需要使用
+  // 只在用户退出登录时断开
 });
 
 // 过滤菜单

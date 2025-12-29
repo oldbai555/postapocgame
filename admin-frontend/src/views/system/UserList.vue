@@ -42,6 +42,13 @@
           <span v-else-if="column.prop === 'departmentId'">
             {{ getDepartmentName(row.departmentId) }}
           </span>
+          <el-avatar
+            v-else-if="column.prop === 'avatar'"
+            :size="40"
+            :src="row.avatar"
+          >
+            {{ row.username?.charAt(0).toUpperCase() || 'U' }}
+          </el-avatar>
         </template>
         <!-- 自定义操作列 -->
         <template #action="{row}">
@@ -171,7 +178,9 @@ const loadDepartments = async () => {
 // 表格列配置
 const columns = computed<TableColumn[]>(() => [
   {prop: 'id', label: 'ID', width: 80},
+  {prop: 'avatar', label: '头像', width: 100, type: D2TableElemType.Image},
   {prop: 'username', label: t('common.username')},
+  {prop: 'signature', label: '个性签名', width: 200},
   {prop: 'departmentId', label: t('common.department')},
   {prop: 'status', label: t('common.status'), width: 100},
   {prop: 'createdAt', label: t('common.createdAt'), width: 180, type: D2TableElemType.ConvertTime}
@@ -181,6 +190,8 @@ const columns = computed<TableColumn[]>(() => [
 const drawerColumns = computed<DrawerColumn[]>(() => [
   {prop: 'id', label: 'ID', type: D2TableElemType.Tag},
   {prop: 'username', label: t('common.username'), type: D2TableElemType.EditInput, required: true},
+  {prop: 'avatar', label: '头像', type: D2TableElemType.Image},
+  {prop: 'signature', label: '个性签名', type: D2TableElemType.EditInput},
   {
     prop: 'departmentId',
     label: t('common.department'),
@@ -203,6 +214,8 @@ const drawerColumns = computed<DrawerColumn[]>(() => [
 const drawerAddColumns = computed<DrawerColumn[]>(() => [
   {prop: 'username', label: t('common.username'), required: true},
   {prop: 'password', label: t('common.password'), required: true},
+  {prop: 'avatar', label: '头像', type: D2TableElemType.Image},
+  {prop: 'signature', label: '个性签名'},
   {
     prop: 'departmentId',
     label: t('common.department'),

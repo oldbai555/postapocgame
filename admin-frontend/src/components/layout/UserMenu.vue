@@ -1,7 +1,7 @@
 <template>
   <el-dropdown @command="handleCommand" trigger="click">
     <div class="user-menu__trigger">
-      <el-avatar :size="32" class="user-menu__avatar">
+      <el-avatar :size="32" class="user-menu__avatar" :src="props.user?.avatar">
         {{ userAvatarText }}
       </el-avatar>
       <span class="user-menu__name">{{ userName }}</span>
@@ -57,10 +57,12 @@ const userAvatarText = computed(() => {
 const handleCommand = (command: string) => {
   switch (command) {
     case 'profile':
-      // TODO: 跳转到个人信息页面
+      // 跳转到个人信息页面
+      router.push('/system/profile');
       break;
     case 'password':
-      // TODO: 打开修改密码对话框
+      // 跳转到个人信息页面（该页面包含修改密码功能）
+      router.push('/system/profile');
       break;
     case 'logout':
       emit('logout');

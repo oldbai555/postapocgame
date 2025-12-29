@@ -3,14 +3,14 @@
 -- 初始化数据的ID范围（每张表从1开始连续）：
 --   admin_user: id=1-2 (1=超级管理员, 2=admin 业务管理员)
 --   admin_role: id=1-2 (1=super_admin 超级管理员角色, 2=admin 业务管理员角色)
---   admin_permission: id=1-46 (46个权限，含通用权限 common:xxx)
+--   admin_permission: id=1-48 (48个权限，含通用权限 common:xxx)
 --   admin_department: id=1 (根部门)
 --   admin_menu: id=1-43 (13个菜单 + 30个按钮)
---   admin_api: id=1-56 (56个接口，含缓存刷新接口)
+--   admin_api: id=1-58 (58个接口，含缓存刷新接口和个人信息相关接口)
 --   admin_user_role: id=1-2 (1=super_admin绑定超级管理员, 2=admin绑定业务管理员)
---   admin_role_permission: id=1-2 (超级管理员角色-权限关联，含 common:profile)
+--   admin_role_permission: id=1-4 (超级管理员角色-权限关联，含 common:profile、common:profile_update、common:password_change)
 --   admin_permission_menu: id=1-40 (10个菜单关联 + 30个按钮关联)
---   admin_permission_api: id=1-56 (56个权限-接口关联，id=53-56为通用接口)
+--   admin_permission_api: id=1-58 (58个权限-接口关联，id=53-58为通用接口)
 
 -- ============================================
 -- 1. 初始化基础数据
@@ -98,7 +98,10 @@ VALUES
   (43, '退出登录', 'common:logout', '退出登录接口权限', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
   (44, '字典查询', 'common:dict', '公共字典查询接口权限', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
   (45, '刷新缓存', 'common:cache_refresh', '刷新配置/字典缓存', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-  (46, '我的菜单树', 'menu:my_tree', '获取当前用户的菜单树', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+  (46, '我的菜单树', 'menu:my_tree', '获取当前用户的菜单树', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  -- 个人信息相关权限
+  (47, '个人信息更新', 'common:profile_update', '更新个人信息（头像、个性签名）', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (48, '修改密码', 'common:password_change', '修改登录密码', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
 ON DUPLICATE KEY UPDATE 
   `name`=VALUES(`name`), 
   `code`=VALUES(`code`), 
@@ -117,7 +120,9 @@ ON DUPLICATE KEY UPDATE `updated_at`=UNIX_TIMESTAMP();
 INSERT INTO `admin_role_permission` (`id`, `role_id`, `permission_id`, `created_at`, `updated_at`)
 VALUES 
   (1, 1, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (2, 1, 42, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+  (2, 1, 42, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (3, 1, 47, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- 超级管理员 -> common:profile_update
+  (4, 1, 48, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())   -- 超级管理员 -> common:password_change
 ON DUPLICATE KEY UPDATE `updated_at`=UNIX_TIMESTAMP();
 
 -- 菜单列表（ID从1开始连续）
@@ -312,7 +317,10 @@ VALUES
   (54, '文件上传', 'POST', '/api/v1/files/upload', '上传文件', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
   (55, '文件下载', 'GET', '/api/v1/files/:id/download', '下载文件', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
   -- 缓存刷新接口
-  (56, '刷新缓存', 'POST', '/api/v1/cache/refresh', '刷新配置与字典缓存', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+  (56, '刷新缓存', 'POST', '/api/v1/cache/refresh', '刷新配置与字典缓存', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  -- 个人信息相关接口
+  (57, '个人信息更新', 'PUT', '/api/v1/profile', '更新当前用户个人信息（头像、个性签名）', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (58, '修改密码', 'POST', '/api/v1/profile/password', '修改当前用户登录密码', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
 ON DUPLICATE KEY UPDATE `deleted_at`=0;
 
 -- 权限-接口关联（所有权限与接口的关联，ID从1开始连续）
@@ -323,6 +331,8 @@ VALUES
   (54, 43, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),   -- common:logout(id=43) -> 登出(api_id=1)
   (55, 44, 49, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- common:dict(id=44) -> 字典查询(api_id=49)
   (56, 45, 56, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- common:cache_refresh(id=45) -> 刷新缓存(api_id=56)
+  (57, 47, 57, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- common:profile_update(id=47) -> 个人信息更新(api_id=57)
+  (58, 48, 58, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- common:password_change(id=48) -> 修改密码(api_id=58)
   -- 用户管理权限
   (1, 18, 3, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- user:list(id=18) -> 用户列表(api_id=3)
   (2, 19, 4, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- user:create(id=19) -> 用户新增(api_id=4)
@@ -433,7 +443,668 @@ VALUES
 ON DUPLICATE KEY UPDATE `deleted_at`=0;
 
 -- ============================================
--- 3. 保护初始化数据不被删除（触发器）
+-- 3. 日志与监控相关模块初始化数据（归类到系统管理）
+-- ============================================
+
+-- 获取系统管理目录菜单ID（path = '/system'）
+SET @system_menu_id = (SELECT `id` FROM `admin_menu` WHERE `path` = '/system' AND `deleted_at` = 0 LIMIT 1);
+
+-- ==========================
+-- 3.1 操作日志模块
+-- ==========================
+-- 操作日志主菜单（系统管理下）
+INSERT INTO `admin_menu` (`parent_id`, `name`, `path`, `component`, `icon`, `type`, `order_num`, `visible`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES (
+    @system_menu_id,
+    '操作日志',
+    '/system/operation-log',
+    'system/OperationLogList',
+    'ele-Document',
+    2, -- 类型：2 菜单
+    30, -- 排序值
+    1, -- 是否可见：1 是
+    1, -- 状态：1 启用
+    UNIX_TIMESTAMP(),
+    UNIX_TIMESTAMP(),
+    0
+)
+ON DUPLICATE KEY UPDATE 
+    `name`=VALUES(`name`),
+    `component`=VALUES(`component`),
+    `icon`=VALUES(`icon`),
+    `type`=VALUES(`type`),
+    `order_num`=VALUES(`order_num`),
+    `visible`=VALUES(`visible`),
+    `status`=VALUES(`status`),
+    `updated_at`=UNIX_TIMESTAMP(),
+    `deleted_at`=0;
+SET @operation_menu_id = (
+  SELECT `id` FROM `admin_menu` 
+  WHERE `path` = '/system/operation-log' AND `deleted_at` = 0 
+  LIMIT 1
+);
+
+-- 操作日志导出按钮
+INSERT INTO `admin_menu` (`parent_id`, `name`, `path`, `component`, `icon`, `type`, `order_num`, `visible`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES (
+    @operation_menu_id,
+    '操作日志 导出按钮',
+    '',
+    '',
+    '',
+    3, -- 类型：3 按钮
+    1, -- 排序值
+    0, -- 是否可见：0 否（按钮不显示在菜单中）
+    1, -- 状态：1 启用
+    UNIX_TIMESTAMP(),
+    UNIX_TIMESTAMP(),
+    0
+)
+ON DUPLICATE KEY UPDATE 
+    `name`=VALUES(`name`),
+    `order_num`=VALUES(`order_num`),
+    `visible`=VALUES(`visible`),
+    `status`=VALUES(`status`),
+    `updated_at`=UNIX_TIMESTAMP(),
+    `deleted_at`=0;
+SET @operation_export_button_id = (
+  SELECT `id` FROM `admin_menu`
+  WHERE `parent_id` = @operation_menu_id 
+    AND `name` = '操作日志 导出按钮'
+    AND `deleted_at` = 0
+  LIMIT 1
+);
+
+-- 操作日志权限
+INSERT INTO `admin_permission` (`name`, `code`, `description`, `created_at`, `updated_at`, `deleted_at`)
+VALUES 
+  ('操作日志列表', 'operation_log:list', '查看操作日志列表', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('操作日志详情', 'operation_log:detail', '查看操作日志详情', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('操作日志导出', 'operation_log:export', '导出操作日志', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE 
+  `name`=VALUES(`name`),
+  `description`=VALUES(`description`),
+  `updated_at`=UNIX_TIMESTAMP(),
+  `deleted_at`=0;
+SET @operation_list_permission_id = (
+  SELECT `id` FROM `admin_permission` 
+  WHERE `code` = 'operation_log:list' AND `deleted_at` = 0 
+  LIMIT 1
+);
+SET @operation_detail_permission_id = (
+  SELECT `id` FROM `admin_permission` 
+  WHERE `code` = 'operation_log:detail' AND `deleted_at` = 0 
+  LIMIT 1
+);
+SET @operation_export_permission_id = (
+  SELECT `id` FROM `admin_permission` 
+  WHERE `code` = 'operation_log:export' AND `deleted_at` = 0 
+  LIMIT 1
+);
+
+-- 操作日志接口
+INSERT INTO `admin_api` (`name`, `method`, `path`, `description`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES 
+  ('操作日志列表', 'GET', '/api/v1/operation-logs', '获取操作日志列表', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('操作日志详情', 'GET', '/api/v1/operation-logs/:id', '获取操作日志详情', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('操作日志导出', 'GET', '/api/v1/operation-logs/export', '导出操作日志', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE 
+  `name`=VALUES(`name`),
+  `description`=VALUES(`description`),
+  `status`=VALUES(`status`),
+  `updated_at`=UNIX_TIMESTAMP(),
+  `deleted_at`=0;
+SET @operation_list_api_id = (
+  SELECT `id` FROM `admin_api`
+  WHERE `method` = 'GET' AND `path` = '/api/v1/operation-logs' AND `deleted_at` = 0
+  LIMIT 1
+);
+SET @operation_detail_api_id = (
+  SELECT `id` FROM `admin_api`
+  WHERE `method` = 'GET' AND `path` = '/api/v1/operation-logs/:id' AND `deleted_at` = 0
+  LIMIT 1
+);
+SET @operation_export_api_id = (
+  SELECT `id` FROM `admin_api`
+  WHERE `method` = 'GET' AND `path` = '/api/v1/operation-logs/export' AND `deleted_at` = 0
+  LIMIT 1
+);
+
+-- 操作日志 权限-菜单 关联
+INSERT INTO `admin_permission_menu` (`permission_id`, `menu_id`, `created_at`, `updated_at`)
+VALUES 
+  (@operation_list_permission_id, @operation_menu_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (@operation_export_permission_id, @operation_export_button_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+ON DUPLICATE KEY UPDATE `updated_at` = UNIX_TIMESTAMP();
+
+-- 操作日志 权限-接口 关联
+INSERT INTO `admin_permission_api` (`permission_id`, `api_id`, `created_at`, `updated_at`)
+VALUES 
+  (@operation_list_permission_id, @operation_list_api_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (@operation_detail_permission_id, @operation_detail_api_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (@operation_export_permission_id, @operation_export_api_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+ON DUPLICATE KEY UPDATE `updated_at` = UNIX_TIMESTAMP();
+
+-- 超级管理员角色关联操作日志权限（role_id = 1）
+INSERT INTO `admin_role_permission` (`role_id`, `permission_id`, `created_at`, `updated_at`)
+VALUES
+  (1, @operation_list_permission_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (1, @operation_detail_permission_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (1, @operation_export_permission_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+ON DUPLICATE KEY UPDATE `updated_at` = UNIX_TIMESTAMP();
+
+-- ==========================
+-- 3.2 登录日志模块
+-- ==========================
+-- 登录日志主菜单（系统管理下）
+INSERT INTO `admin_menu` (`parent_id`, `name`, `path`, `component`, `icon`, `type`, `order_num`, `visible`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES (
+    @system_menu_id,
+    '登录日志',
+    '/system/login-log',
+    'system/LoginLogList',
+    'ele-Document',
+    2, -- 类型：2 菜单
+    31, -- 排序值
+    1, -- 是否可见：1 是
+    1, -- 状态：1 启用
+    UNIX_TIMESTAMP(),
+    UNIX_TIMESTAMP(),
+    0
+)
+ON DUPLICATE KEY UPDATE 
+    `name`=VALUES(`name`),
+    `component`=VALUES(`component`),
+    `icon`=VALUES(`icon`),
+    `type`=VALUES(`type`),
+    `order_num`=VALUES(`order_num`),
+    `visible`=VALUES(`visible`),
+    `status`=VALUES(`status`),
+    `updated_at`=UNIX_TIMESTAMP(),
+    `deleted_at`=0;
+SET @login_menu_id = (
+  SELECT `id` FROM `admin_menu`
+  WHERE `path` = '/system/login-log' AND `deleted_at` = 0
+  LIMIT 1
+);
+
+-- 登录日志详情按钮
+INSERT INTO `admin_menu` (`parent_id`, `name`, `path`, `component`, `icon`, `type`, `order_num`, `visible`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES (
+    @login_menu_id,
+    '登录日志 详情按钮',
+    '',
+    '',
+    '',
+    3, -- 类型：3 按钮
+    1, -- 排序值
+    0, -- 是否可见：0 否
+    1, -- 状态：1 启用
+    UNIX_TIMESTAMP(),
+    UNIX_TIMESTAMP(),
+    0
+)
+ON DUPLICATE KEY UPDATE 
+    `name`=VALUES(`name`),
+    `order_num`=VALUES(`order_num`),
+    `visible`=VALUES(`visible`),
+    `status`=VALUES(`status`),
+    `updated_at`=UNIX_TIMESTAMP(),
+    `deleted_at`=0;
+SET @login_detail_button_id = (
+  SELECT `id` FROM `admin_menu`
+  WHERE `parent_id` = @login_menu_id 
+    AND `name` = '登录日志 详情按钮'
+    AND `deleted_at` = 0
+  LIMIT 1
+);
+
+-- 登录日志导出按钮
+INSERT INTO `admin_menu` (`parent_id`, `name`, `path`, `component`, `icon`, `type`, `order_num`, `visible`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES (
+    @login_menu_id,
+    '登录日志 导出按钮',
+    '',
+    '',
+    '',
+    3, -- 类型：3 按钮
+    2, -- 排序值
+    0, -- 是否可见：0 否
+    1, -- 状态：1 启用
+    UNIX_TIMESTAMP(),
+    UNIX_TIMESTAMP(),
+    0
+)
+ON DUPLICATE KEY UPDATE 
+    `name`=VALUES(`name`),
+    `order_num`=VALUES(`order_num`),
+    `visible`=VALUES(`visible`),
+    `status`=VALUES(`status`),
+    `updated_at`=UNIX_TIMESTAMP(),
+    `deleted_at`=0;
+SET @login_export_button_id = (
+  SELECT `id` FROM `admin_menu`
+  WHERE `parent_id` = @login_menu_id 
+    AND `name` = '登录日志 导出按钮'
+    AND `deleted_at` = 0
+  LIMIT 1
+);
+
+-- 登录日志权限
+INSERT INTO `admin_permission` (`name`, `code`, `description`, `created_at`, `updated_at`, `deleted_at`)
+VALUES 
+  ('登录日志列表', 'login_log:list', '查看登录日志列表', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('登录日志详情', 'login_log:detail', '查看登录日志详情', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('登录日志导出', 'login_log:export', '导出登录日志', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE 
+  `name`=VALUES(`name`),
+  `description`=VALUES(`description`),
+  `updated_at`=UNIX_TIMESTAMP(),
+  `deleted_at`=0;
+SET @login_list_permission_id = (
+  SELECT `id` FROM `admin_permission`
+  WHERE `code` = 'login_log:list' AND `deleted_at` = 0
+  LIMIT 1
+);
+SET @login_detail_permission_id = (
+  SELECT `id` FROM `admin_permission`
+  WHERE `code` = 'login_log:detail' AND `deleted_at` = 0
+  LIMIT 1
+);
+SET @login_export_permission_id = (
+  SELECT `id` FROM `admin_permission`
+  WHERE `code` = 'login_log:export' AND `deleted_at` = 0
+  LIMIT 1
+);
+
+-- 登录日志接口
+INSERT INTO `admin_api` (`name`, `method`, `path`, `description`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES 
+  ('登录日志列表', 'GET', '/api/v1/login-logs', '获取登录日志列表', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('登录日志详情', 'GET', '/api/v1/login-logs/:id', '获取登录日志详情', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('登录日志导出', 'GET', '/api/v1/login-logs/export', '导出登录日志', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE 
+  `name`=VALUES(`name`),
+  `description`=VALUES(`description`),
+  `status`=VALUES(`status`),
+  `updated_at`=UNIX_TIMESTAMP(),
+  `deleted_at`=0;
+SET @login_list_api_id = (
+  SELECT `id` FROM `admin_api`
+  WHERE `method` = 'GET' AND `path` = '/api/v1/login-logs' AND `deleted_at` = 0
+  LIMIT 1
+);
+SET @login_detail_api_id = (
+  SELECT `id` FROM `admin_api`
+  WHERE `method` = 'GET' AND `path` = '/api/v1/login-logs/:id' AND `deleted_at` = 0
+  LIMIT 1
+);
+SET @login_export_api_id = (
+  SELECT `id` FROM `admin_api`
+  WHERE `method` = 'GET' AND `path` = '/api/v1/login-logs/export' AND `deleted_at` = 0
+  LIMIT 1
+);
+
+-- 登录日志 权限-菜单 关联
+INSERT INTO `admin_permission_menu` (`permission_id`, `menu_id`, `created_at`, `updated_at`)
+VALUES 
+  (@login_list_permission_id, @login_menu_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (@login_detail_permission_id, @login_detail_button_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (@login_export_permission_id, @login_export_button_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+ON DUPLICATE KEY UPDATE `updated_at` = UNIX_TIMESTAMP();
+
+-- 登录日志 权限-接口 关联
+INSERT INTO `admin_permission_api` (`permission_id`, `api_id`, `created_at`, `updated_at`)
+VALUES 
+  (@login_list_permission_id, @login_list_api_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (@login_detail_permission_id, @login_detail_api_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (@login_export_permission_id, @login_export_api_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+ON DUPLICATE KEY UPDATE `updated_at` = UNIX_TIMESTAMP();
+
+-- 超级管理员角色关联登录日志权限（role_id = 1）
+INSERT INTO `admin_role_permission` (`role_id`, `permission_id`, `created_at`, `updated_at`)
+VALUES
+  (1, @login_list_permission_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (1, @login_detail_permission_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (1, @login_export_permission_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+ON DUPLICATE KEY UPDATE `updated_at` = UNIX_TIMESTAMP();
+
+-- ==========================
+-- 3.3 审计日志模块
+-- ==========================
+-- 审计日志主菜单（系统管理下）
+INSERT INTO `admin_menu` (`parent_id`, `name`, `path`, `component`, `icon`, `type`, `order_num`, `visible`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES (
+    @system_menu_id,
+    '审计日志',
+    '/system/audit-log',
+    'system/AuditLogList',
+    'ele-Document',
+    2, -- 类型：2 菜单
+    32, -- 排序值
+    1, -- 是否可见：1 是
+    1, -- 状态：1 启用
+    UNIX_TIMESTAMP(),
+    UNIX_TIMESTAMP(),
+    0
+)
+ON DUPLICATE KEY UPDATE 
+    `name`=VALUES(`name`),
+    `component`=VALUES(`component`),
+    `icon`=VALUES(`icon`),
+    `type`=VALUES(`type`),
+    `order_num`=VALUES(`order_num`),
+    `visible`=VALUES(`visible`),
+    `status`=VALUES(`status`),
+    `updated_at`=UNIX_TIMESTAMP(),
+    `deleted_at`=0;
+SET @audit_menu_id = (
+  SELECT `id` FROM `admin_menu`
+  WHERE `path` = '/system/audit-log' AND `deleted_at` = 0
+  LIMIT 1
+);
+
+-- 审计日志导出按钮
+INSERT INTO `admin_menu` (`parent_id`, `name`, `path`, `component`, `icon`, `type`, `order_num`, `visible`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES (
+    @audit_menu_id,
+    '审计日志 导出按钮',
+    '',
+    '',
+    '',
+    3, -- 类型：3 按钮
+    1, -- 排序值
+    0, -- 是否可见：0 否（按钮不显示在菜单中）
+    1, -- 状态：1 启用
+    UNIX_TIMESTAMP(),
+    UNIX_TIMESTAMP(),
+    0
+)
+ON DUPLICATE KEY UPDATE 
+    `name`=VALUES(`name`),
+    `order_num`=VALUES(`order_num`),
+    `visible`=VALUES(`visible`),
+    `status`=VALUES(`status`),
+    `updated_at`=UNIX_TIMESTAMP(),
+    `deleted_at`=0;
+SET @audit_export_button_id = (
+  SELECT `id` FROM `admin_menu`
+  WHERE `parent_id` = @audit_menu_id 
+    AND `name` = '审计日志 导出按钮'
+    AND `deleted_at` = 0
+  LIMIT 1
+);
+
+-- 审计日志权限
+INSERT INTO `admin_permission` (`name`, `code`, `description`, `created_at`, `updated_at`, `deleted_at`)
+VALUES 
+  ('审计日志列表', 'audit_log:list', '查看审计日志列表', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('审计日志详情', 'audit_log:detail', '查看审计日志详情', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('审计日志导出', 'audit_log:export', '导出审计日志', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE 
+  `name`=VALUES(`name`),
+  `description`=VALUES(`description`),
+  `updated_at`=UNIX_TIMESTAMP(),
+  `deleted_at`=0;
+SET @audit_list_permission_id = (
+  SELECT `id` FROM `admin_permission`
+  WHERE `code` = 'audit_log:list' AND `deleted_at` = 0
+  LIMIT 1
+);
+SET @audit_detail_permission_id = (
+  SELECT `id` FROM `admin_permission`
+  WHERE `code` = 'audit_log:detail' AND `deleted_at` = 0
+  LIMIT 1
+);
+SET @audit_export_permission_id = (
+  SELECT `id` FROM `admin_permission`
+  WHERE `code` = 'audit_log:export' AND `deleted_at` = 0
+  LIMIT 1
+);
+
+-- 审计日志接口
+INSERT INTO `admin_api` (`name`, `method`, `path`, `description`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES 
+  ('审计日志列表', 'GET', '/api/v1/audit-logs', '获取审计日志列表', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('审计日志详情', 'GET', '/api/v1/audit-logs/:id', '获取审计日志详情', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('审计日志导出', 'GET', '/api/v1/audit-logs/export', '导出审计日志', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE 
+  `name`=VALUES(`name`),
+  `description`=VALUES(`description`),
+  `status`=VALUES(`status`),
+  `updated_at`=UNIX_TIMESTAMP(),
+  `deleted_at`=0;
+SET @audit_list_api_id = (
+  SELECT `id` FROM `admin_api`
+  WHERE `method` = 'GET' AND `path` = '/api/v1/audit-logs' AND `deleted_at` = 0
+  LIMIT 1
+);
+SET @audit_detail_api_id = (
+  SELECT `id` FROM `admin_api`
+  WHERE `method` = 'GET' AND `path` = '/api/v1/audit-logs/:id' AND `deleted_at` = 0
+  LIMIT 1
+);
+SET @audit_export_api_id = (
+  SELECT `id` FROM `admin_api`
+  WHERE `method` = 'GET' AND `path` = '/api/v1/audit-logs/export' AND `deleted_at` = 0
+  LIMIT 1
+);
+
+-- 审计日志 权限-菜单 关联
+INSERT INTO `admin_permission_menu` (`permission_id`, `menu_id`, `created_at`, `updated_at`)
+VALUES 
+  (@audit_list_permission_id, @audit_menu_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (@audit_export_permission_id, @audit_export_button_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+ON DUPLICATE KEY UPDATE `updated_at` = UNIX_TIMESTAMP();
+
+-- 审计日志 权限-接口 关联
+INSERT INTO `admin_permission_api` (`permission_id`, `api_id`, `created_at`, `updated_at`)
+VALUES 
+  (@audit_list_permission_id, @audit_list_api_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (@audit_detail_permission_id, @audit_detail_api_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (@audit_export_permission_id, @audit_export_api_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+ON DUPLICATE KEY UPDATE `updated_at` = UNIX_TIMESTAMP();
+
+-- 超级管理员角色关联审计日志权限（role_id = 1）
+INSERT INTO `admin_role_permission` (`role_id`, `permission_id`, `created_at`, `updated_at`)
+VALUES
+  (1, @audit_list_permission_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (1, @audit_detail_permission_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (1, @audit_export_permission_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+ON DUPLICATE KEY UPDATE `updated_at` = UNIX_TIMESTAMP();
+
+-- ==========================
+-- 3.4 性能监控日志模块
+-- ==========================
+-- 性能监控日志主菜单（系统管理下）
+INSERT INTO `admin_menu` (`parent_id`, `name`, `path`, `component`, `icon`, `type`, `order_num`, `visible`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES (
+    @system_menu_id,
+    '性能监控日志',
+    '/system/performance-log',
+    'system/PerformanceLogList',
+    'ele-Document',
+    2, -- 类型：2 菜单
+    33, -- 排序值
+    1, -- 是否可见：1 是
+    1, -- 状态：1 启用
+    UNIX_TIMESTAMP(),
+    UNIX_TIMESTAMP(),
+    0
+)
+ON DUPLICATE KEY UPDATE 
+    `name`=VALUES(`name`),
+    `component`=VALUES(`component`),
+    `icon`=VALUES(`icon`),
+    `type`=VALUES(`type`),
+    `order_num`=VALUES(`order_num`),
+    `visible`=VALUES(`visible`),
+    `status`=VALUES(`status`),
+    `updated_at`=UNIX_TIMESTAMP(),
+    `deleted_at`=0;
+SET @performance_menu_id = (
+  SELECT `id` FROM `admin_menu`
+  WHERE `path` = '/system/performance-log' AND `deleted_at` = 0
+  LIMIT 1
+);
+
+-- 性能监控日志列表权限
+INSERT INTO `admin_permission` (`name`, `code`, `description`, `created_at`, `updated_at`, `deleted_at`)
+VALUES (
+    '性能监控日志列表',
+    'performance_log:list',
+    '查看性能监控日志列表',
+    UNIX_TIMESTAMP(),
+    UNIX_TIMESTAMP(),
+    0
+)
+ON DUPLICATE KEY UPDATE 
+  `name`=VALUES(`name`),
+  `description`=VALUES(`description`),
+  `updated_at`=UNIX_TIMESTAMP(),
+  `deleted_at`=0;
+SET @performance_list_permission_id = (
+  SELECT `id` FROM `admin_permission`
+  WHERE `code` = 'performance_log:list' AND `deleted_at` = 0
+  LIMIT 1
+);
+
+-- 性能监控日志列表接口
+INSERT INTO `admin_api` (`name`, `method`, `path`, `description`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES (
+    '性能监控日志列表',
+    'GET',
+    '/api/v1/performance-logs',
+    '获取性能监控日志列表',
+    1,
+    UNIX_TIMESTAMP(),
+    UNIX_TIMESTAMP(),
+    0
+)
+ON DUPLICATE KEY UPDATE 
+  `name`=VALUES(`name`),
+  `description`=VALUES(`description`),
+  `status`=VALUES(`status`),
+  `updated_at`=UNIX_TIMESTAMP(),
+  `deleted_at`=0;
+SET @performance_list_api_id = (
+  SELECT `id` FROM `admin_api`
+  WHERE `method` = 'GET' AND `path` = '/api/v1/performance-logs' AND `deleted_at` = 0
+  LIMIT 1
+);
+
+-- 性能监控日志 权限-菜单 关联
+INSERT INTO `admin_permission_menu` (`permission_id`, `menu_id`, `created_at`, `updated_at`)
+VALUES (@performance_list_permission_id, @performance_menu_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+ON DUPLICATE KEY UPDATE `updated_at` = UNIX_TIMESTAMP();
+
+-- 性能监控日志 权限-接口 关联
+INSERT INTO `admin_permission_api` (`permission_id`, `api_id`, `created_at`, `updated_at`)
+VALUES (@performance_list_permission_id, @performance_list_api_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+ON DUPLICATE KEY UPDATE `updated_at` = UNIX_TIMESTAMP();
+
+-- 超级管理员角色关联性能监控日志权限（role_id = 1）
+INSERT INTO `admin_role_permission` (`role_id`, `permission_id`, `created_at`, `updated_at`)
+VALUES (1, @performance_list_permission_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+ON DUPLICATE KEY UPDATE `updated_at` = UNIX_TIMESTAMP();
+
+-- ==========================
+-- 3.5 系统监控模块
+-- ==========================
+-- 系统监控主菜单（系统管理下）
+INSERT INTO `admin_menu` (`parent_id`, `name`, `path`, `component`, `icon`, `type`, `order_num`, `visible`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES (
+    @system_menu_id,
+    '系统监控',
+    '/system/monitor',
+    'system/MonitorList',
+    'ele-Monitor',
+    2, -- 类型：2 菜单
+    34, -- 排序值
+    1, -- 是否可见：1 是
+    1, -- 状态：1 启用
+    UNIX_TIMESTAMP(),
+    UNIX_TIMESTAMP(),
+    0
+)
+ON DUPLICATE KEY UPDATE 
+    `name`=VALUES(`name`),
+    `component`=VALUES(`component`),
+    `icon`=VALUES(`icon`),
+    `type`=VALUES(`type`),
+    `order_num`=VALUES(`order_num`),
+    `visible`=VALUES(`visible`),
+    `status`=VALUES(`status`),
+    `updated_at`=UNIX_TIMESTAMP(),
+    `deleted_at`=0;
+SET @monitor_menu_id = (
+  SELECT `id` FROM `admin_menu`
+  WHERE `path` = '/system/monitor' AND `deleted_at` = 0
+  LIMIT 1
+);
+
+-- 系统监控查看权限
+INSERT INTO `admin_permission` (`name`, `code`, `description`, `created_at`, `updated_at`, `deleted_at`)
+VALUES (
+    '系统监控查看',
+    'monitor:view',
+    '查看系统监控信息',
+    UNIX_TIMESTAMP(),
+    UNIX_TIMESTAMP(),
+    0
+)
+ON DUPLICATE KEY UPDATE 
+  `name`=VALUES(`name`),
+  `description`=VALUES(`description`),
+  `updated_at`=UNIX_TIMESTAMP(),
+  `deleted_at`=0;
+SET @monitor_view_permission_id = (
+  SELECT `id` FROM `admin_permission`
+  WHERE `code` = 'monitor:view' AND `deleted_at` = 0
+  LIMIT 1
+);
+
+-- 系统监控接口
+INSERT INTO `admin_api` (`name`, `method`, `path`, `description`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES 
+  ('系统监控状态', 'GET', '/api/v1/monitor/status', '获取系统资源使用情况（CPU、内存、磁盘、网络）', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('系统统计', 'GET', '/api/v1/monitor/stats', '获取系统统计数据（用户数、角色数、权限数等）', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE 
+  `name`=VALUES(`name`),
+  `description`=VALUES(`description`),
+  `status`=VALUES(`status`),
+  `updated_at`=UNIX_TIMESTAMP(),
+  `deleted_at`=0;
+SET @monitor_status_api_id = (
+  SELECT `id` FROM `admin_api`
+  WHERE `method` = 'GET' AND `path` = '/api/v1/monitor/status' AND `deleted_at` = 0
+  LIMIT 1
+);
+SET @monitor_stats_api_id = (
+  SELECT `id` FROM `admin_api`
+  WHERE `method` = 'GET' AND `path` = '/api/v1/monitor/stats' AND `deleted_at` = 0
+  LIMIT 1
+);
+
+-- 系统监控 权限-菜单 关联
+INSERT INTO `admin_permission_menu` (`permission_id`, `menu_id`, `created_at`, `updated_at`)
+VALUES (@monitor_view_permission_id, @monitor_menu_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+ON DUPLICATE KEY UPDATE `updated_at` = UNIX_TIMESTAMP();
+
+-- 系统监控 权限-接口 关联
+INSERT INTO `admin_permission_api` (`permission_id`, `api_id`, `created_at`, `updated_at`)
+VALUES 
+  (@monitor_view_permission_id, @monitor_status_api_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (@monitor_view_permission_id, @monitor_stats_api_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+ON DUPLICATE KEY UPDATE `updated_at` = UNIX_TIMESTAMP();
+
+-- 超级管理员角色关联系统监控权限（role_id = 1）
+INSERT INTO `admin_role_permission` (`role_id`, `permission_id`, `created_at`, `updated_at`)
+VALUES (1, @monitor_view_permission_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+ON DUPLICATE KEY UPDATE `updated_at` = UNIX_TIMESTAMP();
+
+-- ============================================
+-- 4. 保护初始化数据不被删除（触发器）
 -- ============================================
 -- 注意：触发器只能阻止软删除（UPDATE deleted_at），硬删除（DELETE）需要在业务代码中检查
 

@@ -7,15 +7,22 @@ import (
 	"net/http"
 
 	api "postapocgame/admin-server/internal/handler/api"
+	audit_log "postapocgame/admin-server/internal/handler/audit_log"
 	auth "postapocgame/admin-server/internal/handler/auth"
 	cache "postapocgame/admin-server/internal/handler/cache"
+	chat "postapocgame/admin-server/internal/handler/chat"
 	config "postapocgame/admin-server/internal/handler/config"
+	demo "postapocgame/admin-server/internal/handler/demo"
 	department "postapocgame/admin-server/internal/handler/department"
 	dict "postapocgame/admin-server/internal/handler/dict"
 	dict_item "postapocgame/admin-server/internal/handler/dict_item"
 	dict_type "postapocgame/admin-server/internal/handler/dict_type"
 	file "postapocgame/admin-server/internal/handler/file"
+	login_log "postapocgame/admin-server/internal/handler/login_log"
 	menu "postapocgame/admin-server/internal/handler/menu"
+	monitor "postapocgame/admin-server/internal/handler/monitor"
+	operation_log "postapocgame/admin-server/internal/handler/operation_log"
+	performance_log "postapocgame/admin-server/internal/handler/performance_log"
 	permission "postapocgame/admin-server/internal/handler/permission"
 	permission_api "postapocgame/admin-server/internal/handler/permission_api"
 	permission_menu "postapocgame/admin-server/internal/handler/permission_menu"
@@ -32,7 +39,7 @@ import (
 func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 	server.AddRoutes(
 		rest.WithMiddlewares(
-			[]rest.Middleware{serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware},
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
 			[]rest.Route{
 				{
 					Method:  http.MethodGet,
@@ -60,6 +67,30 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 	)
 
 	server.AddRoutes(
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
+			[]rest.Route{
+				{
+					Method:  http.MethodGet,
+					Path:    "/audit-logs",
+					Handler: audit_log.AuditLogListHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/audit-logs/:id",
+					Handler: audit_log.AuditLogDetailHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/audit-logs/export",
+					Handler: audit_log.AuditLogExportHandler(serverCtx),
+				},
+			}...,
+		),
+		rest.WithPrefix("/api/v1"),
+	)
+
+	server.AddRoutes(
 		[]rest.Route{
 			{
 				Method:  http.MethodPost,
@@ -77,7 +108,7 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 
 	server.AddRoutes(
 		rest.WithMiddlewares(
-			[]rest.Middleware{serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware},
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
 			[]rest.Route{
 				{
 					Method:  http.MethodPost,
@@ -89,6 +120,16 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 					Path:    "/profile",
 					Handler: auth.ProfileHandler(serverCtx),
 				},
+				{
+					Method:  http.MethodPut,
+					Path:    "/profile",
+					Handler: auth.ProfileUpdateHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/profile/password",
+					Handler: auth.PasswordChangeHandler(serverCtx),
+				},
 			}...,
 		),
 		rest.WithPrefix("/api/v1"),
@@ -96,7 +137,45 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 
 	server.AddRoutes(
 		rest.WithMiddlewares(
-			[]rest.Middleware{serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware},
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
+			[]rest.Route{
+				{
+					Method:  http.MethodPost,
+					Path:    "/cache/refresh",
+					Handler: cache.CacheRefreshHandler(serverCtx),
+				},
+			}...,
+		),
+		rest.WithPrefix("/api/v1"),
+	)
+
+	server.AddRoutes(
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
+			[]rest.Route{
+				{
+					Method:  http.MethodGet,
+					Path:    "/chats/messages",
+					Handler: chat.ChatMessageListHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/chats/messages",
+					Handler: chat.ChatMessageSendHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/chats/online-users",
+					Handler: chat.ChatOnlineUsersHandler(serverCtx),
+				},
+			}...,
+		),
+		rest.WithPrefix("/api/v1"),
+	)
+
+	server.AddRoutes(
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
 			[]rest.Route{
 				{
 					Method:  http.MethodGet,
@@ -130,12 +209,27 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 
 	server.AddRoutes(
 		rest.WithMiddlewares(
-			[]rest.Middleware{serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware},
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
 			[]rest.Route{
 				{
+					Method:  http.MethodGet,
+					Path:    "/demos",
+					Handler: demo.DemoListHandler(serverCtx),
+				},
+				{
 					Method:  http.MethodPost,
-					Path:    "/cache/refresh",
-					Handler: cache.CacheRefreshHandler(serverCtx),
+					Path:    "/demos",
+					Handler: demo.DemoCreateHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPut,
+					Path:    "/demos",
+					Handler: demo.DemoUpdateHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodDelete,
+					Path:    "/demos",
+					Handler: demo.DemoDeleteHandler(serverCtx),
 				},
 			}...,
 		),
@@ -144,7 +238,7 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 
 	server.AddRoutes(
 		rest.WithMiddlewares(
-			[]rest.Middleware{serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware},
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
 			[]rest.Route{
 				{
 					Method:  http.MethodPost,
@@ -184,7 +278,7 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 
 	server.AddRoutes(
 		rest.WithMiddlewares(
-			[]rest.Middleware{serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware},
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
 			[]rest.Route{
 				{
 					Method:  http.MethodGet,
@@ -213,7 +307,7 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 
 	server.AddRoutes(
 		rest.WithMiddlewares(
-			[]rest.Middleware{serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware},
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
 			[]rest.Route{
 				{
 					Method:  http.MethodGet,
@@ -242,7 +336,7 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 
 	server.AddRoutes(
 		rest.WithMiddlewares(
-			[]rest.Middleware{serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware},
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
 			[]rest.Route{
 				{
 					Method:  http.MethodGet,
@@ -281,7 +375,36 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 
 	server.AddRoutes(
 		rest.WithMiddlewares(
-			[]rest.Middleware{serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware},
+			[]rest.Middleware{serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
+			[]rest.Route{
+				{
+					Method:  http.MethodGet,
+					Path:    "/login-logs",
+					Handler: login_log.LoginLogListHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/login-logs/:id",
+					Handler: login_log.LoginLogDetailHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/login-logs/export",
+					Handler: login_log.LoginLogExportHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/login-logs/stats",
+					Handler: login_log.LoginLogStatsHandler(serverCtx),
+				},
+			}...,
+		),
+		rest.WithPrefix("/api/v1"),
+	)
+
+	server.AddRoutes(
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
 			[]rest.Route{
 				{
 					Method:  http.MethodPost,
@@ -315,7 +438,64 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 
 	server.AddRoutes(
 		rest.WithMiddlewares(
-			[]rest.Middleware{serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware},
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
+			[]rest.Route{
+				{
+					Method:  http.MethodGet,
+					Path:    "/monitor/stats",
+					Handler: monitor.MonitorStatsHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/monitor/status",
+					Handler: monitor.MonitorStatusHandler(serverCtx),
+				},
+			}...,
+		),
+		rest.WithPrefix("/api/v1"),
+	)
+
+	server.AddRoutes(
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
+			[]rest.Route{
+				{
+					Method:  http.MethodGet,
+					Path:    "/operation-logs",
+					Handler: operation_log.OperationLogListHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/operation-logs/:id",
+					Handler: operation_log.OperationLogDetailHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/operation-logs/export",
+					Handler: operation_log.OperationLogExportHandler(serverCtx),
+				},
+			}...,
+		),
+		rest.WithPrefix("/api/v1"),
+	)
+
+	server.AddRoutes(
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
+			[]rest.Route{
+				{
+					Method:  http.MethodGet,
+					Path:    "/performance-logs",
+					Handler: performance_log.PerformanceLogListHandler(serverCtx),
+				},
+			}...,
+		),
+		rest.WithPrefix("/api/v1"),
+	)
+
+	server.AddRoutes(
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
 			[]rest.Route{
 				{
 					Method:  http.MethodGet,
@@ -344,7 +524,7 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 
 	server.AddRoutes(
 		rest.WithMiddlewares(
-			[]rest.Middleware{serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware},
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
 			[]rest.Route{
 				{
 					Method:  http.MethodGet,
@@ -363,7 +543,7 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 
 	server.AddRoutes(
 		rest.WithMiddlewares(
-			[]rest.Middleware{serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware},
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
 			[]rest.Route{
 				{
 					Method:  http.MethodGet,
@@ -393,7 +573,7 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 
 	server.AddRoutes(
 		rest.WithMiddlewares(
-			[]rest.Middleware{serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware},
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
 			[]rest.Route{
 				{
 					Method:  http.MethodGet,
@@ -422,7 +602,7 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 
 	server.AddRoutes(
 		rest.WithMiddlewares(
-			[]rest.Middleware{serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware},
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
 			[]rest.Route{
 				{
 					Method:  http.MethodGet,
@@ -441,7 +621,7 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 
 	server.AddRoutes(
 		rest.WithMiddlewares(
-			[]rest.Middleware{serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware},
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
 			[]rest.Route{
 				{
 					Method:  http.MethodGet,
@@ -470,7 +650,7 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 
 	server.AddRoutes(
 		rest.WithMiddlewares(
-			[]rest.Middleware{serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware},
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
 			[]rest.Route{
 				{
 					Method:  http.MethodGet,

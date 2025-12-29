@@ -48,6 +48,8 @@ type (
 		Id           uint64 `db:"id"`            // 主键 ID
 		Username     string `db:"username"`      // 用户名
 		PasswordHash string `db:"password_hash"` // bcrypt 加密后的密码
+		Avatar       string `db:"avatar"`        // 头像URL
+		Signature    string `db:"signature"`     // 个性签名
 		DepartmentId uint64 `db:"department_id"` // 部门ID
 		Status       int64  `db:"status"`        // 账号状态：1 启用，0 禁用
 		CreatedAt    int64  `db:"created_at"`    // 创建时间(秒级时间戳)
@@ -154,8 +156,8 @@ func (m *defaultAdminUserModel) Insert(ctx context.Context, data *AdminUser) (sq
 	ret, err := m.ExecCtx(ctx, func(ctx context.Context, conn sqlx.SqlConn) (result sql.Result, err error) {
 		// 手动构建包含 created_at、updated_at 的插入语句
 		// 如果表有 deleted_at 字段，它已经在 RowsExpectAutoSet 中，不需要重复添加
-		query := fmt.Sprintf("insert into %s (%s, `created_at`, `updated_at`) values (?, ?, ?, ?, ?, ?, ?)", m.table, adminUserRowsExpectAutoSet)
-		return conn.ExecCtx(ctx, query, data.Username, data.PasswordHash, data.DepartmentId, data.Status, data.DeletedAt, data.CreatedAt, data.UpdatedAt)
+		query := fmt.Sprintf("insert into %s (%s, `created_at`, `updated_at`) values (?, ?, ?, ?, ?, ?, ?, ?, ?)", m.table, adminUserRowsExpectAutoSet)
+		return conn.ExecCtx(ctx, query, data.Username, data.PasswordHash, data.Avatar, data.Signature, data.DepartmentId, data.Status, data.DeletedAt, data.CreatedAt, data.UpdatedAt)
 	}, adminUserIdKey, adminUserUsernameKey)
 	return ret, err
 }
@@ -179,7 +181,7 @@ func (m *defaultAdminUserModel) Update(ctx context.Context, newData *AdminUser) 
 			whereClause += " and deleted_at = 0"
 		}
 		query := fmt.Sprintf("update %s set %s, `updated_at` = %d %s", m.table, adminUserRowsWithPlaceHolder, newData.UpdatedAt, whereClause)
-		return conn.ExecCtx(ctx, query, newData.Username, newData.PasswordHash, newData.DepartmentId, newData.Status, newData.DeletedAt, newData.Id)
+		return conn.ExecCtx(ctx, query, newData.Username, newData.PasswordHash, newData.Avatar, newData.Signature, newData.DepartmentId, newData.Status, newData.DeletedAt, newData.Id)
 	}, adminUserIdKey, adminUserUsernameKey)
 	return err
 }

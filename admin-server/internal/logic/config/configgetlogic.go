@@ -33,6 +33,18 @@ func (l *ConfigGetLogic) ConfigGet(req *types.ConfigGetReq) (resp *types.ConfigG
 		return nil, errs.New(errs.CodeBadRequest, "配置键不能为空")
 	}
 
+	// 尝试从缓存获取配置
+	cache := l.svcCtx.Repository.BusinessCache
+	var cachedValue string
+	err = cache.GetConfigKey(l.ctx, req.Key, &cachedValue)
+	if err == nil {
+		// 缓存命中，直接返回
+		return &types.ConfigGetResp{
+			Value: cachedValue,
+		}, nil
+	}
+
+	// 缓存未命中，从数据库查询
 	configRepo := repository.NewConfigRepository(l.svcCtx.Repository)
 	config, err := configRepo.FindByKey(l.ctx, req.Key)
 	if err != nil {
@@ -44,7 +56,16 @@ func (l *ConfigGetLogic) ConfigGet(req *types.ConfigGetReq) (resp *types.ConfigG
 		value = config.Value.String
 	}
 
-	return &types.ConfigGetResp{
+	resp = &types.ConfigGetResp{
 		Value: value,
-	}, nil
+	}
+
+	// 写入缓存（异步，不阻塞返回）
+	go func() {
+		if err := cache.SetConfigKey(context.Background(), req.Key, value); err != nil {
+			l.Errorf("设置配置缓存失败: key=%s, error=%v", req.Key, err)
+		}
+	}()
+
+	return resp, nil
 }

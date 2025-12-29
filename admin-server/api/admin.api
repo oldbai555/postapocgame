@@ -9,7 +9,51 @@ info (
 type (
 	// 通用
 	PingResp {
-		message string `json:"message"`
+		status    string `json:"status"` // 服务状态：ok/error
+		message   string `json:"message"` // 响应消息
+		database  string `json:"database"` // 数据库状态：ok/error
+		redis     string `json:"redis"` // Redis状态：ok/error
+		version   string `json:"version"` // 服务版本
+		startTime int64  `json:"startTime"` // 启动时间（秒级时间戳）
+		uptime    int64  `json:"uptime"` // 运行时长（秒）
+	}
+	// 系统监控
+	MonitorStatusResp {
+		cpu     CPUInfo     `json:"cpu"` // CPU信息
+		memory  MemoryInfo  `json:"memory"` // 内存信息
+		disk    DiskInfo    `json:"disk"` // 磁盘信息
+		network NetworkInfo `json:"network"` // 网络信息
+	}
+	CPUInfo {
+		usage float64 `json:"usage"` // CPU使用率（百分比）
+		cores int     `json:"cores"` // CPU核心数
+	}
+	MemoryInfo {
+		total     uint64  `json:"total"` // 总内存（字节）
+		used      uint64  `json:"used"` // 已用内存（字节）
+		available uint64  `json:"available"` // 可用内存（字节）
+		usage     float64 `json:"usage"` // 内存使用率（百分比）
+	}
+	DiskInfo {
+		total     uint64  `json:"total"` // 总磁盘空间（字节）
+		used      uint64  `json:"used"` // 已用磁盘空间（字节）
+		available uint64  `json:"available"` // 可用磁盘空间（字节）
+		usage     float64 `json:"usage"` // 磁盘使用率（百分比）
+	}
+	NetworkInfo {
+		bytesSent   uint64 `json:"bytesSent"` // 发送字节数
+		bytesRecv   uint64 `json:"bytesRecv"` // 接收字节数
+		packetsSent uint64 `json:"packetsSent"` // 发送包数
+		packetsRecv uint64 `json:"packetsRecv"` // 接收包数
+	}
+	MonitorStatsResp {
+		userCount         int64 `json:"userCount"` // 用户总数
+		roleCount         int64 `json:"roleCount"` // 角色总数
+		permissionCount   int64 `json:"permissionCount"` // 权限总数
+		menuCount         int64 `json:"menuCount"` // 菜单总数
+		onlineUserCount   int64 `json:"onlineUserCount"` // 在线用户数
+		operationLogCount int64 `json:"operationLogCount"` // 操作日志总数
+		loginLogCount     int64 `json:"loginLogCount"` // 登录日志总数
 	}
 	// 认证相关
 	LoginReq {
@@ -30,12 +74,24 @@ type (
 	ProfileResp {
 		id          uint64   `json:"id"`
 		username    string   `json:"username"`
+		avatar      string   `json:"avatar,optional"`
+		signature   string   `json:"signature,optional"`
 		permissions []string `json:"permissions,optional"`
+	}
+	ProfileUpdateReq {
+		avatar    string `json:"avatar,optional"`
+		signature string `json:"signature,optional"`
+	}
+	PasswordChangeReq {
+		oldPassword string `json:"oldPassword"`
+		newPassword string `json:"newPassword"`
 	}
 	// 用户管理
 	UserItem {
 		id           uint64 `json:"id"`
 		username     string `json:"username"`
+		avatar       string `json:"avatar,optional"`
+		signature    string `json:"signature,optional"`
 		departmentId uint64 `json:"departmentId"`
 		status       int64  `json:"status"`
 		createdAt    string `json:"createdAt"`
@@ -52,6 +108,8 @@ type (
 	UserCreateReq {
 		username     string `json:"username"`
 		password     string `json:"password"`
+		avatar       string `json:"avatar,optional"`
+		signature    string `json:"signature,optional"`
 		departmentId uint64 `json:"departmentId"`
 		status       int64  `json:"status,optional"`
 	}
@@ -59,6 +117,8 @@ type (
 		id           uint64 `json:"id"`
 		username     string `json:"username,optional"`
 		password     string `json:"password,optional"`
+		avatar       string `json:"avatar,optional"`
+		signature    string `json:"signature,optional"`
 		departmentId uint64 `json:"departmentId,optional"`
 		status       int64  `json:"status,optional"`
 	}
@@ -442,6 +502,58 @@ type (
 		code  string         `json:"code"`
 		items []DictItemItem `json:"items"`
 	}
+	// 操作日志项
+	OperationLogItem {
+		id              uint64 `json:"id"`
+		userId          uint64 `json:"userId"`
+		username        string `json:"username"`
+		operationType   string `json:"operationType"`
+		operationObject string `json:"operationObject"`
+		method          string `json:"method"`
+		path            string `json:"path"`
+		requestParams   string `json:"requestParams,optional"`
+		responseCode    int    `json:"responseCode"`
+		responseMsg     string `json:"responseMsg"`
+		ipAddress       string `json:"ipAddress"`
+		userAgent       string `json:"userAgent,optional"`
+		duration        int    `json:"duration"`
+		createdAt       string `json:"createdAt"`
+	}
+	// 操作日志列表请求
+	OperationLogListReq {
+		page            int64  `json:"page,optional" form:"page,optional"`
+		pageSize        int64  `json:"pageSize,optional" form:"pageSize,optional"`
+		userId          uint64 `json:"userId,optional" form:"userId,optional"`
+		username        string `json:"username,optional" form:"username,optional"`
+		operationType   string `json:"operationType,optional" form:"operationType,optional"`
+		operationObject string `json:"operationObject,optional" form:"operationObject,optional"`
+		method          string `json:"method,optional" form:"method,optional"`
+		startTime       string `json:"startTime,optional" form:"startTime,optional"`
+		endTime         string `json:"endTime,optional" form:"endTime,optional"`
+	}
+	// 操作日志列表响应
+	OperationLogListResp {
+		total int64              `json:"total"`
+		list  []OperationLogItem `json:"list"`
+	}
+	// 操作日志详情响应
+	OperationLogDetailResp {
+		operationLog OperationLogItem `json:"operationLog"`
+	}
+	// 操作日志导出请求
+	OperationLogExportReq {
+		userId          uint64 `json:"userId,optional" form:"userId,optional"`
+		username        string `json:"username,optional" form:"username,optional"`
+		operationType   string `json:"operationType,optional" form:"operationType,optional"`
+		operationObject string `json:"operationObject,optional" form:"operationObject,optional"`
+		method          string `json:"method,optional" form:"method,optional"`
+		startTime       string `json:"startTime,optional" form:"startTime,optional"`
+		endTime         string `json:"endTime,optional" form:"endTime,optional"`
+	}
+	// 操作日志导出响应（实际在 Handler 中直接返回文件流，此类型仅用于 API 定义）
+	OperationLogExportResp {
+		url string `json:"url"`
+	}
 )
 
 @server (
@@ -451,6 +563,19 @@ type (
 service admin-api {
 	@handler Ping
 	get /ping returns (PingResp)
+}
+
+@server (
+	group:      monitor
+	prefix:     /api/v1
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
+)
+service admin-api {
+	@handler MonitorStatus
+	get /monitor/status returns (MonitorStatusResp)
+
+	@handler MonitorStats
+	get /monitor/stats returns (MonitorStatsResp)
 }
 
 @server (
@@ -468,7 +593,7 @@ service admin-api {
 @server (
 	group:      auth
 	prefix:     /api/v1
-	middleware: AuthMiddleware,PermissionMiddleware
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
 )
 service admin-api {
 	@handler Logout
@@ -476,12 +601,18 @@ service admin-api {
 
 	@handler Profile
 	get /profile returns (ProfileResp)
+
+	@handler ProfileUpdate
+	put /profile (ProfileUpdateReq)
+
+	@handler PasswordChange
+	post /profile/password (PasswordChangeReq)
 }
 
 @server (
 	group:      user
 	prefix:     /api/v1
-	middleware: AuthMiddleware,PermissionMiddleware
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
 )
 service admin-api {
 	@handler UserList
@@ -500,7 +631,7 @@ service admin-api {
 @server (
 	group:      role
 	prefix:     /api/v1
-	middleware: AuthMiddleware,PermissionMiddleware
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
 )
 service admin-api {
 	@handler RoleList
@@ -519,7 +650,7 @@ service admin-api {
 @server (
 	group:      permission
 	prefix:     /api/v1
-	middleware: AuthMiddleware,PermissionMiddleware
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
 )
 service admin-api {
 	@handler PermissionList
@@ -538,7 +669,7 @@ service admin-api {
 @server (
 	group:      department
 	prefix:     /api/v1
-	middleware: AuthMiddleware,PermissionMiddleware
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
 )
 service admin-api {
 	@handler DepartmentTree
@@ -557,7 +688,7 @@ service admin-api {
 @server (
 	group:      menu
 	prefix:     /api/v1
-	middleware: AuthMiddleware,PermissionMiddleware
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
 )
 service admin-api {
 	@handler MenuTree
@@ -579,7 +710,7 @@ service admin-api {
 @server (
 	group:      api
 	prefix:     /api/v1
-	middleware: AuthMiddleware,PermissionMiddleware
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
 )
 service admin-api {
 	@handler ApiList
@@ -598,7 +729,7 @@ service admin-api {
 @server (
 	group:      user_role
 	prefix:     /api/v1
-	middleware: AuthMiddleware,PermissionMiddleware
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
 )
 service admin-api {
 	@handler UserRoleList
@@ -611,7 +742,7 @@ service admin-api {
 @server (
 	group:      role_permission
 	prefix:     /api/v1
-	middleware: AuthMiddleware,PermissionMiddleware
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
 )
 service admin-api {
 	@handler RolePermissionList
@@ -624,7 +755,7 @@ service admin-api {
 @server (
 	group:      permission_menu
 	prefix:     /api/v1
-	middleware: AuthMiddleware,PermissionMiddleware
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
 )
 service admin-api {
 	@handler PermissionMenuList
@@ -637,7 +768,7 @@ service admin-api {
 @server (
 	group:      permission_api
 	prefix:     /api/v1
-	middleware: AuthMiddleware,PermissionMiddleware
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
 )
 service admin-api {
 	@handler PermissionApiList
@@ -650,7 +781,7 @@ service admin-api {
 @server (
 	group:      file
 	prefix:     /api/v1
-	middleware: AuthMiddleware,PermissionMiddleware
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
 )
 service admin-api {
 	@handler FileList
@@ -675,7 +806,7 @@ service admin-api {
 @server (
 	group:      config
 	prefix:     /api/v1
-	middleware: AuthMiddleware,PermissionMiddleware
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
 )
 service admin-api {
 	@handler ConfigList
@@ -697,7 +828,7 @@ service admin-api {
 @server (
 	group:      dict_type
 	prefix:     /api/v1
-	middleware: AuthMiddleware,PermissionMiddleware
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
 )
 service admin-api {
 	@handler DictTypeList
@@ -716,7 +847,7 @@ service admin-api {
 @server (
 	group:      dict_item
 	prefix:     /api/v1
-	middleware: AuthMiddleware,PermissionMiddleware
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
 )
 service admin-api {
 	@handler DictItemList
@@ -744,7 +875,7 @@ service admin-api {
 @server (
 	group:      cache
 	prefix:     /api/v1
-	middleware: AuthMiddleware,PermissionMiddleware
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
 )
 service admin-api {
 	@handler CacheRefresh
@@ -755,5 +886,324 @@ type (
 	CacheRefreshResp {
 		message string `json:"message"`
 	}
+	// 演示功能
+	DemoItem {
+		id        uint64 `json:"id"`
+		name      string `json:"name"`
+		status    int64  `json:"status"`
+		createdAt string `json:"createdAt"`
+	}
+	DemoListReq {
+		// 注意：GET 请求的查询参数需要同时包含 json 和 form 标签
+		// json 标签用于请求体（POST/PUT/DELETE），form 标签用于查询参数（GET）
+		// 重要：form 标签中必须包含 optional，否则 httpx.Parse 无法正确解析查询参数
+		page     int64  `json:"page,optional" form:"page,optional"`
+		pageSize int64  `json:"pageSize,optional" form:"pageSize,optional"`
+		name     string `json:"name,optional" form:"name,optional"`
+	}
+	DemoListResp {
+		total int64      `json:"total"`
+		list  []DemoItem `json:"list"`
+	}
+	DemoCreateReq {
+		name   string `json:"name"`
+		status int64  `json:"status,optional"`
+	}
+	DemoUpdateReq {
+		id     uint64 `json:"id"`
+		name   string `json:"name,optional"`
+		status int64  `json:"status,optional"`
+	}
+	DemoDeleteReq {
+		id uint64 `json:"id"`
+	}
 )
+
+@server (
+	group:      demo
+	prefix:     /api/v1
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
+)
+service admin-api {
+	@handler DemoList
+	get /demos (DemoListReq) returns (DemoListResp)
+
+	@handler DemoCreate
+	post /demos (DemoCreateReq)
+
+	@handler DemoUpdate
+	put /demos (DemoUpdateReq)
+
+	@handler DemoDelete
+	delete /demos (DemoDeleteReq)
+}
+
+type (
+	// 聊天消息
+	ChatMessageItem {
+		id           uint64 `json:"id"`
+		fromUserId   uint64 `json:"fromUserId"`
+		fromUserName string `json:"fromUserName"`
+		toUserId     uint64 `json:"toUserId"`
+		toUserName   string `json:"toUserName"`
+		roomId       string `json:"roomId"`
+		content      string `json:"content"`
+		messageType  int64  `json:"messageType"`
+		status       int64  `json:"status"`
+		createdAt    string `json:"createdAt"`
+	}
+	// 消息列表请求
+	ChatMessageListReq {
+		page     int64  `json:"page,optional" form:"page,optional"`
+		pageSize int64  `json:"pageSize,optional" form:"pageSize,optional"`
+		roomId   string `json:"roomId,optional" form:"roomId,optional"`
+		userId   uint64 `json:"userId,optional" form:"userId,optional"`
+	}
+	// 消息列表响应
+	ChatMessageListResp {
+		total int64             `json:"total"`
+		list  []ChatMessageItem `json:"list"`
+	}
+	// 发送消息请求
+	ChatMessageSendReq {
+		toUserId    uint64 `json:"toUserId"` // 接收用户 ID（0表示群聊）
+		roomId      string `json:"roomId"` // 聊天室 ID
+		content     string `json:"content"` // 消息内容
+		messageType int64  `json:"messageType,optional"` // 消息类型：1文本，2图片，3文件
+	}
+	// 发送消息响应
+	ChatMessageSendResp {
+		id uint64 `json:"id"`
+	}
+	// 在线用户列表响应
+	ChatOnlineUserResp {
+		list []ChatOnlineUserItem `json:"list"`
+	}
+	ChatOnlineUserItem {
+		userId   uint64 `json:"userId"`
+		userName string `json:"userName"`
+		avatar   string `json:"avatar,optional"`
+	}
+)
+
+@server (
+	group:      chat
+	prefix:     /api/v1
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
+)
+service admin-api {
+	@handler ChatMessageList
+	get /chats/messages (ChatMessageListReq) returns (ChatMessageListResp)
+
+	@handler ChatMessageSend
+	post /chats/messages (ChatMessageSendReq) returns (ChatMessageSendResp)
+
+	@handler ChatOnlineUsers
+	get /chats/online-users returns (ChatOnlineUserResp)
+}
+
+@server (
+	group:      operation_log
+	prefix:     /api/v1
+	middleware: RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
+)
+service admin-api {
+	@handler OperationLogList
+	get /operation-logs (OperationLogListReq) returns (OperationLogListResp)
+
+	@handler OperationLogDetail
+	get /operation-logs/:id returns (OperationLogDetailResp)
+
+	@handler OperationLogExport
+	get /operation-logs/export (OperationLogExportReq) returns (OperationLogExportResp)
+}
+
+// 登录日志相关类型定义
+type (
+	// 登录日志项
+	LoginLogItem {
+		id        uint64 `json:"id"`
+		userId    uint64 `json:"userId"`
+		username  string `json:"username"`
+		ipAddress string `json:"ipAddress"`
+		location  string `json:"location"`
+		browser   string `json:"browser"`
+		os        string `json:"os"`
+		userAgent string `json:"userAgent"`
+		status    int    `json:"status"` // 0失败 1成功
+		message   string `json:"message"`
+		loginAt   int64  `json:"loginAt"`
+		logoutAt  int64  `json:"logoutAt"`
+		createdAt int64  `json:"createdAt"`
+	}
+	// 登录日志列表请求
+	LoginLogListReq {
+		page      int    `json:"page,optional,default=1" form:"page,optional,default=1"`
+		pageSize  int    `json:"pageSize,optional,default=20" form:"pageSize,optional,default=20"`
+		userId    uint64 `json:"userId,optional" form:"userId,optional"`
+		username  string `json:"username,optional" form:"username,optional"`
+		status    int    `json:"status,optional" form:"status,optional"` // 0失败 1成功
+		startTime string `json:"startTime,optional" form:"startTime,optional"` // 格式：YYYY-MM-DD HH:mm:ss
+		endTime   string `json:"endTime,optional" form:"endTime,optional"` // 格式：YYYY-MM-DD HH:mm:ss
+	}
+	// 登录日志列表响应
+	LoginLogListResp {
+		list     []LoginLogItem `json:"list"`
+		total    int64          `json:"total"`
+		page     int            `json:"page"`
+		pageSize int            `json:"pageSize"`
+	}
+	// 登录日志详情响应
+	LoginLogDetailResp {
+		LoginLogItem
+	}
+	// 登录日志导出请求
+	LoginLogExportReq {
+		userId    uint64 `json:"userId,optional" form:"userId,optional"`
+		username  string `json:"username,optional" form:"username,optional"`
+		status    int    `json:"status,optional" form:"status,optional"`
+		startTime string `json:"startTime,optional" form:"startTime,optional"`
+		endTime   string `json:"endTime,optional" form:"endTime,optional"`
+	}
+	// 登录日志导出响应（实际在 Handler 中直接返回文件流，此类型仅用于 API 定义）
+	LoginLogExportResp {
+		url string `json:"url"`
+	}
+	// 登录日志统计响应
+	LoginLogStatsResp {
+		totalCount      int64 `json:"totalCount"` // 总登录次数
+		successCount    int64 `json:"successCount"` // 成功次数
+		failureCount    int64 `json:"failureCount"` // 失败次数
+		todayCount      int64 `json:"todayCount"` // 今日登录次数
+		todaySuccess    int64 `json:"todaySuccess"` // 今日成功次数
+		todayFailure    int64 `json:"todayFailure"` // 今日失败次数
+		onlineUserCount int64 `json:"onlineUserCount"` // 当前在线用户数（需要从其他表查询）
+	}
+	// 性能监控日志
+	PerformanceLogItem {
+		id            uint64 `json:"id"`
+		userId        uint64 `json:"userId"`
+		username      string `json:"username"`
+		method        string `json:"method"`
+		path          string `json:"path"`
+		statusCode    int64  `json:"statusCode"`
+		duration      int64  `json:"duration"` // 耗时（毫秒）
+		isSlow        int64  `json:"isSlow"` // 是否慢接口：0 否，1 是
+		slowThreshold int64  `json:"slowThreshold"` // 慢接口阈值（毫秒）
+		ipAddress     string `json:"ipAddress"`
+		userAgent     string `json:"userAgent"`
+		errorMsg      string `json:"errorMsg"`
+		createdAt     int64  `json:"createdAt"`
+	}
+	PerformanceLogListReq {
+		page       int64  `json:"page,optional" form:"page,optional"`
+		pageSize   int64  `json:"pageSize,optional" form:"pageSize,optional"`
+		method     string `json:"method,optional" form:"method,optional"`
+		path       string `json:"path,optional" form:"path,optional"`
+		isSlow     int64  `json:"isSlow,optional" form:"isSlow,optional"` // 0/1 过滤，其他值表示不过滤
+		statusCode int64  `json:"statusCode,optional" form:"statusCode,optional"` // 精确匹配状态码
+		startTime  string `json:"startTime,optional" form:"startTime,optional"` // 开始时间（yyyy-MM-dd HH:mm:ss）
+		endTime    string `json:"endTime,optional" form:"endTime,optional"` // 结束时间
+	}
+	PerformanceLogListResp {
+		total int64                `json:"total"`
+		list  []PerformanceLogItem `json:"list"`
+	}
+)
+
+@server (
+	group:      login_log
+	prefix:     /api/v1
+	middleware: RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
+)
+service admin-api {
+	@handler LoginLogList
+	get /login-logs (LoginLogListReq) returns (LoginLogListResp)
+
+	@handler LoginLogDetail
+	get /login-logs/:id returns (LoginLogDetailResp)
+
+	@handler LoginLogExport
+	get /login-logs/export (LoginLogExportReq) returns (LoginLogExportResp)
+
+	@handler LoginLogStats
+	get /login-logs/stats returns (LoginLogStatsResp)
+}
+
+// 审计日志相关类型定义
+type (
+	// 审计日志项
+	AuditLogItem {
+		id          uint64 `json:"id"`
+		userId      uint64 `json:"userId"`
+		username    string `json:"username"`
+		auditType   string `json:"auditType"` // 审计类型：permission_assign/role_change/config_modify/data_delete等
+		auditObject string `json:"auditObject"` // 审计对象（模块/表名，如user_role/role_permission/role/config）
+		auditDetail string `json:"auditDetail"` // 审计详情（JSON格式，记录变更前后的数据）
+		ipAddress   string `json:"ipAddress"`
+		userAgent   string `json:"userAgent"`
+		createdAt   int64  `json:"createdAt"`
+	}
+	// 审计日志列表请求
+	AuditLogListReq {
+		page        int    `json:"page,optional,default=1" form:"page,optional,default=1"`
+		pageSize    int    `json:"pageSize,optional,default=20" form:"pageSize,optional,default=20"`
+		userId      uint64 `json:"userId,optional" form:"userId,optional"`
+		username    string `json:"username,optional" form:"username,optional"`
+		auditType   string `json:"auditType,optional" form:"auditType,optional"` // 审计类型
+		auditObject string `json:"auditObject,optional" form:"auditObject,optional"` // 审计对象
+		startTime   string `json:"startTime,optional" form:"startTime,optional"` // 格式：YYYY-MM-DD HH:mm:ss
+		endTime     string `json:"endTime,optional" form:"endTime,optional"` // 格式：YYYY-MM-DD HH:mm:ss
+	}
+	// 审计日志列表响应
+	AuditLogListResp {
+		list     []AuditLogItem `json:"list"`
+		total    int64          `json:"total"`
+		page     int            `json:"page"`
+		pageSize int            `json:"pageSize"`
+	}
+	// 审计日志详情响应
+	AuditLogDetailResp {
+		AuditLogItem
+	}
+	// 审计日志导出请求
+	AuditLogExportReq {
+		userId      uint64 `json:"userId,optional" form:"userId,optional"`
+		username    string `json:"username,optional" form:"username,optional"`
+		auditType   string `json:"auditType,optional" form:"auditType,optional"`
+		auditObject string `json:"auditObject,optional" form:"auditObject,optional"`
+		startTime   string `json:"startTime,optional" form:"startTime,optional"`
+		endTime     string `json:"endTime,optional" form:"endTime,optional"`
+	}
+	// 审计日志导出响应（实际在 Handler 中直接返回文件流，此类型仅用于 API 定义）
+	AuditLogExportResp {
+		url string `json:"url"`
+	}
+)
+
+@server (
+	group:      audit_log
+	prefix:     /api/v1
+	middleware: RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
+)
+service admin-api {
+	@handler AuditLogList
+	get /audit-logs (AuditLogListReq) returns (AuditLogListResp)
+
+	@handler AuditLogDetail
+	get /audit-logs/:id returns (AuditLogDetailResp)
+
+	@handler AuditLogExport
+	get /audit-logs/export (AuditLogExportReq) returns (AuditLogExportResp)
+}
+
+@server (
+	group:      performance_log
+	prefix:     /api/v1
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
+)
+service admin-api {
+	@handler PerformanceLogList
+	get /performance-logs (PerformanceLogListReq) returns (PerformanceLogListResp)
+}
 

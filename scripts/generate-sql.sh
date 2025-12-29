@@ -17,7 +17,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 项目根目录（scripts的父目录）
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SQLGEN_DIR="${PROJECT_ROOT}/scripts/sqlgen"
-OUTPUT_DIR="${PROJECT_ROOT}/admin-server/db"
+# 默认输出到 migrations 目录，作为增量 SQL 管理
+OUTPUT_DIR="${PROJECT_ROOT}/admin-server/db/migrations"
 
 # 显示使用说明
 usage() {
@@ -27,21 +28,24 @@ usage() {
     echo "  $0 -group <group> -name <name>"
     echo ""
     echo "参数:"
-    echo "  -group <group>    功能组名（必需，如 user, file）"
-    echo "  -name <name>      功能名称（必需，如 用户管理, 文件管理）"
+    echo "  -group <group>        功能组名（必需，如 user, file）"
+    echo "  -name <name>          功能名称（必需，如 用户管理, 文件管理）"
     echo ""
     echo "选项:"
-    echo "  -h, --help        显示此帮助信息"
+    echo "  -parent-id <id>       父菜单 ID（可选，优先级最高）"
+    echo "  -parent-path <path>   前端父目录路径（可选，如 /system，默认 /temp）"
+    echo "  -h, --help            显示此帮助信息"
     echo ""
     echo "示例:"
     echo "  $0 -group user -name 用户管理"
     echo "  $0 -group file -name 文件管理"
+    echo "  $0 -group operation_log -name 操作日志 -parent-path /system"
     echo ""
     echo "注意:"
-    echo "  - 生成的 SQL 文件在 admin-server/db/ 目录下"
-    echo "  - 文件名格式: init_<group>.sql"
+    echo "  - 生成的 SQL 文件在 admin-server/db/migrations/ 目录下（增量脚本）"
+    echo "  - 文件名格式: create_table_<group>.sql、init_<group>.sql"
     echo "  - 主键为自增，不需要手动赋值"
-    echo "  - 菜单默认归类在临时目录下"
+    echo "  - 默认菜单父目录为临时目录 /temp，如需挂到系统管理请使用 -parent-path /system"
     echo "  - 包含菜单、权限、接口及关联关系"
     echo ""
 }
@@ -54,6 +58,8 @@ fi
 
 GROUP=""
 NAME=""
+PARENT_ID=""
+PARENT_PATH=""
 
 # 解析参数
 while [[ $# -gt 0 ]]; do
@@ -68,6 +74,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         -name)
             NAME="$2"
+            shift 2
+            ;;
+        -parent-id)
+            PARENT_ID="$2"
+            shift 2
+            ;;
+        -parent-path)
+            PARENT_PATH="$2"
             shift 2
             ;;
         *)
@@ -133,7 +147,9 @@ fi
 go build -o sqlgen main.go
 
 # 运行程序
-./sqlgen -group "$GROUP" -name "$NAME" -output "$OUTPUT_DIR" -template "${SQLGEN_DIR}/templates"
+# 注意：在 Windows 环境下，如果遇到中文乱码问题，请使用 chcp 65001 设置代码页为 UTF-8
+# 或者在 PowerShell 中设置：$OutputEncoding = [System.Text.Encoding]::UTF8
+./sqlgen -group "$GROUP" -name "$NAME" -output "$OUTPUT_DIR" -template "${SQLGEN_DIR}/templates" -parent-id "$PARENT_ID" -parent-path "$PARENT_PATH"
 
 # 清理编译产物
 rm -f sqlgen
@@ -141,9 +157,11 @@ rm -f sqlgen
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓ SQL 脚本生成成功!${NC}"
     echo -e "${YELLOW}注意:${NC}"
-    echo -e "  - 生成的 SQL 文件: ${OUTPUT_DIR}/init_${GROUP}.sql"
-    echo -e "  - 请在数据库中执行该 SQL 文件"
-    echo -e "  - 菜单默认归类在临时目录下，可在菜单管理中调整"
+    echo -e "  - 生成的 SQL 文件:"
+    echo -e "      - 建表: ${OUTPUT_DIR}/create_table_${GROUP}.sql"
+    echo -e "      - 初始化: ${OUTPUT_DIR}/init_${GROUP}.sql"
+    echo -e "  - 请在数据库中按顺序执行建表和初始化 SQL"
+    echo -e "  - 默认菜单父目录为临时目录 /temp，如需挂到系统管理请使用 -parent-path /system"
     echo -e "  - 可根据需要修改菜单、按钮、接口的启用状态"
 else
     echo -e "${RED}✗ SQL 脚本生成失败${NC}"

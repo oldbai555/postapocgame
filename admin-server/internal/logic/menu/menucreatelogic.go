@@ -50,5 +50,17 @@ func (l *MenuCreateLogic) MenuCreate(req *types.MenuCreateReq) error {
 	if err := menuRepo.Create(l.ctx, &m); err != nil {
 		return errs.Wrap(errs.CodeInternalError, "创建菜单失败", err)
 	}
+
+	// 清除菜单树缓存
+	cache := l.svcCtx.Repository.BusinessCache
+	go func() {
+		if err := cache.DeleteMenuTree(context.Background()); err != nil {
+			l.Errorf("清除菜单树缓存失败: %v", err)
+		}
+		// 清除所有用户的菜单树缓存（因为菜单变更会影响所有用户）
+		// 注意：go-zero Redis 不支持 SCAN，这里只能清除已知的缓存
+		// 实际场景中，可以通过定时任务或延迟清除策略来处理
+	}()
+
 	return nil
 }

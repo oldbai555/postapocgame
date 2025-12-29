@@ -36,6 +36,11 @@ export const useUserStore = defineStore('user', {
       localStorage.setItem(refreshKey, this.refreshToken);
       await this.fetchProfile(true);
       await this.fetchMenus(true);
+      
+      // 登录后自动连接 WebSocket（如果有权限）
+      const {useWebSocketStore} = await import('./websocket');
+      const wsStore = useWebSocketStore();
+      wsStore.connect();
     },
     async fetchProfile(force = false) {
       if (!force && this.cacheValid()) {
@@ -65,6 +70,12 @@ export const useUserStore = defineStore('user', {
       } catch {
         // ignore
       }
+      
+      // 退出登录时断开 WebSocket
+      const {useWebSocketStore} = await import('./websocket');
+      const wsStore = useWebSocketStore();
+      wsStore.disconnect();
+      
       this.token = '';
       this.refreshToken = '';
       this.profile = null;

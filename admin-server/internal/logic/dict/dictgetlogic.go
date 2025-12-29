@@ -40,6 +40,19 @@ func (l *DictGetLogic) DictGet(req *types.DictGetReq) (resp *types.DictGetResp, 
 		return nil, errs.Wrap(errs.CodeInternalError, "查询字典类型失败", err)
 	}
 
+	// 尝试从缓存获取字典项列表
+	cache := l.svcCtx.Repository.BusinessCache
+	var cachedItems []types.DictItemItem
+	err = cache.GetDictItems(l.ctx, req.Code, &cachedItems)
+	if err == nil {
+		// 缓存命中，直接返回
+		return &types.DictGetResp{
+			Code:  dictType.Code,
+			Items: cachedItems,
+		}, nil
+	}
+
+	// 缓存未命中，从数据库查询
 	dictItemRepo := repository.NewDictItemRepository(l.svcCtx.Repository)
 	items, err := dictItemRepo.FindByTypeID(l.ctx, dictType.Id)
 	if err != nil {
@@ -64,8 +77,21 @@ func (l *DictGetLogic) DictGet(req *types.DictGetReq) (resp *types.DictGetResp, 
 		})
 	}
 
-	return &types.DictGetResp{
+	resp = &types.DictGetResp{
 		Code:  dictType.Code,
 		Items: dictItems,
-	}, nil
+	}
+
+	// 写入缓存（异步，不阻塞返回）
+	go func() {
+		if err := cache.SetDictItems(context.Background(), req.Code, dictItems); err != nil {
+			l.Errorf("设置字典项缓存失败: code=%s, error=%v", req.Code, err)
+		}
+		// 同时按 type_id 缓存
+		if err := cache.SetDictItemsByType(context.Background(), dictType.Id, dictItems); err != nil {
+			l.Errorf("设置字典项缓存失败: typeId=%d, error=%v", dictType.Id, err)
+		}
+	}()
+
+	return resp, nil
 }

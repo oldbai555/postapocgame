@@ -1,15 +1,17 @@
 {{if .hasMiddleware}}
-	authMiddleware := middleware.NewAuthMiddleware(serverCtx)
-	permissionMiddleware := middleware.NewPermissionMiddleware(serverCtx)
 	server.AddRoutes(
 		rest.WithMiddlewares(
-			[]rest.Middleware{authMiddleware.Handle, permissionMiddleware.Handle},
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
 			{{.routes}},
 		),
 		{{.jwt}}{{.signature}} {{.prefix}} {{.timeout}} {{.maxBytes}} {{.sse}}
 	)
 {{else}}
 	server.AddRoutes(
-		{{.routes}} {{.jwt}}{{.signature}} {{.prefix}} {{.timeout}} {{.maxBytes}} {{.sse}}
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware},
+			{{.routes}},
+		),
+		{{.jwt}}{{.signature}} {{.prefix}} {{.timeout}} {{.maxBytes}} {{.sse}}
 	)
 {{end}}

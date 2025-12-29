@@ -54,6 +54,9 @@
         />
       </el-tooltip>
 
+      <!-- 消息通知 -->
+      <MessageNotification />
+
       <!-- 语言切换 -->
       <el-dropdown @command="handleLangChange" trigger="click">
         <el-button text circle class="app-header__action-btn">
@@ -90,6 +93,7 @@ import {useI18n} from 'vue-i18n';
 import {useAppStore} from '@/stores/app';
 import {useUserStore} from '@/stores/user';
 import UserMenu from './UserMenu.vue';
+import MessageNotification from './MessageNotification.vue';
 import type {ProfileResp} from '@/api/generated/admin';
 
 interface Props {

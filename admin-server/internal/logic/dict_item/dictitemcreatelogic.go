@@ -64,5 +64,22 @@ func (l *DictItemCreateLogic) DictItemCreate(req *types.DictItemCreateReq) error
 	if err := dictItemRepo.Create(l.ctx, &dictItem); err != nil {
 		return errs.Wrap(errs.CodeInternalError, "创建字典项失败", err)
 	}
+
+	// 清除字典缓存
+	cache := l.svcCtx.Repository.BusinessCache
+	go func() {
+		// 需要获取字典类型的 code 来清除缓存
+		dictTypeRepo := repository.NewDictTypeRepository(l.svcCtx.Repository)
+		dictType, err := dictTypeRepo.FindByID(context.Background(), req.TypeId)
+		if err == nil {
+			if err := cache.DeleteDictItems(context.Background(), dictType.Code); err != nil {
+				l.Errorf("清除字典项缓存失败: code=%s, error=%v", dictType.Code, err)
+			}
+			if err := cache.DeleteDictItemsByType(context.Background(), req.TypeId); err != nil {
+				l.Errorf("清除字典项缓存失败: typeId=%d, error=%v", req.TypeId, err)
+			}
+		}
+	}()
+
 	return nil
 }

@@ -46,6 +46,8 @@ func (l *UserListLogic) UserList(req *types.UserListReq) (resp *types.UserListRe
 		items = append(items, types.UserItem{
 			Id:           u.Id,
 			Username:     u.Username,
+			Avatar:       u.Avatar,
+			Signature:    u.Signature,
 			DepartmentId: u.DepartmentId,
 			Status:       u.Status,
 			CreatedAt:    createdAtStr,

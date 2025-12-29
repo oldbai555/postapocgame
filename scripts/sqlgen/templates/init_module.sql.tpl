@@ -3,11 +3,19 @@
 -- 功能名称: {{.Name}}
 
 -- ============================================
--- 1. 获取临时目录 ID
+-- 1. 获取父目录 ID（可配置）
 -- ============================================
--- 临时目录用于存放新功能模块的菜单，方便后续整理
--- 注意：临时目录已在 data.sql 中初始化（id=9）
-SET @temp_dir_id = (SELECT `id` FROM `admin_menu` WHERE `id` = 9 AND `deleted_at` = 0 LIMIT 1);
+-- 如果提供了 ParentID，则直接使用该 ID 作为父菜单；
+-- 否则根据 ParentPath 从 admin_menu 中查找父目录；
+-- 如果仍未找到，默认回退到临时目录（id = 9）。
+{{- if .ParentID }}
+SET @parent_menu_id = {{.ParentID}};
+{{- else }}
+SET @parent_menu_id = COALESCE(
+  (SELECT `id` FROM `admin_menu` WHERE `path` = '{{.ParentPath}}' AND `deleted_at` = 0 LIMIT 1),
+  (SELECT `id` FROM `admin_menu` WHERE `id` = 9 AND `deleted_at` = 0 LIMIT 1)
+);
+{{- end }}
 
 -- ============================================
 -- 2. 插入菜单数据
@@ -15,7 +23,7 @@ SET @temp_dir_id = (SELECT `id` FROM `admin_menu` WHERE `id` = 9 AND `deleted_at
 -- {{.Name}}主菜单
 INSERT INTO `admin_menu` (`parent_id`, `name`, `path`, `component`, `icon`, `type`, `order_num`, `visible`, `status`, `created_at`, `updated_at`, `deleted_at`)
 VALUES (
-    @temp_dir_id,
+    @parent_menu_id,
     '{{.Name}}',
     '{{.Path}}',
     '{{.Component}}',
