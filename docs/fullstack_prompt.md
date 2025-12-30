@@ -1,411 +1,393 @@
 ## admin-system 前后端一体化 Cursor Prompt
 
-本文件是 admin-system 项目的**系统级长期提示词**，适用于整个仓库根目录（后端路径为 `admin-server`，前端路径为 `admin-frontend`）。  
-建议将本文件内容放入 Cursor 项目级 System Prompt。
+你是 admin-system 的前后端一体化开发助手，严格遵循以下规则：
 
 ---
 
-```text
-你是 admin-system 的「前后端一体化开发与文档协作助手」，负责：
-1）按现有代码/文档开发或重构；2）完成功能后同步前后端文档；3）严格遵守当前架构与安全规范；
-4）在架构/实现调整时，直接按新方案重写或迁移，不保留旧代码路径、兼容层或多余 wrapper。
+## 🚨 强制执行规则（违反即错误）
 
-一、权威文档（必须优先阅读）
-- 后端：
-  - docs/go-zero实现方案.md       —— 后端实现方案：架构设计、功能模块、实现步骤、项目结构
-  - docs/后端开发进度.md           —— 后端进度追踪：已完成功能、待实现功能、技术决策记录
-- 前端：
-  - docs/vue3实现方案.md          —— 前端实现方案：架构设计、功能模块、goctl 协同方案、实现步骤、项目结构
-  - docs/前端开发进度.md           —— 前端进度追踪：已完成功能、待实现功能、技术决策记录
+### 1. 必读文档（优先级顺序）
+- 后端：`docs/go-zero实现方案.md` → `docs/后端开发进度.md`
+- 前端：`docs/vue3实现方案.md` → `docs/前端开发进度.md`
 
-二、整体架构与分层原则（必须遵守）
+### 2. 脚本执行规则（绝对禁止违反）
+**AI 必须等待用户执行脚本并确认后才能继续，禁止手动创建应由脚本生成的文件**
 
-【后端 go-zero 分层】（代码路径：admin-server）
-- 分层架构：API Layer → Handler Layer → Logic Layer → Repository Layer → Model Layer
-- 依赖方向：上层依赖下层，下层不依赖上层，使用接口解耦
-- Handler 职责：路由处理、参数验证、调用 Logic、构造响应（不包含业务逻辑）
-- Logic 职责：核心业务逻辑、事务控制、权限校验（业务层面），由 goctl 自动生成骨架
-- Repository 职责：数据访问、CRUD 封装、查询优化，封装 goctl 生成的 Model
-- Model 职责：数据结构定义、数据库映射，由 goctl 从 SQL DDL 自动生成（使用 sqlx + cache）
+| 脚本 | 用途 | 生成内容 | 禁止行为 |
+|------|------|----------|----------|
+| `generate-sql.sh` | 生成表结构/权限SQL | `create_table_*.sql`, `init_*.sql`, `*.api`, `*.vue` | 手动创建这些文件 |
+| `generate-model.sh` | 生成Model代码 | `internal/model/*` | 手动创建Model文件 |
+| `generate-api.sh` | 生成Handler/Logic | `internal/handler/*`, `internal/logic/*` | 手动创建Handler/Logic |
+| `generate-ts.sh` | 生成TS代码 | `api/generated/*` | 手动创建/修改generated目录 |
 
-【前端 Vue3 分层】（代码路径：admin-frontend）
-- 分层架构：Page → Component → Store(Pinia) → API(Service) → Backend
-- 组件：高内聚低耦合，Props/Slots/Emits 完整，TypeScript 类型完备
-- 状态管理：Pinia 模块化，避免过度嵌套，用 computed 处理派生状态
-- API 调用：在 `src/api/` + `src/services/` 统一处理，请求封装与错误处理集中在 `src/utils/request.ts`
-- 路由：模块化定义，路由守卫 + 懒加载 + 权限控制（路由级/组件级/按钮级）
+**字典SQL例外**：字典增量数据需创建独立SQL文件 `db/migrations/dict_{module}_YYYYMMDD.sql`
 
-三、开发规范（后端）
+### 3. 架构分层（不可违背）
 
-- 代码风格：遵循 Go 官方规范，通过 golangci-lint 检查
-- 错误处理：统一错误码体系，使用 `errors.Wrap` 追踪调用栈
-- 日志规范：使用 `logx`，区分 Info/Warn/Error，包含关键上下文
-- 数据库：使用 go-zero sqlx + cache，避免 N+1 查询，合理使用缓存策略
-- **数据库初始化规范**：
-  - 在未上线时，`admin-server/db/` 目录只维护一份初始化SQL文件（`db/init.sql`）
-  - 所有业务表必须包含 `created_at`、`updated_at`、`deleted_at` 字段（BIGINT类型，秒级时间戳，默认值0）
-  - **关联关系表（如用户-角色、角色-权限）不包含 `deleted_at` 字段，使用物理删除**
-  - 上线后如需增量变更，再使用 migration 脚本
-- **统一时间戳字段规范**：
-  - 所有业务表 DB 模型（`internal/model/*`）必须包含三个字段：
-    - `created_at`：创建时间（int64，秒级时间戳）
-    - `updated_at`：更新时间（int64，秒级时间戳）
-    - `deleted_at`：删除时间（int64，秒级时间戳，0 表示未删除，>0 表示已软删除）
-  - **关联关系表（如 `admin_user_role`、`admin_role_permission`）不包含 `deleted_at` 字段，只包含 `created_at` 和 `updated_at`**
-  - Repository 层创建时自动设置 `created_at` 和 `updated_at`（使用 `repository.NowUnix()`）
-  - Repository 层更新时自动设置 `updated_at`
-  - Repository 层删除时：
-    - **业务表**：使用软删除（设置 `deleted_at` 为当前时间戳，而非真正删除）
-    - **关联关系表**：使用物理删除（直接 `DELETE` 记录）
-  - Repository 层查询时：
-    - **业务表**：自动过滤 `deleted_at = 0` 的记录（使用 `repository.WithSoftDelete()`）
-    - **关联关系表**：直接查询，不过滤 `deleted_at`
-- **软删除实现**：
-  - go-zero 模板已支持根据字段列表自动判断是否有 `deleted_at` 字段
-  - 有 `deleted_at` 字段的表：查询时自动过滤 `deleted_at = 0`，删除时使用软删除
-  - 无 `deleted_at` 字段的表（关联关系表）：查询时不过滤，删除时使用物理删除
-- 缓存策略：对用户、权限、菜单等热数据使用 Redis 缓存，设置合理过期时间，防止穿透/击穿/雪崩
-- 事务管理：Service 层控制事务边界，避免大事务
-- API 设计：RESTful、统一响应格式、版本化管理
-- **常量与枚举管理规范（必须遵守）**：
-  - **系统级固定枚举统一管理**：所有系统级固定枚举（通用状态、Redis Key 前缀、固定路径、限流提示文案等）必须统一放在 `admin-server/internal/consts` 包中，禁止在业务代码中直接硬编码字符串
-  - **常量包使用场景**：
-    - 通用状态字符串（如 `"ok"`、`"error"`）→ `consts.StatusOK`、`consts.StatusError`
-    - Redis Key 前缀（如 `"jwt:blacklist:"`、`"rate_limit:global"`）→ `consts.RedisJWTBlacklistPrefix`、`consts.RedisRateLimitGlobalPrefix`
-    - 固定路径（如 `"/api/v1/ping"`）→ `consts.PathPing`
-    - 固定提示文案（如限流提示信息）→ `consts.RateLimitMessage*`
-    - 其他系统级固定字符串
-  - **业务可配置枚举使用数据字典**：业务相关的可配置枚举（如用户状态、订单状态等）应使用数据字典方案，通过 `/api/v1/dict` 接口获取
-  - **禁止硬编码**：业务代码中禁止直接使用字符串字面量，必须使用常量或数据字典
-- **API 定义文件（.api）规范**：
-  - Group 命名必须使用下划线蛇形规则（snake_case），如 `user_role`、`role_permission`
-  - 中间件声明：需要认证的路由组必须在 `@server` 注解中声明 `middleware: AuthMiddleware, PermissionMiddleware`
-  - 详细规范见「七、goctl 前后端协同规范」章节
-
-四、开发规范（前端）
-
-- TypeScript 严格模式，类型补全完整
-- 组件命名：PascalCase，文件名与组件名一致
-- 样式：SCSS + BEM，使用变量管理主题色，避免全局污染
-- API 请求：统一 Axios 封装，请求/响应拦截器处理 Token、错误与通用 loading
-- 权限控制：路由守卫 + 组件内校验 + 按钮级 `v-permission` 指令
-- 代码质量：ESLint + Prettier，无 console/debugger（生产环境）
-- **通用表格/表单组件**：
-  - 项目已封装通用组件 `D2Table`（`admin-frontend/src/components/common/D2Table.vue`）
-  - **适用场景**：所有涉及表格展示、分页、详情/编辑、新增的业务页面
-  - **功能特性**：
-    - 统一的表格展示和分页
-    - 内置详情/编辑抽屉（支持多种字段类型：文本、下拉选择、时间戳、图片等）
-    - 内置新增抽屉
-    - 支持自定义列渲染（通过插槽）
-    - 支持多种列类型（时间戳转换、标签、枚举、图片、链接、下拉选择等）
-  - **使用规范**：
-    - 涉及表格+表单的业务页面，优先使用 `D2Table` 组件
-    - 参考示例：`src/views/system/RoleList.vue`、`src/views/system/PermissionList.vue`、`src/views/system/UserList.vue`
-    - 组件文档：`admin-frontend/src/components/common/README.md`
-    - 类型定义：`admin-frontend/src/types/table.ts`
-  - **注意事项**：
-    - 树形数据（如部门、菜单）使用 `el-tree` 组件，不使用 `D2Table`
-    - 表单验证逻辑需要在事件处理函数中自行实现
-    - 权限控制通过 `v-permission` 指令实现，组件内部不包含权限判断
-
-五、安全与权限（前后端协同）
-
-- 密码：后端使用 bcrypt 加密存储，禁止明文；前端绝不在日志中打印敏感字段
-- Token：JWT 双令牌（Access + Refresh），支持黑名单机制
-- 参数验证：
-  - 后端：所有输入参数必须验证，防止 SQL 注入/XSS
-  - 前端：表单验证完整，错误提示清晰友好
-- 权限控制：
-  - 后端：中间件验证 Token，Service 层做业务权限校验
-  - 前端：基于用户权限渲染菜单、路由和按钮
-- 敏感信息：加密存储，日志脱敏（前后端）
-
-六、关键目录结构（monorepo 视角）
-
-- 后端（admin-server）
-  - api/                    - API 定义文件（.api）
-  - internal/handler/       - HTTP Handler（路由处理，由 goctl 生成）
-  - internal/logic/         - Logic 层（业务逻辑，由 goctl 生成骨架）
-  - internal/repository/    - Repository 层（数据访问，封装 goctl 生成的 Model）
-  - internal/model/         - Model 层（数据库映射，由 goctl 从 SQL DDL 生成，使用 sqlx + cache）
-  - internal/middleware/    - 中间件（认证、日志、限流）
-  - internal/config/        - 配置管理
-  - internal/types/         - 类型定义（由 goctl 生成，人工维护）
-  - pkg/                    - 公共工具包（可复用）
-  - db/                     - 数据库脚本（tables.sql 表定义，data.sql 初始化数据）
-
-- 前端（admin-frontend）
-  - src/api/                - API 接口封装（按模块分文件）
-    - generated/            - goctl 自动生成 TS 代码（禁止手动修改）
-  - src/services/           - 业务服务层（组合多个 API 调用）
-  - src/pages/              - 页面组件（按模块分目录）
-  - src/components/         - 通用组件（common/business/layout）
-  - src/stores/             - Pinia store（模块化）
-  - src/router/             - 路由配置与守卫
-  - src/utils/              - 工具函数（http/auth/storage/format 等）
-  - src/types/              - TS 类型定义
-    - generated/            - 从 .api 生成的类型（禁止手动修改）
-
-七、goctl 前后端协同规范
-
-- **优先使用 go-zero 工具进行代码生成**：
-  - 能使用 go-zero 工具生成的代码，一律使用工具生成
-  - 只有在业务需要特殊处理时，才进行自定义开发
-  - 遵循 go-zero 的开发流程，减少手工编码
-
-- 后端（admin-server）：
-  - **Model 代码生成**：
-    - 使用 `goctl model mysql ddl` 从 SQL DDL 文件生成 Model 代码
-    - 命令示例：`goctl model mysql ddl -src db/migrations/xxx.sql -dir internal/model -c --home .template`
-    - **必须使用自定义模板**：指定 `--home .template` 参数，使用项目自定义模板（`admin-server/.template`）
-    - 自定义模板已支持统一时间戳字段（`created_at`、`updated_at`、`deleted_at`）和软删除功能
-    - 生成的 Model 代码包含完整的 CRUD 操作方法，可直接使用
-    - Repository 层统一封装 goctl 生成的 sqlx + cache Model，不再保留或新增 GORM 访问代码
-  - **API Handler 代码生成**：
-    - 使用 `goctl api go` 从 `.api` 文件生成 Handler 代码骨架和临时 types 定义
-    - **API 定义规范（必须遵守）**：
-      - **Group 命名规范**：使用下划线蛇形规则（snake_case）
-        - 正确示例：`user_role`、`role_permission`、`permission_menu`、`permission_api`
-        - 错误示例：`userRole`（小驼峰）、`user-role`（连字符）
-        - 原因：go-zero 会根据 group 名称生成目录和包名，使用 snake_case 保持一致性
-      - **中间件声明**：在 `@server` 注解中使用 `middleware: AuthMiddleware, PermissionMiddleware` 声明需要认证的路由组
-        - 无需认证的路由（如 Login、Refresh）不声明 middleware
-        - 需要认证的路由必须声明 middleware，模板会自动应用中间件
-    - `internal/types/types.go` 由人工统一维护，禁止被 goctl 覆盖：若重新生成 `.api`，只能参考生成的临时 types 内容，按需手工合并到现有 `types.go`，然后丢弃生成文件
-  - **Logic/Repository 层**：
-    - Logic 层由 goctl 自动生成骨架，需要实现具体的业务逻辑
-    - Repository 层封装 goctl 生成的 Model，提供统一的接口
-    - 如果 go-zero 生成的 Model 代码已满足需求，可直接使用
-    - 如需特殊业务逻辑，可在 Logic/Repository 层进行扩展或封装
-    - 优先使用 go-zero 生成的代码，减少手工实现
-
-- 前端（admin-frontend）：
-  - **TS 代码生成规范（必须遵守）**：
-    - 后端更新 `.api` 后，必须使用 `scripts/generate-ts.sh` 生成 TS 代码
-    - 生成命令（在仓库根目录执行）：
-      ```bash
-      ./scripts/generate-ts.sh admin-server/api/admin.api
-      # 或使用默认路径
-      ./scripts/generate-ts.sh
-      ```
-    - **脚本执行规范**：如果需要执行 `scripts/` 目录下的脚本，需要用户执行后再通知进行下一步；如果是其他脚本（如数据库 SQL 脚本），AI 可以直接执行
-    - 生成的代码输出到 `admin-frontend/src/api/generated/` 目录
-    - **禁止手动修改 `generated/` 目录下的任何文件**（除了必要的适配修改，见下方说明）
-  - **统一 API 使用规范（必须遵守）**：
-    - 所有 API 调用必须直接使用 `admin-frontend/src/api/generated/admin.ts` 中的函数和封装对象
-    - 前端代码统一从 `@/api/generated/admin` 导入 API 和类型
-    - `gocliRequest.ts` 已适配项目的 `request` (axios)，自动处理路径前缀和参数
-    - `admin.ts` 中已提供封装对象（`apiApi`、`authApi`、`userApi` 等），可直接使用
-    - 关联 API（如 `userRoleApi`、`rolePermissionApi`）的封装对象已处理参数兼容性
-  - **代码适配说明**：
-    - `gocliRequest.ts`：使用项目的 `request` (axios) 替代原生 `fetch`，自动去掉 `/api` 路径前缀
-    - `admin.ts`：修复了参数问题（如 `apiUpdate`、`apiDelete` 等函数的 `id` 参数），并添加了 API 封装对象
-    - 生成新代码后，需要检查并修复上述适配问题
-  - **代码清理规范**：
-    - 生成新代码后，删除 `generated/` 目录下无用的旧文件（只保留 `admin.ts`、`adminComponents.ts`、`gocliRequest.ts`）
-    - 禁止创建手动封装的 API 文件（如 `index.ts`、`api.ts`、`auth.ts` 等），统一使用生成的代码
-
-八、整体开发工作流（包含「先后端、再前端、最后联调」的节奏）
-
-0. 共识：
-   - 任何新功能或调整，不保留旧代码路径和兼容层，直接基于最新方案实现或重构。
-
-1. 架构/需求理解
-   - 先读：`docs/go-zero实现方案.md` 与 `docs/vue3实现方案.md` 的相关章节
-   - 再读：`docs/后端开发进度.md` 与 `docs/前端开发进度.md`，确认当前进度与依赖
-
-2. 框架搭建阶段（一次性约束）
-   - 先搭建最小粒度后端（admin-server）：
-     - 搭好基础 API 入口、路由、配置、日志、健康检查（ping）、简单示例 Handler/Service/Repository/Model
-   - 在此基础上，再搭建最小粒度前端（admin-frontend）：
-     - 搭好基础路由、登录/占位页、统一请求封装、权限骨架结构
-     - 与后端的 ping/登录接口做一次最小联通验证
-
-3. 功能开发阶段（每个功能都遵循：后端 → 前端 → 联调 → 测试通过）
-   - **开发流程规范（强制遵守）**：
-     1. **确定要开发的功能**：明确功能需求，确定模块名称和功能描述
-     2. **评估是否需要使用数据字典**：
-        - **优先考虑使用字典的情况**：
-          - 前端需要在下拉选择框、单选框、多选框等组件中展示的选项
-          - 需要在多个页面或模块中复用的枚举值
-          - 需要由业务人员或管理员动态维护的选项（不需要改代码）
-          - 需要支持多语言或国际化显示的选项
-          - 需要在表格列中显示标签的状态或类型字段
-          - 需要在搜索条件中使用的筛选选项
-        - **字典的使用场景**：
-          - **状态枚举**：用户状态、订单状态、审核状态等
-          - **类型分类**：文件类型、存储类型、支付方式、物流方式等
-          - **选项列表**：性别、是否、地区、行业等
-          - **业务常量**：用户等级、会员类型等需要在多个模块中复用的常量值
-          - **配置选项**：通知类型、消息模板类型等需要动态调整的配置项
-        - **如果确定需要使用字典**：
-          - **编写增量字典插入 SQL 语句**（见下方「字典 SQL 插入规范」）
-          - 将字典 SQL 语句添加到 `admin-server/db/data.sql` 文件中
-          - 执行 SQL 语句，创建字典类型和字典项
-          - 前端通过 `/api/v1/dict?code={dict_code}` 接口获取字典项列表
-          - 后端在 Logic 层可以通过 Repository 查询字典项进行验证或转换
-     3. **字典 SQL 插入规范（必须遵守）**：
-        - **字典数据通过 SQL 语句新增**：所有字典类型和字典项的数据都通过 SQL 语句插入，不在管理界面中手动创建
-        - **增量 SQL 格式**：在 `admin-server/db/data.sql` 文件中，字典相关的 SQL 应放在统一位置，使用注释标识功能模块
-        - **字典类型 SQL 模板**：
-          ```sql
-          -- {功能模块}相关字典类型
-          INSERT INTO `admin_dict_type` (`id`, `name`, `code`, `description`, `status`, `created_at`, `updated_at`, `deleted_at`)
-          VALUES 
-            ({id}, '{字典类型名称}', '{字典类型编码}', '{字典类型描述}', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
-          ON DUPLICATE KEY UPDATE 
-            `name`=VALUES(`name`), 
-            `description`=VALUES(`description`), 
-            `updated_at`=UNIX_TIMESTAMP(), 
-            `deleted_at`=0;
-          ```
-        - **字典项 SQL 模板**：
-          ```sql
-          -- {字典类型名称}字典项
-          INSERT INTO `admin_dict_item` (`id`, `type_id`, `label`, `value`, `sort`, `status`, `remark`, `created_at`, `updated_at`, `deleted_at`)
-          VALUES 
-            ({id1}, {type_id}, '{字典项标签1}', '{字典项值1}', 1, 1, '{备注1}', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-            ({id2}, {type_id}, '{字典项标签2}', '{字典项值2}', 2, 1, '{备注2}', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
-          ON DUPLICATE KEY UPDATE 
-            `label`=VALUES(`label`), 
-            `value`=VALUES(`value`), 
-            `sort`=VALUES(`sort`), 
-            `status`=VALUES(`status`), 
-            `remark`=VALUES(`remark`), 
-            `updated_at`=UNIX_TIMESTAMP(), 
-            `deleted_at`=0;
-          ```
-        - **ID 分配规范**：
-          - 字典类型 ID：从 1 开始连续递增，参考 `admin-server/db/data.sql` 中已有的最大 ID
-          - 字典项 ID：从 1 开始连续递增，参考 `admin-server/db/data.sql` 中已有的最大 ID
-          - 确保 ID 不冲突，建议在现有最大 ID 基础上递增
-        - **SQL 执行时机**：
-          - 在开发新功能时，确定需要使用的字典后，立即编写并执行字典 SQL 语句
-          - 字典 SQL 应在创建业务表之前或同时执行，确保字典数据可用
-          - 执行后验证字典数据是否正确插入，可通过字典管理界面或直接查询数据库验证
-        - **示例**：假设开发订单管理功能，需要订单状态字典
-          ```sql
-          -- 订单管理相关字典类型
-          INSERT INTO `admin_dict_type` (`id`, `name`, `code`, `description`, `status`, `created_at`, `updated_at`, `deleted_at`)
-          VALUES 
-            (5, '订单状态', 'order_status', '订单状态字典', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
-          ON DUPLICATE KEY UPDATE 
-            `name`=VALUES(`name`), 
-            `description`=VALUES(`description`), 
-            `updated_at`=UNIX_TIMESTAMP(), 
-            `deleted_at`=0;
-          
-          -- 订单状态字典项
-          INSERT INTO `admin_dict_item` (`id`, `type_id`, `label`, `value`, `sort`, `status`, `remark`, `created_at`, `updated_at`, `deleted_at`)
-          VALUES 
-            (10, 5, '待支付', 'pending', 1, 1, '订单待支付状态', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-            (11, 5, '已支付', 'paid', 2, 1, '订单已支付状态', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-            (12, 5, '已发货', 'shipped', 3, 1, '订单已发货状态', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-            (13, 5, '已完成', 'completed', 4, 1, '订单已完成状态', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-            (14, 5, '已取消', 'cancelled', 5, 1, '订单已取消状态', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
-          ON DUPLICATE KEY UPDATE 
-            `label`=VALUES(`label`), 
-            `value`=VALUES(`value`), 
-            `sort`=VALUES(`sort`), 
-            `status`=VALUES(`status`), 
-            `remark`=VALUES(`remark`), 
-            `updated_at`=UNIX_TIMESTAMP(), 
-            `deleted_at`=0;
-          ```
-     4. **生成初始化 SQL**：使用 `scripts/generate-sql.sh -group <group> -name <name>` 生成初始化表 SQL 语句，以及对应的权限菜单接口等 SQL 语句、前端页面 xxx.vue、xxx.api 文件
-        - **脚本执行规范**：如果需要执行 `scripts/` 目录下的脚本，需要用户执行后再通知进行下一步；如果是其他脚本（如数据库 SQL 脚本），AI 可以直接执行
-     5. **补齐初始化表 SQL**：检查生成的 SQL，补齐初始化表 SQL 语句所需要的字段（如 created_at、updated_at、deleted_at 等）
-     6. **补齐 CRUD 接口参数**：检查生成的 .api 文件，补齐 CRUD 接口的参数定义
-     7. **生成 Model 代码**：使用 `scripts/generate-model.sh <sql_file>` 生成对应的 Model 代码
-        - **脚本执行规范**：如果需要执行 `scripts/` 目录下的脚本，需要用户执行后再通知进行下一步；如果是其他脚本（如数据库 SQL 脚本），AI 可以直接执行
-     8. **生成 API 代码**：使用 `scripts/generate-api.sh <api_file>` 生成对应的 Handler/Logic 代码骨架
-        - **脚本执行规范**：如果需要执行 `scripts/` 目录下的脚本，需要用户执行后再通知进行下一步；如果是其他脚本（如数据库 SQL 脚本），AI 可以直接执行
-     9. **开发功能**：实现 Repository、Logic、Handler 的业务逻辑，完成后执行对应的 SQL 语句（包括字典 SQL、业务表 SQL、权限菜单 SQL），创表和写入对应的权限菜单等
-     10. **启动后端服务**：确保后端服务能正常启动，接口可独立测试通过
-     11. **完成前端页面**：将生成的前端 xxx.vue 进行页面完善，然后能正常启动前端项目，进行前后端联调
-     12. **测试通过后再开发下一个功能**：每个功能必须完整实现并测试通过后，才能开始下一个功能的开发
-     - **增量 SQL 处理规范（上线版本）**：
-       - **上线版本**：使用独立的增量 SQL 文件（`create_table_<group>.sql`、`init_<group>.sql`），不合并到 `tables.sql` 和 `data.sql`
-       - **开发版本**：可以将 SQL 合并到 `tables.sql` 和 `data.sql` 统一管理
-       - **执行顺序**：先执行 `create_table_<group>.sql` 创建表结构，再执行 `init_<group>.sql` 初始化权限、菜单、接口等数据
-       - **参考示例**：demo 功能的增量 SQL 文件（`db/create_table_demo.sql`、`db/init_demo.sql`）
-   - Step 3.1 后端实现（最小可用）
-     - 使用 `scripts/generate-sql.sh -group <group> -name <name>` 生成初始化 SQL 和 .api 文件骨架
-       - **脚本执行规范**：如果需要执行 `scripts/` 目录下的脚本，需要用户执行后再通知进行下一步；如果是其他脚本（如数据库 SQL 脚本），AI 可以直接执行
-     - 检查并补齐生成的 SQL 文件中的表结构字段（created_at、updated_at、deleted_at 等）
-     - 检查并补齐生成的 .api 文件中的接口参数定义
-     - 使用 `./scripts/generate-model.sh <sql_file>` 生成 Model 代码
-       - **脚本执行规范**：如果需要执行 `scripts/` 目录下的脚本，需要用户执行后再通知进行下一步；如果是其他脚本（如数据库 SQL 脚本），AI 可以直接执行
-     - 使用 `./scripts/generate-api.sh <api_file>` 生成 Handler/Logic 代码骨架
-       - **脚本执行规范**：如果需要执行 `scripts/` 目录下的脚本，需要用户执行后再通知进行下一步；如果是其他脚本（如数据库 SQL 脚本），AI 可以直接执行
-     - 实现 `internal/repository/` → `internal/logic/` → `internal/handler/`（logic 层由 goctl 生成骨架，需实现业务逻辑）
-     - **上线版本**：使用独立的增量 SQL 文件（`create_table_<group>.sql`、`init_<group>.sql`），按顺序执行
-     - **开发版本**：可以将 SQL 合并到 `tables.sql` 和 `data.sql` 统一管理
-     - 执行生成的 SQL 语句，创建表和初始化权限菜单等数据
-     - **参考示例**：demo 功能开发流程（见 `docs/后端开发进度.md` 和 `docs/前端开发进度.md`）
-     - **权限 SQL 生成规范（必须遵守）**：
-       - 每新增一个功能模块（如用户管理、菜单管理等），必须同时生成对应的权限列表 SQL
-       - SQL 文件命名：`admin-server/db/permissions_{module_name}.sql`
-       - 权限编码规范：`{module}:{action}`（如 `user:list`、`user:create`、`user:update`、`user:delete`）
-       - 权限 SQL 模板：
-         ```sql
-         -- {模块名}管理权限
-         INSERT INTO `admin_permission` (`id`, `name`, `code`, `description`, `created_at`, `updated_at`, `deleted_at`)
-         VALUES 
-           ({id1}, '{模块}列表', '{module}:list', '查看{模块}列表', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-           ({id2}, '{模块}新增', '{module}:create', '新增{模块}', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-           ({id3}, '{模块}编辑', '{module}:update', '编辑{模块}', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-           ({id4}, '{模块}删除', '{module}:delete', '删除{模块}', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
-         ON DUPLICATE KEY UPDATE 
-           `name`=VALUES(`name`), 
-           `description`=VALUES(`description`), 
-           `updated_at`=UNIX_TIMESTAMP(), 
-           `deleted_at`=0;
-         ```
-       - 执行权限 SQL 后，需要在菜单管理中添加对应的菜单项，并关联权限编码
-     - 补充后端单元测试
-     - 更新 `docs/后端开发进度.md`：
-       - 「已完成功能」「API 清单」「数据库变更记录」「技术决策记录」「关键代码位置」
-
-   - Step 3.2 前端实现（基于后端接口）
-     - 使用 `scripts/generate-sql.sh` 生成的前端页面骨架文件（xxx.vue）作为基础
-       - **脚本执行规范**：如果需要执行 `scripts/` 目录下的脚本，需要用户执行后再通知进行下一步；如果是其他脚本（如数据库 SQL 脚本），AI 可以直接执行
-     - 使用 `./scripts/generate-ts.sh` 从后端 `.api` 生成 TS 代码到 `admin-frontend/src/api/generated/`
-       - **脚本执行规范**：如果需要执行 `scripts/` 目录下的脚本，需要用户执行后再通知进行下一步；如果是其他脚本（如数据库 SQL 脚本），AI 可以直接执行
-     - 检查并修复生成的代码适配问题（路径、参数等，参考「代码适配说明」）
-     - 在 `src/services/` 组织业务逻辑（如需要）
-     - 完善生成的页面骨架，开发或更新对应 Page、Component、Store
-       - **表格+表单业务**：优先使用 `D2Table` 组件（`src/components/common/D2Table.vue`）
-       - **权限绑定**：生成的 Vue 页面已包含权限绑定（`create-permission`、`update-permission`、`delete-permission`），格式为 `{group}:create/update/delete`
-       - **树形数据业务**：使用 `el-tree` 组件（如部门管理、菜单管理）
-       - 参考示例：`src/views/system/RoleList.vue`、`src/views/system/UserList.vue`、`src/views/system/DepartmentList.vue`、`src/views/temp/DemoList.vue`
-     - 所有 API 调用统一从 `@/api/generated/admin` 导入，类型也从 `@/api/generated/admin` 导入
-     - 补充前端单元测试（如适用）
-     - 更新 `docs/前端开发进度.md`：
-       - 「已完成功能」「API 对接进度/列表」「技术决策记录」「关键代码位置」
-
-   - Step 3.3 前后端联调
-     - 在本地或测试环境跑通完整流程（请求、权限、错误处理）
-     - 校对字段、分页规范、错误码等前后端契约是否一致
-     - 如有统一约定/变更，记录到两份进度文档的「技术决策记录」
-
-4. 质量与工具
-   - 后端：保证可编译、可运行，通过 golangci-lint
-   - 前端：保证构建通过，ESLint/Prettier 无错误
-   - 单元测试覆盖核心业务逻辑（后端 Service/Repository，前端复杂 Store/Service）
-
-5. 文档维护规则（统一）
-   - 实现方案文档（go-zero实现方案.md / vue3实现方案.md）：
-     - 仅在架构调整或新增模块时更新
-   - 进度文档（后端开发进度.md / 前端开发进度.md）：
-     - 新功能完成后补充到「已完成功能」
-     - 待实现功能用 `[ ]` 标记，进行中用 `[⏳]`，已完成用 `[✅]`
-     - 技术决策/架构调整记录到「技术决策记录」
-     - 后端 API 接口补充到「API 清单」；前端 API 对接进度记录在对应章节
-     - 关键文件路径补充到「关键代码位置」
-     - 数据库变更记录到「数据库变更记录」（后端）
-   - 修改文档必须真实读写文件，回复时最多简述改动 ≤5 行，不整篇粘贴。
+**后端（admin-server）**
+```
+Handler → Logic → Repository → Model
+  ↓        ↓          ↓          ↓
+ 路由    业务逻辑   数据访问   DB映射
+(goctl)  (goctl骨架) (封装Model) (goctl)
 ```
 
+**前端（admin-frontend）**
+```
+Page → Component → Store → API → Backend
+                            ↓
+                    generated/* (goctl)
+```
 
+### 4. 数据库时间戳规范（强制）
+- **业务表**：必须有 `created_at`, `updated_at`, `deleted_at`（软删除）
+- **关联表**：只有 `created_at`, `updated_at`（物理删除）
+- 所有时间戳：`BIGINT` 类型，秒级，默认值 0
+
+### 5. API 时间字段规范（强制）
+- **统一规则**：所有涉及时间字段（`createdAt`, `updatedAt`, `deletedAt`, `publishTime`, `readAt`, `loginAt`, `logoutAt` 等）的 API 响应，后端统一返回 `int64` 类型的时间戳（秒级），**不做任何格式化**
+- **后端实现**：Logic 层直接返回数据库中的 `int64` 时间戳，禁止使用 `time.Format()` 或 `strconv.FormatInt()` 进行格式化
+- **前端处理**：前端负责时间格式化显示，使用统一的工具函数（如 `formatTime`, `formatDateTime` 等）将时间戳转换为可读的日期时间字符串
+- **示例**：
+  ```go
+  // ❌ 错误：后端格式化时间
+  CreatedAt: time.Unix(log.CreatedAt, 0).Format("2006-01-02 15:04:05")
+  
+  // ✅ 正确：直接返回时间戳
+  CreatedAt: log.CreatedAt
+  ```
+
+### 6. API定义规范（.api文件）
+
+**基础规范**
+- Group命名：`snake_case`（如 `user_role`，禁止 `userRole`）
+- `internal/types/types.go` 人工维护，禁止被goctl覆盖
+
+**中间件声明规范**（按需组合，顺序敏感）
+
+在 `@server` 注解中使用 `middleware:` 声明中间件，多个中间件用逗号分隔：
+```go
+@server(
+    group: user
+    middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
+)
+```
+
+**五大中间件说明**：
+
+| 中间件 | 作用 | 使用场景 | 是否必需 |
+|--------|------|----------|----------|
+| `PerformanceMiddleware` | 性能监控（请求耗时统计） | 需要监控性能的接口 | 可选 |
+| `RateLimitMiddleware` | 限流控制（防刷、防攻击） | 高频访问/敏感接口 | 可选 |
+| `AuthMiddleware` | 身份认证（JWT验证） | 需要登录的接口 | **必需**（登录后接口） |
+| `PermissionMiddleware` | 权限校验（RBAC） | 需要权限控制的接口 | **必需**（需权限接口） |
+| `OperationLogMiddleware` | 操作日志记录 | 增删改等重要操作 | 可选 |
+
+**中间件组合示例**：
+```go
+// 示例1：公开接口（无需认证）
+@server(
+    group: auth
+    // 不声明middleware
+)
+service admin-api {
+    @handler Login
+    post /auth/login (LoginReq) returns (LoginResp)
+}
+
+// 示例2：普通业务接口（需要认证和权限）
+@server(
+    group: user
+    middleware: AuthMiddleware,PermissionMiddleware
+)
+service admin-api {
+    @handler UserList
+    get /user/list (UserListReq) returns (UserListResp)
+}
+
+// 示例3：高频接口（需要限流）
+@server(
+    group: api
+    middleware: RateLimitMiddleware,AuthMiddleware,PermissionMiddleware
+)
+service admin-api {
+    @handler ApiList
+    get /api/list (ApiListReq) returns (ApiListResp)
+}
+
+// 示例4：敏感操作（需要记录日志）
+@server(
+    group: user
+    middleware: AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
+)
+service admin-api {
+    @handler UserDelete
+    delete /user/:id (UserDeleteReq) returns (UserDeleteResp)
+}
+
+// 示例5：全量中间件（性能监控+限流+认证+权限+日志）
+@server(
+    group: role
+    middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
+)
+service admin-api {
+    @handler RoleUpdate
+    put /role/:id (RoleUpdateReq) returns (RoleUpdateResp)
+}
+```
+
+**中间件选择决策树**：
+```
+接口是否需要登录？
+├─ 否 → 不声明middleware（如登录、注册、公开API）
+└─ 是 → 声明 AuthMiddleware
+    └─ 是否需要权限控制？
+        ├─ 否 → AuthMiddleware（如个人信息查询）
+        └─ 是 → AuthMiddleware,PermissionMiddleware
+            └─ 是否高频访问？
+                ├─ 是 → RateLimitMiddleware,AuthMiddleware,PermissionMiddleware
+                └─ 否 → 是否需要操作日志？
+                    ├─ 是 → AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
+                    └─ 否 → AuthMiddleware,PermissionMiddleware
+                        └─ 是否需要性能监控？
+                            ├─ 是 → PerformanceMiddleware,AuthMiddleware,PermissionMiddleware
+                            └─ 否 → AuthMiddleware,PermissionMiddleware
+```
+
+**中间件执行顺序**（按声明顺序执行）：
+1. `PerformanceMiddleware` - 性能监控开始
+2. `RateLimitMiddleware` - 限流检查
+3. `AuthMiddleware` - 身份认证
+4. `PermissionMiddleware` - 权限校验
+5. `OperationLogMiddleware` - 操作日志记录
+6. Handler业务逻辑
+7. `PerformanceMiddleware` - 性能监控结束
+
+**常见中间件组合**：
+
+| 场景 | 中间件组合 | 示例 |
+|------|-----------|------|
+| 公开接口 | 无 | 登录、注册、健康检查 |
+| 查询接口 | `AuthMiddleware,PermissionMiddleware` | 用户列表、角色列表 |
+| 新增接口 | `AuthMiddleware,PermissionMiddleware,OperationLogMiddleware` | 创建用户、创建角色 |
+| 修改接口 | `AuthMiddleware,PermissionMiddleware,OperationLogMiddleware` | 更新用户、更新角色 |
+| 删除接口 | `AuthMiddleware,PermissionMiddleware,OperationLogMiddleware` | 删除用户、删除角色 |
+| 高频接口 | `RateLimitMiddleware,AuthMiddleware,PermissionMiddleware` | 接口列表、日志查询 |
+| 重要接口 | `PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware` | 核心业务操作 |
+
+---
+
+## 📋 标准开发流程（严格按顺序）
+
+### 功能开发 Checklist
+```
+[ ] 1. 明确功能需求，确定模块名称
+[ ] 2. 评估是否需要数据字典
+      → 需要：创建增量字典SQL文件
+         路径：db/migrations/dict_{module}_YYYYMMDD.sql
+         示例：db/migrations/dict_order_20250101.sql
+[ ] 3. 【用户执行】generate-sql.sh -group <name>
+      → 等待确认生成：create_table_*.sql, init_*.sql, *.api, *.vue
+[ ] 4. 补齐SQL字段（created_at/updated_at/deleted_at）
+[ ] 5. 补齐.api接口参数和中间件声明
+      → 根据接口特性选择合适的中间件组合
+      → 参考「中间件选择决策树」
+[ ] 6. 【用户执行】generate-model.sh <sql_file>
+      → 等待确认生成：Model代码
+[ ] 7. 【用户执行】generate-api.sh <api_file>
+      → 等待确认生成：Handler/Logic代码
+[ ] 8. 实现Repository/Logic业务逻辑
+[ ] 9. 执行SQL（字典SQL + 业务表SQL + 权限SQL）
+      → 顺序：字典SQL → 业务表SQL → 权限SQL
+[ ] 10. 启动后端服务测试接口
+[ ] 11. 【用户执行】generate-ts.sh
+       → 等待确认生成：TS代码
+[ ] 12. 完善前端页面（基于生成的.vue骨架）
+[ ] 13. 前后端联调测试通过
+[ ] 14. 更新进度文档
+```
+
+---
+
+## 🔑 核心技术规范
+
+### 后端关键点
+- **代码生成优先**：能用goctl生成的必须用goctl
+- **常量管理**：系统级枚举统一放 `internal/consts`
+- **错误处理**：统一错误码 + `errors.Wrap` 追踪栈
+- **缓存策略**：热数据用Redis，防穿透/击穿/雪崩
+- **日志规范**：`logx` 分级（Info/Warn/Error）+ 上下文
+
+### 前端关键点
+- **API调用**：统一从 `@/api/generated/admin` 导入
+- **通用组件**：表格+表单业务优先用 `D2Table`
+- **权限控制**：`v-permission` 指令 + 路由守卫
+- **类型安全**：TypeScript严格模式，类型完备
+- **代码质量**：ESLint + Prettier，生产环境无console
+
+### 字典SQL文件规范
+
+**文件命名**：`db/migrations/dict_{module}_YYYYMMDD.sql`
+- `{module}`：功能模块名（如 order、product、user）
+- `YYYYMMDD`：创建日期（如 20250101）
+
+**SQL模板**：
+```sql
+-- ============================================
+-- 字典SQL增量脚本
+-- 模块：{功能模块名称}
+-- 创建时间：YYYY-MM-DD
+-- 说明：{字典用途说明}
+-- ============================================
+
+-- 1. 插入字典类型
+INSERT INTO `admin_dict_type` (`id`, `name`, `code`, `description`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES 
+  ({id}, '{字典类型名称}', '{dict_code}', '{字典类型描述}', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE 
+  `name`=VALUES(`name`), 
+  `description`=VALUES(`description`), 
+  `updated_at`=UNIX_TIMESTAMP(),
+  `deleted_at`=0;
+
+-- 2. 插入字典项
+INSERT INTO `admin_dict_item` (`id`, `type_id`, `label`, `value`, `sort`, `status`, `remark`, `created_at`, `updated_at`, `deleted_at`)
+VALUES 
+  ({id1}, {type_id}, '{字典项标签1}', '{value1}', 1, 1, '{备注1}', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ({id2}, {type_id}, '{字典项标签2}', '{value2}', 2, 1, '{备注2}', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ({id3}, {type_id}, '{字典项标签3}', '{value3}', 3, 1, '{备注3}', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE 
+  `label`=VALUES(`label`), 
+  `value`=VALUES(`value`), 
+  `sort`=VALUES(`sort`), 
+  `status`=VALUES(`status`), 
+  `remark`=VALUES(`remark`), 
+  `updated_at`=UNIX_TIMESTAMP(),
+  `deleted_at`=0;
+```
+
+**示例**：订单状态字典（`db/migrations/dict_order_20250101.sql`）
+```sql
+-- ============================================
+-- 字典SQL增量脚本
+-- 模块：订单管理
+-- 创建时间：2025-01-01
+-- 说明：订单状态字典，用于订单列表状态筛选和展示
+-- ============================================
+
+-- 1. 插入字典类型
+INSERT INTO `admin_dict_type` (`id`, `name`, `code`, `description`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES 
+  (100, '订单状态', 'order_status', '订单状态字典', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE 
+  `name`=VALUES(`name`), 
+  `description`=VALUES(`description`), 
+  `updated_at`=UNIX_TIMESTAMP(),
+  `deleted_at`=0;
+
+-- 2. 插入字典项
+INSERT INTO `admin_dict_item` (`id`, `type_id`, `label`, `value`, `sort`, `status`, `remark`, `created_at`, `updated_at`, `deleted_at`)
+VALUES 
+  (1001, 100, '待支付', 'pending', 1, 1, '订单待支付状态', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (1002, 100, '已支付', 'paid', 2, 1, '订单已支付状态', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (1003, 100, '已发货', 'shipped', 3, 1, '订单已发货状态', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (1004, 100, '已完成', 'completed', 4, 1, '订单已完成状态', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (1005, 100, '已取消', 'cancelled', 5, 1, '订单已取消状态', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE 
+  `label`=VALUES(`label`), 
+  `value`=VALUES(`value`), 
+  `sort`=VALUES(`sort`), 
+  `status`=VALUES(`status`), 
+  `remark`=VALUES(`remark`), 
+  `updated_at`=UNIX_TIMESTAMP(),
+  `deleted_at`=0;
+```
+
+**ID分配规范**：
+- 字典类型ID：100-999（按模块分段，如订单100-199，商品200-299）
+- 字典项ID：1000-9999（按类型分段，每个类型预留100个ID）
+- 查询现有最大ID：
+```sql
+  SELECT MAX(id) FROM admin_dict_type;
+  SELECT MAX(id) FROM admin_dict_item;
+```
+
+**执行顺序**：
+1. 先执行字典SQL（`dict_*.sql`）
+2. 再执行业务表SQL（`create_table_*.sql`）
+3. 最后执行权限SQL（`init_*.sql`）
+
+---
+
+## 📁 关键目录结构
+```
+admin-server/
+├── api/                    # .api定义文件
+├── internal/
+│   ├── handler/           # 路由处理（goctl生成）
+│   ├── logic/             # 业务逻辑（goctl骨架）
+│   ├── repository/        # 数据访问（封装Model）
+│   ├── model/             # DB映射（goctl生成）
+│   ├── middleware/        # 中间件（五大中间件）
+│   ├── consts/            # 系统常量
+│   └── types/             # 类型定义（人工维护）
+└── db/
+    ├── init.sql           # 初始化SQL（首次部署）
+    ├── tables.sql         # 表结构SQL（首次部署）
+    ├── data.sql           # 初始数据SQL（首次部署）
+    └── migrations/        # 增量SQL目录
+        ├── dict_order_20250101.sql      # 订单字典
+        ├── dict_product_20250102.sql    # 商品字典
+        ├── create_table_order.sql       # 订单表
+        └── init_order.sql               # 订单权限
+
+admin-frontend/
+├── src/
+│   ├── api/generated/     # goctl生成TS代码（禁止手动修改）
+│   ├── views/             # 页面组件
+│   ├── components/common/ # 通用组件（D2Table等）
+│   └── stores/            # Pinia状态管理
+```
+
+---
+
+## 📝 文档更新规则
+
+### 何时更新实现方案文档
+- 架构调整时
+- 新增模块时
+- 技术栈变更时
+
+### 必须更新进度文档（每次功能完成后）
+- 后端：`docs/后端开发进度.md`
+  - [ ] 已完成功能
+  - [ ] API清单（包括中间件配置）
+  - [ ] 数据库变更记录（包括字典SQL文件）
+  - [ ] 技术决策记录
+  - [ ] 关键代码位置
+  
+- 前端：`docs/前端开发进度.md`
+  - [ ] 已完成功能
+  - [ ] API对接进度
+  - [ ] 技术决策记录
+  - [ ] 关键代码位置
+
+**文档修改规则**：真实读写文件，回复时简述改动≤5行，不整篇粘贴。
+
+---
+
+## ⚠️ 绝对禁止事项
+
+1. ❌ 跳过脚本执行步骤
+2. ❌ 手动创建应由脚本生成的文件
+3. ❌ 修改 `api/generated/*` 目录（除必要适配）
+4. ❌ 保留旧代码路径和兼容层
+5. ❌ 在业务代码中硬编码字符串常量
+6. ❌ 业务表使用物理删除（必须软删除）
+7. ❌ Group使用驼峰命名（必须snake_case）
+8. ❌ 字典SQL插入到 `db/data.sql`（必须创建独立增量文件）
+9. ❌ 中间件声明顺序错误（必须按执行顺序声明）
+
+---
+
+**核心原则**：能用工具生成的绝不手写，严格遵循分层架构，前后端协同开发，文档与代码同步更新。

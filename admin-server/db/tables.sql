@@ -1,6 +1,12 @@
 -- admin-server 数据库建表脚本
--- 注意：所有业务表统一包含 created_at、updated_at、deleted_at 字段（BIGINT类型，秒级时间戳）
--- 关联关系表（如用户-角色、角色-权限）不包含 deleted_at 字段，使用物理删除
+-- 说明：此脚本包含所有业务表的建表语句，使用 CREATE TABLE IF NOT EXISTS 确保幂等性
+-- 
+-- 表结构规范：
+--   1. 所有业务表统一包含 created_at、updated_at、deleted_at 字段（BIGINT类型，秒级时间戳）
+--   2. 关联关系表（如用户-角色、角色-权限）不包含 deleted_at 字段，使用物理删除
+--   3. 所有表使用 InnoDB 引擎，utf8mb4 字符集，utf8mb4_unicode_ci 排序规则
+--   4. 主键统一使用 BIGINT UNSIGNED AUTO_INCREMENT
+--   5. 时间戳字段统一使用 BIGINT 类型，存储秒级时间戳
 
 -- ============================================
 -- 1. 后台管理用户表
@@ -8,6 +14,7 @@
 CREATE TABLE IF NOT EXISTS `admin_user` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
   `username` VARCHAR(64) NOT NULL COMMENT '用户名',
+  `nickname` VARCHAR(64) NOT NULL DEFAULT '' COMMENT '用户昵称',
   `password_hash` VARCHAR(255) NOT NULL COMMENT 'bcrypt 加密后的密码',
   `avatar` VARCHAR(255) NOT NULL DEFAULT '' COMMENT '头像URL',
   `signature` VARCHAR(255) NOT NULL DEFAULT '' COMMENT '个性签名',
@@ -230,8 +237,8 @@ CREATE TABLE IF NOT EXISTS `admin_file` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '文件ID',
   `name` VARCHAR(255) NOT NULL COMMENT '文件名称',
   `original_name` VARCHAR(255) NOT NULL COMMENT '原始文件名称',
-  `path` VARCHAR(512) NOT NULL COMMENT '文件存储路径（相对路径）',
-  `url` VARCHAR(512) NOT NULL COMMENT '文件访问URL',
+  `path` VARCHAR(512) NOT NULL COMMENT '文件访问路径（相对路径，如 /uploads/xxx）',
+  `base_url` VARCHAR(512) NOT NULL DEFAULT '' COMMENT '基础URL（如 http://localhost:8888），用于拼接完整访问URL',
   `size` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '文件大小（字节）',
   `mime_type` VARCHAR(128) DEFAULT NULL COMMENT 'MIME类型',
   `ext` VARCHAR(16) DEFAULT NULL COMMENT '文件扩展名',
@@ -348,4 +355,102 @@ CREATE TABLE IF NOT EXISTS `admin_performance_log` (
   KEY `idx_performance_log_is_slow` (`is_slow`),
   KEY `idx_performance_log_duration` (`duration`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='接口性能监控日志表';
+
+-- ============================================
+-- 19. 聊天表（聊天抽象：私聊、群组）
+-- ============================================
+CREATE TABLE IF NOT EXISTS `chat` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+  `name` VARCHAR(255) NOT NULL DEFAULT '' COMMENT '聊天名称（群组名称，私聊为空）',
+  `type` TINYINT NOT NULL DEFAULT 1 COMMENT '聊天类型：1私聊，2群组',
+  `avatar` VARCHAR(255) NOT NULL DEFAULT '' COMMENT '头像URL（群组头像，私聊为空）',
+  `description` VARCHAR(500) NOT NULL DEFAULT '' COMMENT '描述（群组描述，私聊为空）',
+  `created_by` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '创建人ID（群组创建人，私聊为0）',
+  `created_at` BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间(秒级时间戳)',
+  `updated_at` BIGINT NOT NULL DEFAULT 0 COMMENT '更新时间(秒级时间戳)',
+  `deleted_at` BIGINT NOT NULL DEFAULT 0 COMMENT '删除时间(秒级时间戳,0表示未删除)',
+  PRIMARY KEY (`id`),
+  KEY `idx_chat_type` (`type`),
+  KEY `idx_chat_created_by` (`created_by`),
+  KEY `idx_chat_deleted_at` (`deleted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='聊天表（私聊、群组）';
+
+-- ============================================
+-- 20. 聊天-用户关联表（群组-用户关联，私聊-用户关联）
+-- ============================================
+CREATE TABLE IF NOT EXISTS `chat_user` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+  `chat_id` BIGINT UNSIGNED NOT NULL COMMENT '聊天 ID',
+  `user_id` BIGINT UNSIGNED NOT NULL COMMENT '用户 ID',
+  `joined_at` BIGINT NOT NULL DEFAULT 0 COMMENT '加入时间(秒级时间戳)',
+  `created_at` BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间(秒级时间戳)',
+  `updated_at` BIGINT NOT NULL DEFAULT 0 COMMENT '更新时间(秒级时间戳)',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_chat_user` (`chat_id`,`user_id`),
+  KEY `idx_chat_user_chat_id` (`chat_id`),
+  KEY `idx_chat_user_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='聊天-用户关联表';
+
+-- ============================================
+-- 21. 聊天消息表
+-- ============================================
+CREATE TABLE IF NOT EXISTS `chat_message` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+  `chat_id` BIGINT UNSIGNED NOT NULL COMMENT '聊天 ID（关联chat表）',
+  `from_user_id` BIGINT UNSIGNED NOT NULL COMMENT '发送用户 ID',
+  `content` TEXT NOT NULL COMMENT '消息内容',
+  `message_type` TINYINT NOT NULL DEFAULT 1 COMMENT '消息类型：1文本，2图片，3文件',
+  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1已发送，2已读，3已撤回',
+  `created_at` BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间(秒级时间戳)',
+  `updated_at` BIGINT NOT NULL DEFAULT 0 COMMENT '更新时间(秒级时间戳)',
+  `deleted_at` BIGINT NOT NULL DEFAULT 0 COMMENT '删除时间(秒级时间戳,0表示未删除)',
+  PRIMARY KEY (`id`),
+  KEY `idx_chat_message_chat_id` (`chat_id`),
+  KEY `idx_chat_message_from_user_id` (`from_user_id`),
+  KEY `idx_chat_message_created_at` (`created_at`),
+  KEY `idx_chat_message_deleted_at` (`deleted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='聊天消息表';
+
+-- ============================================
+-- 22. 公告管理表
+-- ============================================
+CREATE TABLE IF NOT EXISTS `admin_notice` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+  `title` VARCHAR(255) NOT NULL COMMENT '公告标题',
+  `content` TEXT NOT NULL COMMENT '公告内容',
+  `type` TINYINT NOT NULL DEFAULT 1 COMMENT '公告类型：1 普通公告，2 重要公告，3 紧急公告',
+  `status` TINYINT NOT NULL DEFAULT 1 COMMENT '状态：1 草稿，2 已发布',
+  `publish_time` BIGINT NOT NULL DEFAULT 0 COMMENT '发布时间(秒级时间戳)',
+  `created_by` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '创建人ID',
+  `created_at` BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间(秒级时间戳)',
+  `updated_at` BIGINT NOT NULL DEFAULT 0 COMMENT '更新时间(秒级时间戳)',
+  `deleted_at` BIGINT NOT NULL DEFAULT 0 COMMENT '删除时间(秒级时间戳,0表示未删除)',
+  PRIMARY KEY (`id`),
+  KEY `idx_admin_notice_type` (`type`),
+  KEY `idx_admin_notice_status` (`status`),
+  KEY `idx_admin_notice_publish_time` (`publish_time`),
+  KEY `idx_admin_notice_deleted_at` (`deleted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='公告管理表';
+
+-- ============================================
+-- 23. 消息通知管理表
+-- ============================================
+CREATE TABLE IF NOT EXISTS `admin_notification` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键 ID',
+  `user_id` BIGINT UNSIGNED NOT NULL COMMENT '用户ID',
+  `source_type` VARCHAR(32) NOT NULL COMMENT '消息来源类型（通过字典定义：chat、notice等）',
+  `source_id` BIGINT UNSIGNED NOT NULL DEFAULT 0 COMMENT '来源ID（如公告ID、聊天消息ID等）',
+  `title` VARCHAR(255) NOT NULL COMMENT '消息标题',
+  `content` TEXT NOT NULL COMMENT '消息内容',
+  `read_status` TINYINT NOT NULL DEFAULT 0 COMMENT '已读状态：1 已读，0 未读',
+  `read_at` BIGINT NOT NULL DEFAULT 0 COMMENT '已读时间(秒级时间戳)',
+  `created_at` BIGINT NOT NULL DEFAULT 0 COMMENT '创建时间(秒级时间戳)',
+  `updated_at` BIGINT NOT NULL DEFAULT 0 COMMENT '更新时间(秒级时间戳)',
+  `deleted_at` BIGINT NOT NULL DEFAULT 0 COMMENT '删除时间(秒级时间戳,0表示未删除)',
+  PRIMARY KEY (`id`),
+  KEY `idx_admin_notification_user_id` (`user_id`),
+  KEY `idx_admin_notification_source_type` (`source_type`),
+  KEY `idx_admin_notification_read_status` (`read_status`),
+  KEY `idx_admin_notification_deleted_at` (`deleted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='消息通知管理表';
 

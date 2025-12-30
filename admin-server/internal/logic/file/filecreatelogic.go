@@ -43,8 +43,8 @@ func (l *FileCreateLogic) FileCreate(req *types.FileCreateReq) error {
 	file := model.AdminFile{
 		Name:         req.Name,
 		OriginalName: req.Name, // 默认使用 name 作为原始名称
-		Path:         "",       // 文件路径需要在上传时设置
-		Url:          "",       // 文件URL需要在上传时设置
+		Path:         "",       // 文件访问路径需要在上传时设置
+		BaseUrl:      "",       // 基础URL需要在上传时设置
 		Size:         0,        // 文件大小需要在上传时设置
 		MimeType:     sql.NullString{Valid: false},
 		Ext:          sql.NullString{Valid: false},

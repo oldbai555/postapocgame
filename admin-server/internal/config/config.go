@@ -13,6 +13,7 @@ type Config struct {
 	JWT           JWTConf       `json:"jwt" yaml:"jwt" mapstructure:"jwt"`
 	Bcrypt        BcryptConf    `json:"bcrypt" yaml:"bcrypt" mapstructure:"bcrypt"`
 	RateLimit     RateLimitConf `json:"rateLimit" yaml:"rateLimit" mapstructure:"rateLimit"`
+	BaseURL       string        `json:"baseUrl" yaml:"baseUrl" mapstructure:"baseUrl"` // API 基础 URL，用于生成文件完整访问路径
 }
 
 type DatabaseConf struct {

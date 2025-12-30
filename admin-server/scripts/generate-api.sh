@@ -16,7 +16,7 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 项目根目录（scripts的父目录）
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-ADMIN_SERVER_DIR="${PROJECT_ROOT}/admin-server"
+ADMIN_SERVER_DIR="${PROJECT_ROOT}"
 API_DIR="${ADMIN_SERVER_DIR}/api"
 
 # 解析 goctl 路径（优先环境变量 GOCTL_BIN，其次 PATH，再次 GOPATH/bin/goctl）

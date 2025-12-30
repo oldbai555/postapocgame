@@ -12,6 +12,7 @@ import (
 type ChatMessageRepository interface {
 	FindByID(ctx context.Context, id uint64) (*model.ChatMessage, error)
 	FindPage(ctx context.Context, page, pageSize int64, roomId string, userId uint64) ([]model.ChatMessage, int64, error)
+	FindByChatID(ctx context.Context, page, pageSize int64, chatId uint64) ([]model.ChatMessage, int64, error)
 	FindPrivateMessages(ctx context.Context, page, pageSize int64, currentUserId, targetUserId uint64) ([]model.ChatMessage, int64, error)
 	Create(ctx context.Context, message *model.ChatMessage) error
 	Update(ctx context.Context, message *model.ChatMessage) error
@@ -55,6 +56,40 @@ func (r *chatMessageRepository) FindPage(ctx context.Context, page, pageSize int
 	whereClause := ""
 	if len(conditions) > 0 {
 		whereClause = "WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	// 查询总数
+	var total int64
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM `chat_message` %s", whereClause)
+	err := r.conn.QueryRowCtx(ctx, &total, countQuery, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// 查询列表
+	offset := (page - 1) * pageSize
+	query := fmt.Sprintf("SELECT * FROM `chat_message` %s ORDER BY created_at DESC LIMIT ? OFFSET ?", whereClause)
+	args = append(args, pageSize, offset)
+
+	var list []model.ChatMessage
+	err = r.conn.QueryRowsCtx(ctx, &list, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return list, total, nil
+}
+
+func (r *chatMessageRepository) FindByChatID(ctx context.Context, page, pageSize int64, chatId uint64) ([]model.ChatMessage, int64, error) {
+	// 根据 chatId 查询消息，如果 chatId == 0，则查询所有消息
+	var whereClause string
+	var args []interface{}
+	if chatId == 0 {
+		whereClause = "WHERE deleted_at = 0"
+		args = []interface{}{}
+	} else {
+		whereClause = "WHERE chat_id = ? AND deleted_at = 0"
+		args = []interface{}{chatId}
 	}
 
 	// 查询总数

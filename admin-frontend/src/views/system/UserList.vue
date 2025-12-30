@@ -180,6 +180,7 @@ const columns = computed<TableColumn[]>(() => [
   {prop: 'id', label: 'ID', width: 80},
   {prop: 'avatar', label: '头像', width: 100, type: D2TableElemType.Image},
   {prop: 'username', label: t('common.username')},
+  {prop: 'nickname', label: '昵称', width: 120},
   {prop: 'signature', label: '个性签名', width: 200},
   {prop: 'departmentId', label: t('common.department')},
   {prop: 'status', label: t('common.status'), width: 100},
@@ -190,6 +191,7 @@ const columns = computed<TableColumn[]>(() => [
 const drawerColumns = computed<DrawerColumn[]>(() => [
   {prop: 'id', label: 'ID', type: D2TableElemType.Tag},
   {prop: 'username', label: t('common.username'), type: D2TableElemType.EditInput, required: true},
+  {prop: 'nickname', label: '昵称', type: D2TableElemType.EditInput},
   {prop: 'avatar', label: '头像', type: D2TableElemType.Image},
   {prop: 'signature', label: '个性签名', type: D2TableElemType.EditInput},
   {
@@ -213,6 +215,7 @@ const drawerColumns = computed<DrawerColumn[]>(() => [
 // 新增抽屉列配置
 const drawerAddColumns = computed<DrawerColumn[]>(() => [
   {prop: 'username', label: t('common.username'), required: true},
+  {prop: 'nickname', label: '昵称'},
   {prop: 'password', label: t('common.password'), required: true},
   {prop: 'avatar', label: '头像', type: D2TableElemType.Image},
   {prop: 'signature', label: '个性签名'},

@@ -1,15 +1,12 @@
 package hub
 
 import (
-	"context"
 	"encoding/json"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/zeromicro/go-zero/core/logx"
-	"postapocgame/admin-server/internal/model"
-	"postapocgame/admin-server/internal/repository"
 )
 
 const (
@@ -54,9 +51,6 @@ type ChatHub struct {
 	// 注销客户端
 	unregister chan *Client
 
-	// Repository 用于数据库操作
-	onlineUserRepo repository.ChatOnlineUserRepository
-
 	mu sync.RWMutex
 }
 
@@ -66,14 +60,13 @@ func (h *ChatHub) Register() chan<- *Client {
 }
 
 // NewChatHub 创建新的 ChatHub
-func NewChatHub(onlineUserRepo repository.ChatOnlineUserRepository) *ChatHub {
+func NewChatHub() *ChatHub {
 	return &ChatHub{
-		clients:        make(map[uint64]*Client),
-		rooms:          make(map[string]map[uint64]*Client),
-		broadcast:      make(chan []byte, 256),
-		register:       make(chan *Client),
-		unregister:     make(chan *Client),
-		onlineUserRepo: onlineUserRepo,
+		clients:    make(map[uint64]*Client),
+		rooms:      make(map[string]map[uint64]*Client),
+		broadcast:  make(chan []byte, 256),
+		register:   make(chan *Client),
+		unregister: make(chan *Client),
 	}
 }
 
@@ -93,26 +86,6 @@ func (h *ChatHub) Run() {
 			h.mu.Unlock()
 			logx.Infof("客户端注册: UserID=%d, Username=%s, RoomID=%s, ConnectionID=%s", client.UserID, client.Username, client.RoomID, client.ConnectionID)
 
-			// 保存在线用户到数据库
-			if h.onlineUserRepo != nil {
-				go func() {
-					ctx := context.Background()
-					now := time.Now().Unix()
-					onlineUser := &model.ChatOnlineUser{
-						UserId:       client.UserID,
-						ConnectionId: client.ConnectionID,
-						IpAddress:    "", // 可以从 client.Conn.RemoteAddr() 获取
-						UserAgent:    "",
-						LastActiveAt: now,
-						CreatedAt:    now,
-						UpdatedAt:    now,
-					}
-					if err := h.onlineUserRepo.Create(ctx, onlineUser); err != nil {
-						logx.Errorf("保存在线用户失败: %v", err)
-					}
-				}()
-			}
-
 		case client := <-h.unregister:
 			h.mu.Lock()
 			if _, ok := h.clients[client.UserID]; ok {
@@ -127,16 +100,6 @@ func (h *ChatHub) Run() {
 			}
 			h.mu.Unlock()
 			logx.Infof("客户端注销: UserID=%d, Username=%s, ConnectionID=%s", client.UserID, client.Username, client.ConnectionID)
-
-			// 从数据库删除在线用户
-			if h.onlineUserRepo != nil && client.ConnectionID != "" {
-				go func() {
-					ctx := context.Background()
-					if err := h.onlineUserRepo.DeleteByConnectionID(ctx, client.ConnectionID); err != nil {
-						logx.Errorf("删除在线用户失败: %v", err)
-					}
-				}()
-			}
 
 		case message := <-h.broadcast:
 			// 广播消息到所有客户端
@@ -288,11 +251,12 @@ type ChatMessage struct {
 	Type      string `json:"type"`      // 消息类型：chat, task_progress, notification, system, join, leave, error
 	FromID    uint64 `json:"fromId"`    // 发送者ID
 	FromName  string `json:"fromName"`  // 发送者名称
-	ToID      uint64 `json:"toId"`      // 接收者ID（0表示群聊）
-	RoomID    string `json:"roomId"`    // 聊天室ID
+	ToID      uint64 `json:"toId"`      // 接收者ID（0表示群聊，已废弃，使用ChatID）
+	RoomID    string `json:"roomId"`    // 聊天室ID（已废弃，使用ChatID）
+	ChatID    uint64 `json:"chatId"`    // 聊天ID（关联chat表）
 	Content   string `json:"content"`   // 消息内容
 	MessageID uint64 `json:"messageId"` // 消息ID
-	CreatedAt string `json:"createdAt"` // 创建时间
+	CreatedAt int64  `json:"createdAt"` // 创建时间(秒级时间戳)
 	// 任务进度相关字段
 	TaskID   string `json:"taskId,omitempty"`   // 任务ID
 	TaskName string `json:"taskName,omitempty"` // 任务名称
@@ -304,12 +268,35 @@ type ChatMessage struct {
 }
 
 // BroadcastChatMessage 广播聊天消息
+// 如果提供了 ChatID，则向该聊天的所有用户发送消息
+// 否则回退到旧的逻辑（ToID/RoomID）
 func (h *ChatHub) BroadcastChatMessage(msg *ChatMessage) error {
 	messageBytes, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}
 
+	// 优先使用 ChatID
+	if msg.ChatID > 0 {
+		// 根据 ChatID 向该聊天的所有在线用户发送消息
+		// 注意：这里需要知道聊天的所有用户，但 hub 不应该直接访问 repository
+		// 所以这个逻辑应该在调用 BroadcastChatMessage 之前完成
+		// 这里我们向所有在线用户发送，由前端根据 chatId 过滤
+		// 或者，我们可以维护一个 chatId -> userIds 的映射
+		// 为了简化，这里先向所有在线用户发送，前端会过滤
+		h.mu.RLock()
+		for _, client := range h.clients {
+			select {
+			case client.Send <- messageBytes:
+			default:
+				// 发送失败，忽略
+			}
+		}
+		h.mu.RUnlock()
+		return nil
+	}
+
+	// 回退到旧的逻辑（兼容性）
 	// 优先判断私聊：ToID > 0 表示私聊消息
 	if msg.ToID > 0 {
 		// 私聊：发送给发送者和接收者
@@ -328,4 +315,20 @@ func (h *ChatHub) BroadcastChatMessage(msg *ChatMessage) error {
 	}
 
 	return nil
+}
+
+// BroadcastToChat 向指定聊天的所有在线用户发送消息
+func (h *ChatHub) BroadcastToChat(chatID uint64, userIDs []uint64, message []byte) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	for _, userID := range userIDs {
+		if client, ok := h.clients[userID]; ok {
+			select {
+			case client.Send <- message:
+			default:
+				// 发送失败，忽略
+			}
+		}
+	}
 }

@@ -6,7 +6,6 @@ package monitor
 import (
 	"context"
 
-	"postapocgame/admin-server/internal/repository"
 	"postapocgame/admin-server/internal/svc"
 	"postapocgame/admin-server/internal/types"
 
@@ -56,13 +55,13 @@ func (l *MonitorStatsLogic) MonitorStats() (resp *types.MonitorStatsResp, err er
 		menuCount = 0
 	}
 
-	// 统计在线用户数
-	chatOnlineUserRepo := repository.NewChatOnlineUserRepository(l.svcCtx.Repository)
-	onlineUsers, err := chatOnlineUserRepo.FindAll(l.ctx)
-	if err != nil {
-		l.Errorf("统计在线用户数失败: %v", err)
+	// 统计在线用户数（从 WebSocket Hub 获取）
+	// 注意：ChatOnlineUser 表已移除，在线用户数从 WebSocket Hub 获取
+	onlineUserCount := int64(0)
+	if l.svcCtx.ChatHub != nil {
+		onlineUserIDs := l.svcCtx.ChatHub.GetOnlineUsers()
+		onlineUserCount = int64(len(onlineUserIDs))
 	}
-	onlineUserCount := int64(len(onlineUsers))
 
 	// 统计操作日志数
 	operationLogCount, err := l.countOperationLogs()

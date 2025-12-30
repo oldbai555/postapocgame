@@ -16,7 +16,7 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 项目根目录（scripts的父目录）
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-ADMIN_SERVER_DIR="${PROJECT_ROOT}/admin-server"
+ADMIN_SERVER_DIR="${PROJECT_ROOT}"
 TEMPLATE_DIR="${ADMIN_SERVER_DIR}/.template"
 MIGRATIONS_DIR="${ADMIN_SERVER_DIR}/db/migrations"
 MODEL_DIR="${ADMIN_SERVER_DIR}/internal/model"

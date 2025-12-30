@@ -5,15 +5,11 @@ package chat
 
 import (
 	"context"
-	"strconv"
-	"time"
-
-	"postapocgame/admin-server/internal/model"
 	"postapocgame/admin-server/internal/repository"
 	"postapocgame/admin-server/internal/svc"
 	"postapocgame/admin-server/internal/types"
 	"postapocgame/admin-server/pkg/errs"
-	jwthelper "postapocgame/admin-server/pkg/jwt"
+	"strconv"
 
 	"github.com/zeromicro/go-zero/core/logx"
 )
@@ -68,25 +64,15 @@ func (l *ChatMessageListLogic) ChatMessageList(req *types.ChatMessageListReq) (r
 		req.PageSize = chatMessageLimit
 	}
 
-	// 获取当前用户
-	user, ok := jwthelper.FromContext(l.ctx)
-	if !ok {
-		return nil, errs.New(errs.CodeUnauthorized, "未登录或登录已过期")
-	}
-
 	messageRepo := repository.NewChatMessageRepository(l.svcCtx.Repository)
 	userRepo := repository.NewUserRepository(l.svcCtx.Repository)
 
-	// 如果查询私聊消息（userId > 0 且 roomId 为空），需要查询当前用户和指定用户之间的消息
-	var list []model.ChatMessage
-	var total int64
-	if req.UserId > 0 && req.RoomId == "" {
-		// 私聊：查询当前用户和指定用户之间的消息
-		list, total, err = messageRepo.FindPrivateMessages(l.ctx, req.Page, req.PageSize, user.UserID, req.UserId)
-	} else {
-		// 群聊：查询房间消息
-		list, total, err = messageRepo.FindPage(l.ctx, req.Page, req.PageSize, req.RoomId, 0)
+	// 根据 chatId 查询消息
+	if req.ChatId == 0 {
+		return nil, errs.New(errs.CodeBadRequest, "chatId 不能为空")
 	}
+
+	list, total, err := messageRepo.FindByChatID(l.ctx, req.Page, req.PageSize, req.ChatId)
 	if err != nil {
 		return nil, errs.Wrap(errs.CodeInternalError, "查询聊天消息列表失败", err)
 	}
@@ -100,26 +86,15 @@ func (l *ChatMessageListLogic) ChatMessageList(req *types.ChatMessageListReq) (r
 			fromUserName = fromUser.Username
 		}
 
-		// 查询接收用户信息
-		toUserName := ""
-		if msg.ToUserId > 0 {
-			toUser, _ := userRepo.FindByID(l.ctx, msg.ToUserId)
-			if toUser != nil {
-				toUserName = toUser.Username
-			}
-		}
-
 		items = append(items, types.ChatMessageItem{
 			Id:           msg.Id,
+			ChatId:       msg.ChatId,
 			FromUserId:   msg.FromUserId,
 			FromUserName: fromUserName,
-			ToUserId:     msg.ToUserId,
-			ToUserName:   toUserName,
-			RoomId:       msg.RoomId,
 			Content:      msg.Content,
 			MessageType:  msg.MessageType,
 			Status:       msg.Status,
-			CreatedAt:    time.Unix(msg.CreatedAt, 0).Format("2006-01-02 15:04:05"),
+			CreatedAt:    msg.CreatedAt,
 		})
 	}
 

@@ -59,11 +59,15 @@ func (l *FileUploadLogic) FileUpload(r *http.Request) (resp *types.FileUploadRes
 	// 生成唯一文件名
 	ext := filepath.Ext(header.Filename)
 	fileName := fmt.Sprintf("%d_%s", time.Now().UnixNano(), header.Filename)
-	filePath := filepath.Join(uploadDir, fileName)
-	fileURL := fmt.Sprintf("/uploads/%s", fileName)
+	// 文件系统路径（用于实际存储）
+	fileSystemPath := filepath.Join(uploadDir, fileName)
+	// 访问路径（相对路径，如 /uploads/xxx，用于拼接 URL）
+	accessPath := fmt.Sprintf("/uploads/%s", fileName)
+	// 获取基础 URL（从配置中读取）
+	baseURL := strings.TrimSuffix(l.svcCtx.Config.BaseURL, "/")
 
 	// 保存文件
-	dst, err := os.Create(filePath)
+	dst, err := os.Create(fileSystemPath)
 	if err != nil {
 		return nil, errs.Wrap(errs.CodeInternalError, "创建文件失败", err)
 	}
@@ -75,7 +79,7 @@ func (l *FileUploadLogic) FileUpload(r *http.Request) (resp *types.FileUploadRes
 	}
 
 	// 获取文件大小
-	fileInfo, err := os.Stat(filePath)
+	fileInfo, err := os.Stat(fileSystemPath)
 	if err != nil {
 		return nil, errs.Wrap(errs.CodeInternalError, "获取文件信息失败", err)
 	}
@@ -90,8 +94,8 @@ func (l *FileUploadLogic) FileUpload(r *http.Request) (resp *types.FileUploadRes
 	fileModel := model.AdminFile{
 		Name:         fileName,
 		OriginalName: header.Filename,
-		Path:         filePath,
-		Url:          fileURL,
+		Path:         accessPath, // 访问路径（相对路径）
+		BaseUrl:      baseURL,    // 基础 URL
 		Size:         uint64(fileInfo.Size()),
 		MimeType:     sql.NullString{String: mimeType, Valid: mimeType != ""},
 		Ext:          sql.NullString{String: strings.TrimPrefix(ext, "."), Valid: ext != ""},
@@ -102,8 +106,14 @@ func (l *FileUploadLogic) FileUpload(r *http.Request) (resp *types.FileUploadRes
 	fileRepo := repository.NewFileRepository(l.svcCtx.Repository)
 	if err := fileRepo.Create(l.ctx, &fileModel); err != nil {
 		// 如果数据库保存失败，删除已上传的文件
-		os.Remove(filePath)
+		os.Remove(fileSystemPath)
 		return nil, errs.Wrap(errs.CodeInternalError, "保存文件记录失败", err)
+	}
+
+	// 拼接完整 URL（用于返回给前端）
+	fullURL := accessPath
+	if baseURL != "" {
+		fullURL = fmt.Sprintf("%s%s", baseURL, accessPath)
 	}
 
 	return &types.FileUploadResp{
@@ -111,7 +121,8 @@ func (l *FileUploadLogic) FileUpload(r *http.Request) (resp *types.FileUploadRes
 		Name:         fileModel.Name,
 		OriginalName: fileModel.OriginalName,
 		Path:         fileModel.Path,
-		Url:          fileModel.Url,
+		BaseUrl:      fileModel.BaseUrl,
+		Url:          fullURL, // 兼容字段，返回完整 URL
 		Size:         fileModel.Size,
 		MimeType:     mimeType,
 		Ext:          strings.TrimPrefix(ext, "."),

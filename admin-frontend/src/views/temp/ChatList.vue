@@ -363,10 +363,10 @@ const scrollToBottom = () => {
   });
 };
 
-// 格式化时间
-const formatTime = (timeStr: string) => {
-  if (!timeStr) return '';
-  const date = new Date(timeStr);
+// 格式化时间（接受秒级时间戳）
+const formatTime = (timestamp: number) => {
+  if (!timestamp) return '';
+  const date = new Date(timestamp * 1000); // 秒级时间戳转换为毫秒
   const now = new Date();
   const diff = now.getTime() - date.getTime();
   const minutes = Math.floor(diff / 60000);

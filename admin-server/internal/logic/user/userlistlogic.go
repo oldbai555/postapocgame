@@ -2,7 +2,6 @@ package user
 
 import (
 	"context"
-	"strconv"
 
 	"postapocgame/admin-server/internal/repository"
 	"postapocgame/admin-server/internal/svc"
@@ -39,18 +38,15 @@ func (l *UserListLogic) UserList(req *types.UserListReq) (resp *types.UserListRe
 
 	items := make([]types.UserItem, 0, len(list))
 	for _, u := range list {
-		createdAtStr := ""
-		if u.CreatedAt > 0 {
-			createdAtStr = strconv.FormatInt(int64(u.CreatedAt), 10)
-		}
 		items = append(items, types.UserItem{
 			Id:           u.Id,
 			Username:     u.Username,
+			Nickname:     u.Nickname,
 			Avatar:       u.Avatar,
 			Signature:    u.Signature,
 			DepartmentId: u.DepartmentId,
 			Status:       u.Status,
-			CreatedAt:    createdAtStr,
+			CreatedAt:    int64(u.CreatedAt),
 		})
 	}
 

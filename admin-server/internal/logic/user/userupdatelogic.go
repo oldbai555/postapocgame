@@ -61,7 +61,10 @@ func (l *UserUpdateLogic) UserUpdate(req *types.UserUpdateReq) error {
 		user.DepartmentId = req.DepartmentId
 	}
 
-	// 更新头像和个性签名
+	// 更新昵称、头像和个性签名
+	if req.Nickname != "" {
+		user.Nickname = req.Nickname
+	}
 	if req.Avatar != "" {
 		user.Avatar = req.Avatar
 	}

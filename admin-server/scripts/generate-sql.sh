@@ -18,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SQLGEN_DIR="${PROJECT_ROOT}/scripts/sqlgen"
 # 默认输出到 migrations 目录，作为增量 SQL 管理
-OUTPUT_DIR="${PROJECT_ROOT}/admin-server/db/migrations"
+OUTPUT_DIR="${PROJECT_ROOT}/db/migrations"
 
 # 显示使用说明
 usage() {

@@ -1,16 +1,23 @@
 -- admin-server 数据库初始化数据脚本
+-- 说明：此脚本包含所有系统初始化数据，所有 INSERT 语句使用 ON DUPLICATE KEY UPDATE 确保幂等性，可重复执行
 -- 注意：此脚本中的数据为系统初始化数据，不可被删除（包括软删、硬删）
+-- 
 -- 初始化数据的ID范围（每张表从1开始连续）：
 --   admin_user: id=1-2 (1=超级管理员, 2=admin 业务管理员)
 --   admin_role: id=1-2 (1=super_admin 超级管理员角色, 2=admin 业务管理员角色)
---   admin_permission: id=1-48 (48个权限，含通用权限 common:xxx)
+--   admin_permission: id=1-48+ (基础48个权限，含通用权限 common:xxx，后续模块会新增)
 --   admin_department: id=1 (根部门)
---   admin_menu: id=1-43 (13个菜单 + 30个按钮)
---   admin_api: id=1-58 (58个接口，含缓存刷新接口和个人信息相关接口)
+--   admin_menu: id=1-43+ (基础13个菜单 + 30个按钮，后续模块会新增)
+--   admin_api: id=1-58+ (基础58个接口，后续模块会新增)
 --   admin_user_role: id=1-2 (1=super_admin绑定超级管理员, 2=admin绑定业务管理员)
---   admin_role_permission: id=1-4 (超级管理员角色-权限关联，含 common:profile、common:profile_update、common:password_change)
---   admin_permission_menu: id=1-40 (10个菜单关联 + 30个按钮关联)
---   admin_permission_api: id=1-58 (58个权限-接口关联，id=53-58为通用接口)
+--   admin_role_permission: id=1-4+ (超级管理员角色-权限关联，后续模块会新增)
+--   admin_permission_menu: id=1-40+ (基础10个菜单关联 + 30个按钮关联，后续模块会新增)
+--   admin_permission_api: id=1-58+ (基础58个权限-接口关联，后续模块会新增)
+--   admin_dict_type: id=1-6 (6个字典类型：用户状态、性别、是否、文件存储类型、聊天配置、消息来源类型)
+--   admin_dict_item: id=1-17 (17个字典项，包含emoji分页配置)
+--   admin_notice: id=1 (1条初始化公告)
+--   chat: id=1 (1个默认企业群组)
+--   chat_user: id=1-3 (默认群组包含2个用户，1个私聊包含2个用户)
 
 -- ============================================
 -- 1. 初始化基础数据
@@ -93,15 +100,15 @@ VALUES
   (39, '文件新增', 'file:create', '新增文件', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
   (40, '文件编辑', 'file:update', '编辑文件', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
   (41, '文件删除', 'file:delete', '删除文件', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-  -- 通用权限
-  (42, '个人信息', 'common:profile', '查看个人信息', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-  (43, '退出登录', 'common:logout', '退出登录接口权限', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-  (44, '字典查询', 'common:dict', '公共字典查询接口权限', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-  (45, '刷新缓存', 'common:cache_refresh', '刷新配置/字典缓存', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-  (46, '我的菜单树', 'menu:my_tree', '获取当前用户的菜单树', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-  -- 个人信息相关权限
-  (47, '个人信息更新', 'common:profile_update', '更新个人信息（头像、个性签名）', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-  (48, '修改密码', 'common:password_change', '修改登录密码', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+  -- 通用权限（以下权限已移除，对应接口只需登录即可访问）
+  -- (42, '个人信息', 'common:profile', '查看个人信息', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  -- (43, '退出登录', 'common:logout', '退出登录接口权限', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  -- (44, '字典查询', 'common:dict', '公共字典查询接口权限', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (45, '刷新缓存', 'common:cache_refresh', '刷新配置/字典缓存', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+  -- (46, '我的菜单树', 'menu:my_tree', '获取当前用户的菜单树', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  -- 个人信息相关权限（以下权限已移除，对应接口只需登录即可访问）
+  -- (47, '个人信息更新', 'common:profile_update', '更新个人信息（头像、个性签名）', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  -- (48, '修改密码', 'common:password_change', '修改登录密码', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
 ON DUPLICATE KEY UPDATE 
   `name`=VALUES(`name`), 
   `code`=VALUES(`code`), 
@@ -119,10 +126,11 @@ ON DUPLICATE KEY UPDATE `updated_at`=UNIX_TIMESTAMP();
 -- 关联：角色-权限
 INSERT INTO `admin_role_permission` (`id`, `role_id`, `permission_id`, `created_at`, `updated_at`)
 VALUES 
-  (1, 1, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (2, 1, 42, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
-  (3, 1, 47, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- 超级管理员 -> common:profile_update
-  (4, 1, 48, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())   -- 超级管理员 -> common:password_change
+  (1, 1, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+  -- 以下权限已移除，对应接口只需登录即可访问
+  -- (2, 1, 42, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- 超级管理员 -> common:profile
+  -- (3, 1, 47, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- 超级管理员 -> common:profile_update
+  -- (4, 1, 48, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())   -- 超级管理员 -> common:password_change
 ON DUPLICATE KEY UPDATE `updated_at`=UNIX_TIMESTAMP();
 
 -- 菜单列表（ID从1开始连续）
@@ -326,13 +334,13 @@ ON DUPLICATE KEY UPDATE `deleted_at`=0;
 -- 权限-接口关联（所有权限与接口的关联，ID从1开始连续）
 INSERT INTO `admin_permission_api` (`id`, `permission_id`, `api_id`, `created_at`, `updated_at`)
 VALUES
-  -- 通用接口权限
-  (53, 42, 2, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),   -- common:profile(id=42) -> 个人信息(api_id=2)
-  (54, 43, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),   -- common:logout(id=43) -> 登出(api_id=1)
-  (55, 44, 49, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- common:dict(id=44) -> 字典查询(api_id=49)
+  -- 通用接口权限（以下权限已移除，对应接口只需登录即可访问）
+  -- (53, 42, 2, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),   -- common:profile(id=42) -> 个人信息(api_id=2)
+  -- (54, 43, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),   -- common:logout(id=43) -> 登出(api_id=1)
+  -- (55, 44, 49, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- common:dict(id=44) -> 字典查询(api_id=49)
   (56, 45, 56, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- common:cache_refresh(id=45) -> 刷新缓存(api_id=56)
-  (57, 47, 57, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- common:profile_update(id=47) -> 个人信息更新(api_id=57)
-  (58, 48, 58, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- common:password_change(id=48) -> 修改密码(api_id=58)
+  -- (57, 47, 57, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- common:profile_update(id=47) -> 个人信息更新(api_id=57)
+  -- (58, 48, 58, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- common:password_change(id=48) -> 修改密码(api_id=58)
   -- 用户管理权限
   (1, 18, 3, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- user:list(id=18) -> 用户列表(api_id=3)
   (2, 19, 4, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- user:create(id=19) -> 用户新增(api_id=4)
@@ -363,7 +371,7 @@ VALUES
   (24, 13, 26, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- department:delete(id=13) -> 部门删除(api_id=26)
   -- 菜单管理权限
   (25, 14, 27, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- menu:list(id=14) -> 菜单树(api_id=27)
-  (26, 46, 28, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- menu:my_tree(id=46) -> 我的菜单树(api_id=28)
+  -- (26, 46, 28, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- menu:my_tree(id=46) -> 我的菜单树(api_id=28) (已移除，只需登录即可访问)
   (27, 15, 29, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- menu:create(id=15) -> 菜单新增(api_id=29)
   (28, 16, 30, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- menu:update(id=16) -> 菜单编辑(api_id=30)
   (29, 17, 31, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- menu:delete(id=17) -> 菜单删除(api_id=31)
@@ -392,9 +400,10 @@ VALUES
   (47, 38, 50, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- file:list(id=38) -> 文件列表(api_id=50)
   (48, 39, 51, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- file:create(id=39) -> 文件新增(api_id=51)
   (49, 40, 52, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- file:update(id=40) -> 文件编辑(api_id=52)
-  (50, 41, 53, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- file:delete(id=41) -> 文件删除(api_id=53)
-  (51, 39, 54, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- file:create(id=39) -> 文件上传(api_id=54)
-  (52, 38, 55, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())  -- file:list(id=38) -> 文件下载(api_id=55)
+  (50, 41, 53, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())  -- file:delete(id=41) -> 文件删除(api_id=53)
+  -- 以下接口只需登录即可访问，不需要权限关联
+  -- (51, 39, 54, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- file:create(id=39) -> 文件上传(api_id=54)
+  -- (52, 38, 55, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())  -- file:list(id=38) -> 文件下载(api_id=55)
 ON DUPLICATE KEY UPDATE `updated_at`=UNIX_TIMESTAMP();
 
 -- ============================================
@@ -420,7 +429,9 @@ VALUES
   (1, '用户状态', 'user_status', '用户账号状态字典', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
   (2, '性别', 'gender', '性别字典', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
   (3, '是否', 'yes_no', '是否字典', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-  (4, '文件存储类型', 'file_storage_type', '文件存储类型字典', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+  (4, '文件存储类型', 'file_storage_type', '文件存储类型字典', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (5, '聊天配置', 'chat_config', '在线聊天相关配置字典', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (6, '消息来源类型', 'notification_source_type', '消息通知的来源类型字典（chat、notice、system等）', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
 ON DUPLICATE KEY UPDATE `deleted_at`=0;
 
 -- 数据字典项初始化数据
@@ -439,8 +450,138 @@ VALUES
   -- 文件存储类型字典项
   (8, 4, '本地存储', 'local', 1, 1, '本地文件系统存储', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
   (9, 4, 'OSS存储', 'oss', 2, 1, '阿里云OSS存储', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-  (10, 4, 'S3存储', 's3', 3, 1, 'AWS S3存储', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+  (10, 4, 'S3存储', 's3', 3, 1, 'AWS S3存储', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  -- 聊天配置字典项
+  (11, 5, '聊天窗口消息数量', '30', 1, 1, '每个聊天窗口显示的最新消息数量', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (12, 5, '在线聊天页面路径', '/chatroom/chat', 2, 1, '在线聊天页面的前端路由路径，用于消息通知跳转', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (16, 5, 'Emoji每行显示数量', '8', 3, 1, 'Emoji表情选择器每行显示的表情数量（x）', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (17, 5, 'Emoji显示行数', '3', 4, 1, 'Emoji表情选择器显示的行数（y）', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  -- 消息来源类型字典项
+  (13, 6, '在线聊天', 'chat', 1, 1, '在线聊天消息', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (14, 6, '系统公告', 'notice', 2, 1, '系统公告消息', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (15, 6, '系统通知', 'system', 3, 1, '系统通知消息', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
 ON DUPLICATE KEY UPDATE `deleted_at`=0;
+
+-- ============================================
+-- 2.1 初始化公告数据
+-- ============================================
+-- 插入一条欢迎公告（已发布状态）
+INSERT INTO `admin_notice` (`id`, `title`, `content`, `type`, `status`, `publish_time`, `created_by`, `created_at`, `updated_at`, `deleted_at`)
+VALUES (
+  1,
+  '欢迎使用后台管理系统',
+  '欢迎使用本后台管理系统！\n\n本系统提供了完整的权限管理、用户管理、角色管理、菜单管理、接口管理等基础功能，以及聊天室、公告管理、消息通知等业务功能。\n\n祝您使用愉快！',
+  1, -- 类型：1 普通公告
+  2, -- 状态：2 已发布
+  UNIX_TIMESTAMP(), -- 发布时间：当前时间
+  1, -- 创建人：超级管理员（id=1）
+  UNIX_TIMESTAMP(),
+  UNIX_TIMESTAMP(),
+  0
+)
+ON DUPLICATE KEY UPDATE 
+  `title`=VALUES(`title`),
+  `content`=VALUES(`content`),
+  `type`=VALUES(`type`),
+  `status`=VALUES(`status`),
+  `publish_time`=VALUES(`publish_time`),
+  `updated_at`=UNIX_TIMESTAMP(),
+  `deleted_at`=0;
+
+-- ============================================
+-- 2.2 初始化聊天数据
+-- ============================================
+-- 创建默认企业群组（id=1，type=2群组，created_by=1超级管理员）
+INSERT INTO `chat` (`id`, `name`, `type`, `avatar`, `description`, `created_by`, `created_at`, `updated_at`, `deleted_at`)
+VALUES (
+  1,
+  '企业群组',
+  2, -- 类型：2 群组
+  '',
+  '默认企业群组，所有用户自动加入',
+  1, -- 创建人：超级管理员（id=1）
+  UNIX_TIMESTAMP(),
+  UNIX_TIMESTAMP(),
+  0
+)
+ON DUPLICATE KEY UPDATE 
+  `name`=VALUES(`name`), 
+  `type`=VALUES(`type`), 
+  `description`=VALUES(`description`), 
+  `updated_at`=UNIX_TIMESTAMP(), 
+  `deleted_at`=0;
+
+-- 将初始的两个用户（id=1和id=2）都加入默认企业群组
+INSERT INTO `chat_user` (`id`, `chat_id`, `user_id`, `joined_at`, `created_at`, `updated_at`)
+VALUES 
+  (1, 1, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- 超级管理员加入群组
+  (2, 1, 2, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), UNIX_TIMESTAMP())  -- 业务管理员加入群组
+ON DUPLICATE KEY UPDATE 
+  `joined_at`=VALUES(`joined_at`), 
+  `updated_at`=UNIX_TIMESTAMP();
+
+-- 创建用户1和用户2之间的私聊（id=2，type=1私聊）
+INSERT INTO `chat` (`id`, `name`, `type`, `avatar`, `description`, `created_by`, `created_at`, `updated_at`, `deleted_at`)
+VALUES (
+  2,
+  '', -- 私聊名称为空，前端根据对方用户信息显示
+  1, -- 类型：1 私聊
+  '',
+  '',
+  0, -- 私聊创建人为0
+  UNIX_TIMESTAMP(),
+  UNIX_TIMESTAMP(),
+  0
+)
+ON DUPLICATE KEY UPDATE 
+  `type`=VALUES(`type`), 
+  `updated_at`=UNIX_TIMESTAMP(), 
+  `deleted_at`=0;
+
+-- 将用户1和用户2加入私聊
+INSERT INTO `chat_user` (`id`, `chat_id`, `user_id`, `joined_at`, `created_at`, `updated_at`)
+VALUES 
+  (3, 2, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- 用户1加入私聊
+  (4, 2, 2, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), UNIX_TIMESTAMP())  -- 用户2加入私聊
+ON DUPLICATE KEY UPDATE 
+  `joined_at`=VALUES(`joined_at`), 
+  `updated_at`=UNIX_TIMESTAMP();
+
+-- 为初始化用户创建公告通知（公告已发布，需要给所有用户创建通知）
+-- 注意：这里只给初始化时已存在的用户创建通知，后续新增的用户会在登录时自动获取未读公告
+INSERT INTO `admin_notification` (`user_id`, `source_type`, `source_id`, `title`, `content`, `read_status`, `read_at`, `created_at`, `updated_at`, `deleted_at`)
+SELECT 
+  1, -- 超级管理员（id=1）
+  'notice',
+  1, -- 公告ID
+  '欢迎使用后台管理系统',
+  '欢迎使用本后台管理系统！\n\n本系统提供了完整的权限管理、用户管理、角色管理、菜单管理、接口管理等基础功能，以及聊天室、公告管理、消息通知等业务功能。\n\n祝您使用愉快！',
+  0, -- 未读
+  0,
+  UNIX_TIMESTAMP(),
+  UNIX_TIMESTAMP(),
+  0
+WHERE NOT EXISTS (
+  SELECT 1 FROM `admin_notification` 
+  WHERE `user_id` = 1 AND `source_type` = 'notice' AND `source_id` = 1 AND `deleted_at` = 0
+);
+
+INSERT INTO `admin_notification` (`user_id`, `source_type`, `source_id`, `title`, `content`, `read_status`, `read_at`, `created_at`, `updated_at`, `deleted_at`)
+SELECT 
+  2, -- admin业务管理员（id=2）
+  'notice',
+  1, -- 公告ID
+  '欢迎使用后台管理系统',
+  '欢迎使用本后台管理系统！\n\n本系统提供了完整的权限管理、用户管理、角色管理、菜单管理、接口管理等基础功能，以及聊天室、公告管理、消息通知等业务功能。\n\n祝您使用愉快！',
+  0, -- 未读
+  0,
+  UNIX_TIMESTAMP(),
+  UNIX_TIMESTAMP(),
+  0
+WHERE NOT EXISTS (
+  SELECT 1 FROM `admin_notification` 
+  WHERE `user_id` = 2 AND `source_type` = 'notice' AND `source_id` = 1 AND `deleted_at` = 0
+);
 
 -- ============================================
 -- 3. 日志与监控相关模块初始化数据（归类到系统管理）
@@ -1104,7 +1245,158 @@ VALUES (1, @monitor_view_permission_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
 ON DUPLICATE KEY UPDATE `updated_at` = UNIX_TIMESTAMP();
 
 -- ============================================
--- 4. 保护初始化数据不被删除（触发器）
+-- 4. 聊天室模块初始化数据
+-- ============================================
+-- 聊天室目录
+INSERT INTO `admin_menu` (`parent_id`, `name`, `path`, `component`, `icon`, `type`, `order_num`, `visible`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES (0, '聊天室', '/chatroom', '', 'ele-ChatDotRound', 1, 20, 1, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `icon`=VALUES(`icon`), `type`=VALUES(`type`), `order_num`=VALUES(`order_num`), `visible`=VALUES(`visible`), `status`=VALUES(`status`), `updated_at`=UNIX_TIMESTAMP(), `deleted_at`=0;
+SET @chatroom_dir_id = (SELECT `id` FROM `admin_menu` WHERE `path` = '/chatroom' AND `deleted_at` = 0 LIMIT 1);
+
+-- 在线聊天菜单（无需权限，只要登录就可以访问）
+INSERT INTO `admin_menu` (`parent_id`, `name`, `path`, `component`, `icon`, `type`, `order_num`, `visible`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES (@chatroom_dir_id, '在线聊天', '/chatroom/chat', 'chatroom/ChatList', 'ele-ChatLineRound', 2, 1, 1, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE `parent_id`=VALUES(`parent_id`), `name`=VALUES(`name`), `path`=VALUES(`path`), `component`=VALUES(`component`), `icon`=VALUES(`icon`), `type`=VALUES(`type`), `order_num`=VALUES(`order_num`), `visible`=VALUES(`visible`), `status`=VALUES(`status`), `updated_at`=UNIX_TIMESTAMP(), `deleted_at`=0;
+
+-- 聊天记录管理菜单
+INSERT INTO `admin_menu` (`parent_id`, `name`, `path`, `component`, `icon`, `type`, `order_num`, `visible`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES (@chatroom_dir_id, '聊天记录管理', '/chatroom/chat-message', 'chatroom/ChatMessageList', 'ele-Document', 2, 2, 1, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE `parent_id`=VALUES(`parent_id`), `name`=VALUES(`name`), `path`=VALUES(`path`), `component`=VALUES(`component`), `icon`=VALUES(`icon`), `type`=VALUES(`type`), `order_num`=VALUES(`order_num`), `visible`=VALUES(`visible`), `status`=VALUES(`status`), `updated_at`=UNIX_TIMESTAMP(), `deleted_at`=0;
+SET @chat_message_menu_id = (SELECT `id` FROM `admin_menu` WHERE `path` = '/chatroom/chat-message' AND `deleted_at` = 0 LIMIT 1);
+
+-- 聊天记录管理删除按钮
+INSERT INTO `admin_menu` (`parent_id`, `name`, `path`, `component`, `icon`, `type`, `order_num`, `visible`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES (@chat_message_menu_id, '聊天记录管理 删除按钮', '', '', '', 3, 1, 0, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE `parent_id`=VALUES(`parent_id`), `name`=VALUES(`name`), `updated_at`=UNIX_TIMESTAMP(), `deleted_at`=0;
+SET @chat_message_delete_button_id = (SELECT `id` FROM `admin_menu` WHERE `parent_id` = @chat_message_menu_id AND `name` = '聊天记录管理 删除按钮' AND `deleted_at` = 0 LIMIT 1);
+
+-- 聊天记录管理权限
+INSERT INTO `admin_permission` (`name`, `code`, `description`, `created_at`, `updated_at`, `deleted_at`)
+VALUES 
+  ('聊天记录列表', 'chat_message:list', '查看聊天记录列表', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('聊天记录删除', 'chat_message:delete', '删除聊天记录', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `description`=VALUES(`description`), `updated_at`=UNIX_TIMESTAMP(), `deleted_at`=0;
+SET @chat_message_list_permission_id = (SELECT `id` FROM `admin_permission` WHERE `code` = 'chat_message:list' AND `deleted_at` = 0 LIMIT 1);
+SET @chat_message_delete_permission_id = (SELECT `id` FROM `admin_permission` WHERE `code` = 'chat_message:delete' AND `deleted_at` = 0 LIMIT 1);
+
+-- 在线聊天接口（无需权限，只需要AuthMiddleware）
+INSERT INTO `admin_api` (`name`, `method`, `path`, `description`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES 
+  ('聊天消息发送', 'POST', '/api/v1/chats/messages', '发送聊天消息', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('可聊天用户列表', 'GET', '/api/v1/chats/users', '获取可聊天用户列表（包含部门-角色-昵称信息）', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `description`=VALUES(`description`), `status`=VALUES(`status`), `updated_at`=UNIX_TIMESTAMP(), `deleted_at`=0;
+
+-- 聊天记录管理接口（需要权限）
+INSERT INTO `admin_api` (`name`, `method`, `path`, `description`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES 
+  ('聊天记录列表', 'GET', '/api/v1/chats/messages', '获取聊天记录列表', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('聊天记录删除', 'DELETE', '/api/v1/chats/messages/:id', '删除聊天记录', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `description`=VALUES(`description`), `status`=VALUES(`status`), `updated_at`=UNIX_TIMESTAMP(), `deleted_at`=0;
+SET @chat_message_list_api_id = (SELECT `id` FROM `admin_api` WHERE `method` = 'GET' AND `path` = '/api/v1/chats/messages' AND `deleted_at` = 0 LIMIT 1);
+SET @chat_message_delete_api_id = (SELECT `id` FROM `admin_api` WHERE `method` = 'DELETE' AND `path` = '/api/v1/chats/messages/:id' AND `deleted_at` = 0 LIMIT 1);
+
+-- 聊天记录管理 权限-菜单 关联
+INSERT INTO `admin_permission_menu` (`permission_id`, `menu_id`, `created_at`, `updated_at`)
+VALUES 
+  (@chat_message_list_permission_id, @chat_message_menu_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (@chat_message_delete_permission_id, @chat_message_delete_button_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+ON DUPLICATE KEY UPDATE `updated_at` = UNIX_TIMESTAMP();
+
+-- 聊天记录管理 权限-接口 关联
+INSERT INTO `admin_permission_api` (`permission_id`, `api_id`, `created_at`, `updated_at`)
+VALUES 
+  (@chat_message_list_permission_id, @chat_message_list_api_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (@chat_message_delete_permission_id, @chat_message_delete_api_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+ON DUPLICATE KEY UPDATE `updated_at` = UNIX_TIMESTAMP();
+
+-- ============================================
+-- 5. 公告管理模块初始化数据
+-- ============================================
+SET @system_menu_id = (SELECT `id` FROM `admin_menu` WHERE `path` = '/system' AND `deleted_at` = 0 LIMIT 1);
+
+-- 公告管理菜单
+INSERT INTO `admin_menu` (`parent_id`, `name`, `path`, `component`, `icon`, `type`, `order_num`, `visible`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES (@system_menu_id, '公告管理', '/system/notice', 'system/NoticeList', 'ele-Document', 2, 21, 1, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE `parent_id`=VALUES(`parent_id`), `name`=VALUES(`name`), `path`=VALUES(`path`), `component`=VALUES(`component`), `icon`=VALUES(`icon`), `type`=VALUES(`type`), `order_num`=VALUES(`order_num`), `visible`=VALUES(`visible`), `status`=VALUES(`status`), `updated_at`=UNIX_TIMESTAMP(), `deleted_at`=0;
+SET @notice_menu_id = (SELECT `id` FROM `admin_menu` WHERE `path` = '/system/notice' AND `deleted_at` = 0 LIMIT 1);
+
+-- 公告管理按钮
+INSERT INTO `admin_menu` (`parent_id`, `name`, `path`, `component`, `icon`, `type`, `order_num`, `visible`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES 
+  (@notice_menu_id, '公告管理 新增按钮', '', '', '', 3, 1, 0, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (@notice_menu_id, '公告管理 编辑按钮', '', '', '', 3, 2, 0, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (@notice_menu_id, '公告管理 删除按钮', '', '', '', 3, 3, 0, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE `parent_id`=VALUES(`parent_id`), `name`=VALUES(`name`), `updated_at`=UNIX_TIMESTAMP(), `deleted_at`=0;
+SET @notice_create_button_id = (SELECT `id` FROM `admin_menu` WHERE `parent_id` = @notice_menu_id AND `name` = '公告管理 新增按钮' AND `deleted_at` = 0 LIMIT 1);
+SET @notice_update_button_id = (SELECT `id` FROM `admin_menu` WHERE `parent_id` = @notice_menu_id AND `name` = '公告管理 编辑按钮' AND `deleted_at` = 0 LIMIT 1);
+SET @notice_delete_button_id = (SELECT `id` FROM `admin_menu` WHERE `parent_id` = @notice_menu_id AND `name` = '公告管理 删除按钮' AND `deleted_at` = 0 LIMIT 1);
+
+-- 公告管理权限
+INSERT INTO `admin_permission` (`name`, `code`, `description`, `created_at`, `updated_at`, `deleted_at`)
+VALUES 
+  ('公告管理列表', 'notice:list', '查看公告管理列表', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('公告管理新增', 'notice:create', '新增公告管理', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('公告管理编辑', 'notice:update', '编辑公告管理', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('公告管理删除', 'notice:delete', '删除公告管理', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `description`=VALUES(`description`), `updated_at`=UNIX_TIMESTAMP(), `deleted_at`=0;
+SET @notice_list_permission_id = (SELECT `id` FROM `admin_permission` WHERE `code` = 'notice:list' AND `deleted_at` = 0 LIMIT 1);
+SET @notice_create_permission_id = (SELECT `id` FROM `admin_permission` WHERE `code` = 'notice:create' AND `deleted_at` = 0 LIMIT 1);
+SET @notice_update_permission_id = (SELECT `id` FROM `admin_permission` WHERE `code` = 'notice:update' AND `deleted_at` = 0 LIMIT 1);
+SET @notice_delete_permission_id = (SELECT `id` FROM `admin_permission` WHERE `code` = 'notice:delete' AND `deleted_at` = 0 LIMIT 1);
+
+-- 公告管理接口
+INSERT INTO `admin_api` (`name`, `method`, `path`, `description`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES 
+  ('公告管理列表', 'GET', '/api/v1/notices', '获取公告管理列表', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('公告管理新增', 'POST', '/api/v1/notices', '新增公告管理', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('公告管理编辑', 'PUT', '/api/v1/notices/:id', '编辑公告管理', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('公告管理删除', 'DELETE', '/api/v1/notices/:id', '删除公告管理', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `description`=VALUES(`description`), `status`=VALUES(`status`), `updated_at`=UNIX_TIMESTAMP(), `deleted_at`=0;
+SET @notice_list_api_id = (SELECT `id` FROM `admin_api` WHERE `method` = 'GET' AND `path` = '/api/v1/notices' AND `deleted_at` = 0 LIMIT 1);
+SET @notice_create_api_id = (SELECT `id` FROM `admin_api` WHERE `method` = 'POST' AND `path` = '/api/v1/notices' AND `deleted_at` = 0 LIMIT 1);
+SET @notice_update_api_id = (SELECT `id` FROM `admin_api` WHERE `method` = 'PUT' AND `path` = '/api/v1/notices/:id' AND `deleted_at` = 0 LIMIT 1);
+SET @notice_delete_api_id = (SELECT `id` FROM `admin_api` WHERE `method` = 'DELETE' AND `path` = '/api/v1/notices/:id' AND `deleted_at` = 0 LIMIT 1);
+
+-- 公告管理 权限-菜单 关联
+INSERT INTO `admin_permission_menu` (`permission_id`, `menu_id`, `created_at`, `updated_at`)
+VALUES 
+  (@notice_list_permission_id, @notice_menu_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (@notice_create_permission_id, @notice_create_button_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (@notice_update_permission_id, @notice_update_button_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (@notice_delete_permission_id, @notice_delete_button_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+ON DUPLICATE KEY UPDATE `updated_at`=UNIX_TIMESTAMP();
+
+-- 公告管理 权限-接口 关联
+INSERT INTO `admin_permission_api` (`permission_id`, `api_id`, `created_at`, `updated_at`)
+VALUES 
+  (@notice_list_permission_id, @notice_list_api_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (@notice_create_permission_id, @notice_create_api_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (@notice_update_permission_id, @notice_update_api_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (@notice_delete_permission_id, @notice_delete_api_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+ON DUPLICATE KEY UPDATE `updated_at`=UNIX_TIMESTAMP();
+
+-- ============================================
+-- 6. 消息通知管理模块初始化数据
+-- ============================================
+-- 注意：消息通知管理只要登录就有权限，不需要权限控制
+
+-- 消息通知管理菜单
+INSERT INTO `admin_menu` (`parent_id`, `name`, `path`, `component`, `icon`, `type`, `order_num`, `visible`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES (@system_menu_id, '消息通知管理', '/system/notification', 'system/NotificationList', 'ele-Bell', 2, 22, 1, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE `parent_id`=VALUES(`parent_id`), `name`=VALUES(`name`), `path`=VALUES(`path`), `component`=VALUES(`component`), `icon`=VALUES(`icon`), `type`=VALUES(`type`), `order_num`=VALUES(`order_num`), `visible`=VALUES(`visible`), `status`=VALUES(`status`), `updated_at`=UNIX_TIMESTAMP(), `deleted_at`=0;
+
+-- 消息通知管理接口（只需要AuthMiddleware，不需要PermissionMiddleware）
+INSERT INTO `admin_api` (`name`, `method`, `path`, `description`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES 
+  ('消息通知管理列表', 'GET', '/api/v1/notifications', '获取消息通知管理列表', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('消息通知全部已读', 'PUT', '/api/v1/notifications/read-all', '标记所有消息通知为已读', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('消息通知标记已读', 'PUT', '/api/v1/notifications/:id/read', '标记单个消息通知为已读', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('消息通知清除已读', 'DELETE', '/api/v1/notifications/read', '清除所有已读消息通知', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  ('消息通知删除', 'DELETE', '/api/v1/notifications/:id', '删除消息通知', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `description`=VALUES(`description`), `status`=VALUES(`status`), `updated_at`=UNIX_TIMESTAMP(), `deleted_at`=0;
+
+-- ============================================
+-- 7. 保护初始化数据不被删除（触发器）
 -- ============================================
 -- 注意：触发器只能阻止软删除（UPDATE deleted_at），硬删除（DELETE）需要在业务代码中检查
 

@@ -44,9 +44,10 @@ export function auditLogList(req: components.AuditLogListReq) {
 
 /**
  * @description 
+ * @param req
  */
-export function auditLogDetail() {
-	return webapi.get<components.AuditLogDetailResp>(`/api/v1/audit-logs/${id}`)
+export function auditLogDetail(req: components.AuditLogDetailReq) {
+	return webapi.get<components.AuditLogDetailResp>(`/api/v1/audit-logs/detail`, req)
 }
 
 /**
@@ -107,16 +108,8 @@ export function passwordChange(req: components.PasswordChangeReq) {
 /**
  * @description 
  */
-export function cacheRefresh() {
-	return webapi.post<components.CacheRefreshResp>(`/api/v1/cache/refresh`)
-}
-
-/**
- * @description 
- * @param req
- */
-export function chatMessageList(req: components.ChatMessageListReq) {
-	return webapi.get<components.ChatMessageListResp>(`/api/v1/chats/messages`, req)
+export function chatList() {
+	return webapi.get<components.ChatListResp>(`/api/v1/chats`)
 }
 
 /**
@@ -129,9 +122,26 @@ export function chatMessageSend(req: components.ChatMessageSendReq) {
 
 /**
  * @description 
+ * @param req
  */
-export function chatOnlineUsers() {
-	return webapi.get<components.ChatOnlineUserResp>(`/api/v1/chats/online-users`)
+export function chatMessageList(req: components.ChatMessageListReq) {
+	return webapi.get<components.ChatMessageListResp>(`/api/v1/chats/messages/list`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function chatMessageListAdmin(req: components.ChatMessageListReq) {
+	return webapi.get<components.ChatMessageListResp>(`/api/v1/chats/messages`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function chatMessageDelete(req: components.ChatMessageDeleteReq) {
+	return webapi.delete<components.Response>(`/api/v1/chats/messages`, req)
 }
 
 /**
@@ -343,9 +353,10 @@ export function fileDelete(req: components.FileDeleteReq) {
 
 /**
  * @description 
+ * @param req
  */
-export function fileDownload() {
-	return webapi.get<components.FileDownloadResp>(`/api/v1/files/${id}/download`)
+export function fileDownload(req: components.FileDownloadReq) {
+	return webapi.get<components.FileDownloadResp>(`/api/v1/files/download`, req)
 }
 
 /**
@@ -365,9 +376,10 @@ export function loginLogList(req: components.LoginLogListReq) {
 
 /**
  * @description 
+ * @param req
  */
-export function loginLogDetail() {
-	return webapi.get<components.LoginLogDetailResp>(`/api/v1/login-logs/${id}`)
+export function loginLogDetail(req: components.LoginLogDetailReq) {
+	return webapi.get<components.LoginLogDetailResp>(`/api/v1/login-logs/detail`, req)
 }
 
 /**
@@ -412,15 +424,15 @@ export function menuDelete(req: components.MenuDeleteReq) {
 /**
  * @description 
  */
-export function menuMyTree() {
-	return webapi.get<components.MenuTreeResp>(`/api/v1/menus/my-tree`)
+export function menuTree() {
+	return webapi.get<components.MenuTreeResp>(`/api/v1/menus/tree`)
 }
 
 /**
  * @description 
  */
-export function menuTree() {
-	return webapi.get<components.MenuTreeResp>(`/api/v1/menus/tree`)
+export function menuMyTree() {
+	return webapi.get<components.MenuTreeResp>(`/api/v1/menus/my-tree`)
 }
 
 /**
@@ -441,15 +453,86 @@ export function monitorStatus() {
  * @description 
  * @param req
  */
+export function noticeList(req: components.NoticeListReq) {
+	return webapi.get<components.NoticeListResp>(`/api/v1/notices`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function noticeCreate(req: components.NoticeCreateReq) {
+	return webapi.post<components.Response>(`/api/v1/notices`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function noticeUpdate(req: components.NoticeUpdateReq) {
+	return webapi.put<components.Response>(`/api/v1/notices`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function noticeDelete(req: components.NoticeDeleteReq) {
+	return webapi.delete<components.Response>(`/api/v1/notices`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function notificationList(req: components.NotificationListReq) {
+	return webapi.get<components.NotificationListResp>(`/api/v1/notifications`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function notificationDelete(req: components.NotificationDeleteReq) {
+	return webapi.delete<components.Response>(`/api/v1/notifications`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function notificationRead(req: components.NotificationReadReq) {
+	return webapi.put<components.Response>(`/api/v1/notifications/read`, req)
+}
+
+/**
+ * @description 
+ */
+export function notificationClearRead() {
+	return webapi.delete<components.Response>(`/api/v1/notifications/read`)
+}
+
+/**
+ * @description 
+ */
+export function notificationReadAll() {
+	return webapi.put<components.Response>(`/api/v1/notifications/read-all`)
+}
+
+/**
+ * @description 
+ * @param req
+ */
 export function operationLogList(req: components.OperationLogListReq) {
 	return webapi.get<components.OperationLogListResp>(`/api/v1/operation-logs`, req)
 }
 
 /**
  * @description 
+ * @param req
  */
-export function operationLogDetail() {
-	return webapi.get<components.OperationLogDetailResp>(`/api/v1/operation-logs/${id}`)
+export function operationLogDetail(req: components.OperationLogDetailReq) {
+	return webapi.get<components.OperationLogDetailResp>(`/api/v1/operation-logs/detail`, req)
 }
 
 /**

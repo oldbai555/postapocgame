@@ -20,7 +20,7 @@ export interface WSMessage {
   roomId?: string;
   content?: string;
   messageId?: number;
-  createdAt?: string;
+  createdAt?: number; // 秒级时间戳
   // 任务进度相关
   taskId?: string;
   taskName?: string;
@@ -79,11 +79,8 @@ export const useWebSocketStore = defineStore('websocket', {
       const userStore = useUserStore();
       const {hasPermission} = usePermission();
 
-      // 检查是否有聊天权限
-      if (!hasPermission('chat:list') && !hasPermission('*')) {
-        console.log('用户没有在线聊天权限，跳过 WebSocket 连接');
-        return;
-      }
+      // 在线聊天无需权限，只要登录就可以使用
+      // 移除权限检查
 
       if (this.connecting || this.connected) {
         return;
@@ -192,6 +189,17 @@ export const useWebSocketStore = defineStore('websocket', {
 
     // 处理聊天消息
     handleChatMessage(data: WSMessage) {
+      // 获取当前用户ID
+      const userStore = useUserStore();
+      const currentUserId = userStore.profile?.id || 0;
+      
+      // 只有不是自己发的消息才需要显示未读通知
+      const isMyMessage = data.fromId && Number(data.fromId) === Number(currentUserId);
+      if (isMyMessage) {
+        // 自己发的消息不需要添加到未读消息
+        return;
+      }
+
       // 检查当前是否在聊天页面
       const currentPath = window.location.pathname;
       const isInChatPage = currentPath.includes('/temp/chat') || currentPath.includes('/chat');

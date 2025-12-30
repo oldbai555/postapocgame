@@ -5,7 +5,6 @@ package config
 
 import (
 	"context"
-	"time"
 
 	"postapocgame/admin-server/internal/repository"
 	"postapocgame/admin-server/internal/svc"
@@ -57,7 +56,7 @@ func (l *ConfigListLogic) ConfigList(req *types.ConfigListReq) (resp *types.Conf
 			Value:       value,
 			ConfigType:  c.Type,
 			Description: description,
-			CreatedAt:   time.Unix(c.CreatedAt, 0).Format("2006-01-02 15:04:05"),
+			CreatedAt:   c.CreatedAt,
 		})
 	}
 

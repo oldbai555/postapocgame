@@ -5,7 +5,6 @@ package dict_type
 
 import (
 	"context"
-	"time"
 
 	"postapocgame/admin-server/internal/repository"
 	"postapocgame/admin-server/internal/svc"
@@ -52,7 +51,7 @@ func (l *DictTypeListLogic) DictTypeList(req *types.DictTypeListReq) (resp *type
 			Code:        dt.Code,
 			Description: description,
 			Status:      dt.Status,
-			CreatedAt:   time.Unix(dt.CreatedAt, 0).Format("2006-01-02 15:04:05"),
+			CreatedAt:   dt.CreatedAt,
 		})
 	}
 

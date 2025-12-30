@@ -28,9 +28,13 @@ func NewLoginLogDetailLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Lo
 	}
 }
 
-func (l *LoginLogDetailLogic) LoginLogDetail(id uint64) (resp *types.LoginLogDetailResp, err error) {
+func (l *LoginLogDetailLogic) LoginLogDetail(req *types.LoginLogDetailReq) (resp *types.LoginLogDetailResp, err error) {
+	if req == nil || req.Id == 0 {
+		return nil, errs.New(errs.CodeBadRequest, "登录日志ID不能为空")
+	}
+
 	loginLogRepo := repository.NewLoginLogRepository(l.svcCtx.Repository)
-	log, err := loginLogRepo.FindByID(l.ctx, id)
+	log, err := loginLogRepo.FindByID(l.ctx, req.Id)
 	if err != nil {
 		return nil, errs.Wrap(errs.CodeInternalError, "查询登录日志详情失败", err)
 	}

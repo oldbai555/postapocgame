@@ -108,7 +108,7 @@ const columns = computed<TableColumn[]>(() => [
   {prop: 'id', label: 'ID', width: 80},
   {prop: 'name', label: t('common.name')},
   {prop: 'status', label: t('common.status'), width: 100},
-  {prop: 'createdAt', label: t('common.createdAt'), width: 180}
+  {prop: 'createdAt', label: t('common.createdAt'), width: 180, type: D2TableElemType.ConvertTime}
 ]);
 
 // 详情/编辑抽屉列配置

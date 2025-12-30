@@ -111,8 +111,13 @@ const filterMenu = (items: MenuItem[]): MenuItem[] => {
   return items
     .filter((m) => m.status === 1 && m.visible !== 0)
     .filter((m) => {
+      // 如果菜单没有权限码（undefined、null 或空字符串），则允许访问
       const code = m.permissionCode;
-      return !code || hasPermission(code);
+      if (!code || code.trim() === '') {
+        return true; // 没有权限码的菜单，只要登录就可以访问
+      }
+      // 有权限码的菜单，需要检查权限
+      return hasPermission(code);
     })
     .map((m) => ({
       ...m,

@@ -1,6 +1,7 @@
 Name: admin-api
 Host: 0.0.0.0
 Port: 8888
+BaseURL: "http://localhost:8888"  # API 基础 URL，用于生成文件完整访问路径（生产环境需要修改为实际域名）
 
 # 数据库配置
 Database:

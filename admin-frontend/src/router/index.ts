@@ -72,6 +72,11 @@ const router = createRouter({
   routes
 });
 
+// 添加全局错误处理
+router.onError((error) => {
+  console.error('[Router] 路由错误:', error);
+});
+
 let initialized = false;
 const dynamicAdded = new Set<string>();
 
@@ -89,23 +94,48 @@ function resolveComponent(component?: string, path?: string) {
       return loader;
     }
   }
+  // 如果找不到组件，输出错误信息
+  if (component || path) {
+    console.error(`[Router] 无法解析组件: component="${component}", path="${path}"`);
+  }
   return undefined;
 }
 
 function buildRoutesFromMenus(menus: MenuItem[]): RouteRecordRaw[] {
   const res: RouteRecordRaw[] = [];
+  const usedNames = new Set<string>();
+  
   const walk = (items: MenuItem[]) => {
     items.forEach((m) => {
       // 处理菜单（type=2）：有实际页面组件
       if (m.type === 2 && m.path) {
         const comp = resolveComponent(m.component, m.path);
         if (comp) {
+          // 生成唯一的路由名称
+          let routeName = m.path.replace(/^\//, '').replace(/\//g, '_');
+          if (routeName === '') {
+            routeName = 'root';
+          }
+          // 确保名称唯一
+          let uniqueName = routeName;
+          let counter = 1;
+          while (usedNames.has(uniqueName)) {
+            uniqueName = `${routeName}_${counter}`;
+            counter++;
+          }
+          usedNames.add(uniqueName);
+          
           res.push({
             path: m.path,
-            name: m.path,
-            meta: {permission: m.permissionCode, keepAlive: true},
+            name: uniqueName,
+            meta: {
+              permission: m.permissionCode || undefined, // 如果没有权限码，设为 undefined
+              keepAlive: true
+            },
             component: comp
           });
+        } else {
+          console.error(`[Router] 路由注册失败: path="${m.path}", component="${m.component}"`);
         }
       }
       // 处理目录（type=1）：如果有子菜单，重定向到第一个子菜单
@@ -113,11 +143,27 @@ function buildRoutesFromMenus(menus: MenuItem[]): RouteRecordRaw[] {
         // 找到第一个有效的子菜单
         const firstChild = m.children.find((child) => child.type === 2 && child.path);
         if (firstChild && firstChild.path) {
+          // 生成唯一的路由名称
+          let routeName = m.path.replace(/^\//, '').replace(/\//g, '_');
+          if (routeName === '') {
+            routeName = 'root';
+          }
+          // 确保名称唯一
+          let uniqueName = routeName;
+          let counter = 1;
+          while (usedNames.has(uniqueName)) {
+            uniqueName = `${routeName}_${counter}`;
+            counter++;
+          }
+          usedNames.add(uniqueName);
+          
           res.push({
             path: m.path,
-            name: m.path,
+            name: uniqueName,
             redirect: firstChild.path,
-            meta: {permission: m.permissionCode}
+            meta: {
+              permission: m.permissionCode || undefined // 如果没有权限码，设为 undefined
+            }
           });
         }
       }
@@ -131,51 +177,70 @@ function buildRoutesFromMenus(menus: MenuItem[]): RouteRecordRaw[] {
 }
 
 router.beforeEach(async (to, _from, next) => {
-  const userStore = useUserStore();
-  const {hasPermission} = usePermission();
+  try {
+    const userStore = useUserStore();
+    const {hasPermission} = usePermission();
 
-  if (to.path !== '/login' && !userStore.token) {
-    next('/login');
-    return;
-  }
-
-  if (userStore.token) {
-    // 如果未初始化或菜单数据为空，重新获取
-    if (!initialized || !userStore.menus || userStore.menus.length === 0) {
-      initialized = true;
-      await userStore.fetchProfile().catch(() => {});
-      await userStore.fetchMenus().catch(() => {});
+    if (to.path !== '/login' && !userStore.token) {
+      next('/login');
+      return;
     }
-    
-    // 添加动态路由
-    if (userStore.menus && userStore.menus.length > 0) {
-      const dynRoutes = buildRoutesFromMenus(userStore.menus);
-      dynRoutes.forEach((r) => {
-        if (!dynamicAdded.has(r.path as string)) {
-          router.addRoute('Root', r);
-          dynamicAdded.add(r.path as string);
-        }
-      });
 
-      // 首次加载时，如果当前路由是 404，但动态路由刚刚注入，需要重新匹配一次
-      if (to.name === 'NotFound') {
-        const resolved = router.resolve(to.fullPath);
-        // 只有在新匹配结果不是 NotFound 时才重定向，避免死循环
-        if (resolved.name && resolved.name !== 'NotFound') {
-          next({...resolved, replace: true});
-          return;
+    if (userStore.token) {
+      // 如果未初始化或菜单数据为空，重新获取
+      if (!initialized || !userStore.menus || userStore.menus.length === 0) {
+        initialized = true;
+        try {
+          await userStore.fetchProfile();
+        } catch (err) {
+          console.error('[Router] 获取用户信息失败:', err);
+        }
+        try {
+          await userStore.fetchMenus();
+        } catch (err) {
+          console.error('[Router] 获取菜单失败:', err);
+        }
+      }
+      
+      // 添加动态路由
+      if (userStore.menus && userStore.menus.length > 0) {
+        const dynRoutes = buildRoutesFromMenus(userStore.menus);
+        dynRoutes.forEach((r) => {
+          if (!dynamicAdded.has(r.path as string)) {
+            try {
+              router.addRoute('Root', r);
+              dynamicAdded.add(r.path as string);
+            } catch (err) {
+              console.error(`[Router] 添加路由失败: ${r.path}`, err);
+            }
+          }
+        });
+
+        // 首次加载时，如果当前路由是 404，但动态路由刚刚注入，需要重新匹配一次
+        if (to.name === 'NotFound') {
+          const resolved = router.resolve(to.fullPath);
+          // 只有在新匹配结果不是 NotFound 时才重定向，避免死循环
+          if (resolved.name && resolved.name !== 'NotFound') {
+            next({...resolved, replace: true});
+            return;
+          }
         }
       }
     }
-  }
 
-  const needPerm = to.meta?.permission as string | undefined;
-  if (needPerm && !hasPermission(needPerm)) {
-    next('/403');
-    return;
-  }
+    // 权限检查：只有当 meta.permission 存在且不为空时才检查权限
+    const needPerm = to.meta?.permission as string | undefined;
+    if (needPerm && needPerm.trim() !== '' && !hasPermission(needPerm)) {
+      next('/403');
+      return;
+    }
 
-  next();
+    next();
+  } catch (err) {
+    console.error('[Router] 路由守卫错误:', err);
+    // 如果路由守卫出错，仍然允许导航（避免阻塞）
+    next();
+  }
 });
 
 export default router;

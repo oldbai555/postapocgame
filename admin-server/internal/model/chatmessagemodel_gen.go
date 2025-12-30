@@ -44,9 +44,8 @@ type (
 
 	ChatMessage struct {
 		Id          uint64 `db:"id"`           // 主键 ID
+		ChatId      uint64 `db:"chat_id"`      // 聊天 ID（关联chat表）
 		FromUserId  uint64 `db:"from_user_id"` // 发送用户 ID
-		ToUserId    uint64 `db:"to_user_id"`   // 接收用户 ID（0表示群聊）
-		RoomId      string `db:"room_id"`      // 聊天室 ID（群聊或私聊）
 		Content     string `db:"content"`      // 消息内容
 		MessageType int64  `db:"message_type"` // 消息类型：1文本，2图片，3文件
 		Status      int64  `db:"status"`       // 状态：1已发送，2已读，3已撤回
@@ -121,8 +120,8 @@ func (m *defaultChatMessageModel) Insert(ctx context.Context, data *ChatMessage)
 	ret, err := m.ExecCtx(ctx, func(ctx context.Context, conn sqlx.SqlConn) (result sql.Result, err error) {
 		// 手动构建包含 created_at、updated_at 的插入语句
 		// 如果表有 deleted_at 字段，它已经在 RowsExpectAutoSet 中，不需要重复添加
-		query := fmt.Sprintf("insert into %s (%s, `created_at`, `updated_at`) values (?, ?, ?, ?, ?, ?, ?, ?, ?)", m.table, chatMessageRowsExpectAutoSet)
-		return conn.ExecCtx(ctx, query, data.FromUserId, data.ToUserId, data.RoomId, data.Content, data.MessageType, data.Status, data.DeletedAt, data.CreatedAt, data.UpdatedAt)
+		query := fmt.Sprintf("insert into %s (%s, `created_at`, `updated_at`) values (?, ?, ?, ?, ?, ?, ?, ?)", m.table, chatMessageRowsExpectAutoSet)
+		return conn.ExecCtx(ctx, query, data.ChatId, data.FromUserId, data.Content, data.MessageType, data.Status, data.DeletedAt, data.CreatedAt, data.UpdatedAt)
 	}, chatMessageIdKey)
 	return ret, err
 }
@@ -140,7 +139,7 @@ func (m *defaultChatMessageModel) Update(ctx context.Context, data *ChatMessage)
 			whereClause += " and deleted_at = 0"
 		}
 		query := fmt.Sprintf("update %s set %s, `updated_at` = %d %s", m.table, chatMessageRowsWithPlaceHolder, data.UpdatedAt, whereClause)
-		return conn.ExecCtx(ctx, query, data.FromUserId, data.ToUserId, data.RoomId, data.Content, data.MessageType, data.Status, data.DeletedAt, data.Id)
+		return conn.ExecCtx(ctx, query, data.ChatId, data.FromUserId, data.Content, data.MessageType, data.Status, data.DeletedAt, data.Id)
 	}, chatMessageIdKey)
 	return err
 }

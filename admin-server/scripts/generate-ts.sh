@@ -14,9 +14,10 @@ NC='\033[0m' # No Color
 
 # 获取脚本所在目录的绝对路径
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# 项目根目录（scripts的父目录）
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-ADMIN_SERVER_DIR="${PROJECT_ROOT}/admin-server"
+# admin-server 目录（scripts的父目录）
+ADMIN_SERVER_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# 项目根目录（admin-server的父目录）
+PROJECT_ROOT="$(cd "$ADMIN_SERVER_DIR/.." && pwd)"
 ADMIN_FRONTEND_DIR="${PROJECT_ROOT}/admin-frontend"
 API_DIR="${ADMIN_SERVER_DIR}/api"
 GENERATED_DIR="${ADMIN_FRONTEND_DIR}/src/api/generated"
@@ -151,7 +152,7 @@ mkdir -p "$GENERATED_DIR"
 
 # 执行生成命令
 echo -e "${GREEN}正在生成 TypeScript 代码...${NC}"
-cd "$PROJECT_ROOT"
+cd "$ADMIN_SERVER_DIR"
 
 "$GOCTL_BIN" api ts -api "$API_FILE_PATH" -dir "$GENERATED_DIR"
 

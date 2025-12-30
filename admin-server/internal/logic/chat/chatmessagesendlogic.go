@@ -5,6 +5,7 @@ package chat
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"postapocgame/admin-server/internal/hub"
@@ -47,8 +48,35 @@ func (l *ChatMessageSendLogic) ChatMessageSend(req *types.ChatMessageSendReq) (r
 	if req.Content == "" {
 		return nil, errs.New(errs.CodeBadRequest, "消息内容不能为空")
 	}
-	if req.RoomId == "" {
-		return nil, errs.New(errs.CodeBadRequest, "聊天室ID不能为空")
+	if req.ChatId == 0 {
+		return nil, errs.New(errs.CodeBadRequest, "聊天ID不能为空")
+	}
+
+	// 验证 chat 是否存在且用户有权限
+	chatRepo := repository.NewChatRepository(l.svcCtx.Repository)
+	chat, err := chatRepo.FindByID(l.ctx, req.ChatId)
+	if err != nil {
+		return nil, errs.Wrap(errs.CodeBadRequest, "聊天不存在", err)
+	}
+	if chat.DeletedAt != 0 {
+		return nil, errs.New(errs.CodeBadRequest, "聊天已删除")
+	}
+
+	// 验证用户是否在聊天中
+	chatUserRepo := repository.NewChatUserRepository(l.svcCtx.Repository)
+	chatUsers, err := chatUserRepo.FindByChatID(l.ctx, req.ChatId)
+	if err != nil {
+		return nil, errs.Wrap(errs.CodeInternalError, "查询聊天成员失败", err)
+	}
+	hasPermission := false
+	for _, cu := range chatUsers {
+		if cu.UserId == user.UserID {
+			hasPermission = true
+			break
+		}
+	}
+	if !hasPermission {
+		return nil, errs.New(errs.CodeForbidden, "您不在该聊天中")
 	}
 
 	// 设置默认值
@@ -59,9 +87,8 @@ func (l *ChatMessageSendLogic) ChatMessageSend(req *types.ChatMessageSendReq) (r
 	// 创建消息
 	now := time.Now().Unix()
 	message := &model.ChatMessage{
+		ChatId:      req.ChatId,
 		FromUserId:  user.UserID,
-		ToUserId:    req.ToUserId,
-		RoomId:      req.RoomId,
 		Content:     req.Content,
 		MessageType: req.MessageType,
 		Status:      1, // 1已发送
@@ -76,21 +103,28 @@ func (l *ChatMessageSendLogic) ChatMessageSend(req *types.ChatMessageSendReq) (r
 		return nil, errs.Wrap(errs.CodeInternalError, "发送消息失败", err)
 	}
 
-	// 通过 WebSocket 推送消息给接收用户
+	// 通过 WebSocket 推送消息给聊天中的所有用户
 	if l.svcCtx.ChatHub != nil {
+		// 获取聊天中的所有用户ID
+		userIDs := make([]uint64, 0, len(chatUsers))
+		for _, cu := range chatUsers {
+			userIDs = append(userIDs, cu.UserId)
+		}
+
 		chatMsg := &hub.ChatMessage{
 			Type:      "chat", // 使用 "chat" 作为聊天消息类型
 			FromID:    user.UserID,
 			FromName:  user.Username,
-			ToID:      req.ToUserId,
-			RoomID:    req.RoomId,
+			ChatID:    req.ChatId,
 			Content:   req.Content,
 			MessageID: message.Id,
-			CreatedAt: time.Unix(message.CreatedAt, 0).Format("2006-01-02 15:04:05"),
+			CreatedAt: message.CreatedAt,
 		}
-		if err := l.svcCtx.ChatHub.BroadcastChatMessage(chatMsg); err != nil {
-			logx.Errorf("WebSocket 推送消息失败: %v", err)
-			// 不返回错误，因为消息已经保存到数据库
+		messageBytes, err := json.Marshal(chatMsg)
+		if err == nil {
+			l.svcCtx.ChatHub.BroadcastToChat(req.ChatId, userIDs, messageBytes)
+		} else {
+			logx.Errorf("WebSocket 消息序列化失败: %v", err)
 		}
 	}
 

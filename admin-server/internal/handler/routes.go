@@ -9,8 +9,8 @@ import (
 	api "postapocgame/admin-server/internal/handler/api"
 	audit_log "postapocgame/admin-server/internal/handler/audit_log"
 	auth "postapocgame/admin-server/internal/handler/auth"
-	cache "postapocgame/admin-server/internal/handler/cache"
 	chat "postapocgame/admin-server/internal/handler/chat"
+	chat_message "postapocgame/admin-server/internal/handler/chat_message"
 	config "postapocgame/admin-server/internal/handler/config"
 	demo "postapocgame/admin-server/internal/handler/demo"
 	department "postapocgame/admin-server/internal/handler/department"
@@ -21,6 +21,8 @@ import (
 	login_log "postapocgame/admin-server/internal/handler/login_log"
 	menu "postapocgame/admin-server/internal/handler/menu"
 	monitor "postapocgame/admin-server/internal/handler/monitor"
+	notice "postapocgame/admin-server/internal/handler/notice"
+	notification "postapocgame/admin-server/internal/handler/notification"
 	operation_log "postapocgame/admin-server/internal/handler/operation_log"
 	performance_log "postapocgame/admin-server/internal/handler/performance_log"
 	permission "postapocgame/admin-server/internal/handler/permission"
@@ -77,7 +79,7 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				},
 				{
 					Method:  http.MethodGet,
-					Path:    "/audit-logs/:id",
+					Path:    "/audit-logs/detail",
 					Handler: audit_log.AuditLogDetailHandler(serverCtx),
 				},
 				{
@@ -108,7 +110,7 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 
 	server.AddRoutes(
 		rest.WithMiddlewares(
-			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware},
 			[]rest.Route{
 				{
 					Method:  http.MethodPost,
@@ -137,12 +139,22 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 
 	server.AddRoutes(
 		rest.WithMiddlewares(
-			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware},
 			[]rest.Route{
 				{
+					Method:  http.MethodGet,
+					Path:    "/chats",
+					Handler: chat.ChatListHandler(serverCtx),
+				},
+				{
 					Method:  http.MethodPost,
-					Path:    "/cache/refresh",
-					Handler: cache.CacheRefreshHandler(serverCtx),
+					Path:    "/chats/messages",
+					Handler: chat.ChatMessageSendHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/chats/messages/list",
+					Handler: chat.ChatMessageListHandler(serverCtx),
 				},
 			}...,
 		),
@@ -156,17 +168,12 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				{
 					Method:  http.MethodGet,
 					Path:    "/chats/messages",
-					Handler: chat.ChatMessageListHandler(serverCtx),
+					Handler: chat_message.ChatMessageListAdminHandler(serverCtx),
 				},
 				{
-					Method:  http.MethodPost,
+					Method:  http.MethodDelete,
 					Path:    "/chats/messages",
-					Handler: chat.ChatMessageSendHandler(serverCtx),
-				},
-				{
-					Method:  http.MethodGet,
-					Path:    "/chats/online-users",
-					Handler: chat.ChatOnlineUsersHandler(serverCtx),
+					Handler: chat_message.ChatMessageDeleteHandler(serverCtx),
 				},
 			}...,
 		),
@@ -358,9 +365,18 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 					Path:    "/files",
 					Handler: file.FileDeleteHandler(serverCtx),
 				},
+			}...,
+		),
+		rest.WithPrefix("/api/v1"),
+	)
+
+	server.AddRoutes(
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware},
+			[]rest.Route{
 				{
 					Method:  http.MethodGet,
-					Path:    "/files/:id/download",
+					Path:    "/files/download",
 					Handler: file.FileDownloadHandler(serverCtx),
 				},
 				{
@@ -384,7 +400,7 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				},
 				{
 					Method:  http.MethodGet,
-					Path:    "/login-logs/:id",
+					Path:    "/login-logs/detail",
 					Handler: login_log.LoginLogDetailHandler(serverCtx),
 				},
 				{
@@ -423,13 +439,22 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				},
 				{
 					Method:  http.MethodGet,
-					Path:    "/menus/my-tree",
-					Handler: menu.MenuMyTreeHandler(serverCtx),
-				},
-				{
-					Method:  http.MethodGet,
 					Path:    "/menus/tree",
 					Handler: menu.MenuTreeHandler(serverCtx),
+				},
+			}...,
+		),
+		rest.WithPrefix("/api/v1"),
+	)
+
+	server.AddRoutes(
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware},
+			[]rest.Route{
+				{
+					Method:  http.MethodGet,
+					Path:    "/menus/my-tree",
+					Handler: menu.MenuMyTreeHandler(serverCtx),
 				},
 			}...,
 		),
@@ -457,6 +482,69 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 
 	server.AddRoutes(
 		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
+			[]rest.Route{
+				{
+					Method:  http.MethodGet,
+					Path:    "/notices",
+					Handler: notice.NoticeListHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/notices",
+					Handler: notice.NoticeCreateHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPut,
+					Path:    "/notices",
+					Handler: notice.NoticeUpdateHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodDelete,
+					Path:    "/notices",
+					Handler: notice.NoticeDeleteHandler(serverCtx),
+				},
+			}...,
+		),
+		rest.WithPrefix("/api/v1"),
+	)
+
+	server.AddRoutes(
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.AuthMiddleware},
+			[]rest.Route{
+				{
+					Method:  http.MethodGet,
+					Path:    "/notifications",
+					Handler: notification.NotificationListHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodDelete,
+					Path:    "/notifications",
+					Handler: notification.NotificationDeleteHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPut,
+					Path:    "/notifications/read",
+					Handler: notification.NotificationReadHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodDelete,
+					Path:    "/notifications/read",
+					Handler: notification.NotificationClearReadHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPut,
+					Path:    "/notifications/read-all",
+					Handler: notification.NotificationReadAllHandler(serverCtx),
+				},
+			}...,
+		),
+		rest.WithPrefix("/api/v1"),
+	)
+
+	server.AddRoutes(
+		rest.WithMiddlewares(
 			[]rest.Middleware{serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
 			[]rest.Route{
 				{
@@ -466,7 +554,7 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				},
 				{
 					Method:  http.MethodGet,
-					Path:    "/operation-logs/:id",
+					Path:    "/operation-logs/detail",
 					Handler: operation_log.OperationLogDetailHandler(serverCtx),
 				},
 				{

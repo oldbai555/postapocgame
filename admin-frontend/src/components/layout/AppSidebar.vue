@@ -5,6 +5,7 @@
       :collapse="collapsed"
       :unique-opened="true"
       router
+      @select="handleMenuSelect"
       class="app-sidebar__menu"
     >
       <template v-for="item in displayMenus" :key="item.id">
@@ -46,6 +47,7 @@
 import {computed} from 'vue';
 import {useRoute, useRouter} from 'vue-router';
 import * as ElementPlusIconsVue from '@element-plus/icons-vue';
+import {useUserStore} from '@/stores/user';
 import type {MenuItem} from '@/api/generated/admin';
 
 interface Props {
@@ -62,6 +64,53 @@ const route = useRoute();
 const router = useRouter();
 
 const activePath = computed(() => route.path);
+
+// 处理菜单选择（作为 router 属性的备用方案）
+const handleMenuSelect = async (path: string) => {
+  if (!path) {
+    return;
+  }
+  
+  // 如果路径相同，不处理
+  if (path === route.path) {
+    return;
+  }
+  
+  // 确保路由已注册（等待菜单加载完成）
+  const userStore = useUserStore();
+  if (userStore.menus && userStore.menus.length > 0) {
+    // 等待一下，确保路由已经注册
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  
+  // 检查路由是否存在
+  const resolved = router.resolve(path);
+  if (resolved.name === 'NotFound') {
+    console.error(`[Menu] 路由不存在: ${path}`);
+    return;
+  }
+  
+  // 执行路由跳转
+  try {
+    await router.push(path).catch((err: any) => {
+      // 如果是导航重复错误，这是正常的，不需要处理
+      if (err.name === 'NavigationDuplicated') {
+        return;
+      }
+      // 其他错误重新抛出
+      throw err;
+    });
+  } catch (err: any) {
+    // 如果路由跳转失败，输出错误信息（排除导航重复错误）
+    if (err.name !== 'NavigationDuplicated') {
+      console.error(`[Menu] 路由跳转失败: ${path}`, err);
+      // 尝试使用 replace 方式跳转
+      router.replace(path).catch(() => {
+        // 静默处理替换失败
+      });
+    }
+  }
+};
 
 // 过滤菜单（这里简化处理，实际应该从父组件传入已过滤的菜单）
 const displayMenus = computed(() => props.menus);

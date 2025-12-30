@@ -6,7 +6,6 @@ package login_log
 import (
 	"context"
 
-	"postapocgame/admin-server/internal/model"
 	"postapocgame/admin-server/internal/repository"
 	"postapocgame/admin-server/internal/svc"
 	"postapocgame/admin-server/internal/types"
@@ -63,15 +62,13 @@ func (l *LoginLogStatsLogic) LoginLogStats() (resp *types.LoginLogStatsResp, err
 		return nil, errs.Wrap(errs.CodeInternalError, "查询今日失败次数失败", err)
 	}
 
-	// 当前在线用户数（从在线用户表查询）
-	onlineUserRepo := repository.NewChatOnlineUserRepository(l.svcCtx.Repository)
-	onlineUsers, err := onlineUserRepo.FindAll(l.ctx)
-	if err != nil {
-		// 如果查询失败，设置为0，不阻塞统计
-		l.Errorf("查询在线用户数失败: %v", err)
-		onlineUsers = []model.ChatOnlineUser{}
+	// 当前在线用户数（从 WebSocket Hub 获取）
+	// 注意：ChatOnlineUser 表已移除，在线用户数从 WebSocket Hub 获取
+	onlineUserCount := int64(0)
+	if l.svcCtx.ChatHub != nil {
+		onlineUserIDs := l.svcCtx.ChatHub.GetOnlineUsers()
+		onlineUserCount = int64(len(onlineUserIDs))
 	}
-	onlineUserCount := int64(len(onlineUsers))
 
 	return &types.LoginLogStatsResp{
 		TotalCount:      totalCount,

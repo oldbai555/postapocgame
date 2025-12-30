@@ -20,7 +20,7 @@ export interface ApiItem {
 	path: string
 	description: string
 	status: number
-	createdAt: string
+	createdAt: number // 创建时间(秒级时间戳)
 }
 
 export interface ApiListReq {
@@ -41,6 +41,10 @@ export interface ApiUpdateReq {
 	path?: string
 	description?: string
 	status?: number
+}
+
+export interface AuditLogDetailReq {
+	id: number
 }
 
 export interface AuditLogDetailResp {
@@ -107,24 +111,48 @@ export interface CacheRefreshResp {
 	message: string
 }
 
+export interface ChatItem {
+	chatId: number
+	name: string // 聊天名称（群组名称，私聊显示对方昵称或用户名）
+	type: number // 聊天类型：1私聊，2群组
+	avatar?: string // 头像URL
+	description?: string // 描述（群组描述）
+	userId?: number // 私聊时的对方用户ID（群组为0）
+	username?: string // 私聊时的对方用户名
+	nickname?: string // 私聊时的对方昵称
+	departmentName?: string // 私聊时的对方部门名称
+	roleNames?: Array<string> // 私聊时的对方角色名称列表
+	unreadCount?: number // 未读消息数
+	lastMessage?: string // 最后一条消息内容
+	lastMessageAt?: number // 最后一条消息时间(秒级时间戳)
+}
+
+export interface ChatListReq {
+}
+
+export interface ChatListResp {
+	list: Array<ChatItem>
+}
+
+export interface ChatMessageDeleteReq {
+	id: number
+}
+
 export interface ChatMessageItem {
 	id: number
+	chatId: number // 聊天ID（关联chat表）
 	fromUserId: number
 	fromUserName: string
-	toUserId: number
-	toUserName: string
-	roomId: string
 	content: string
 	messageType: number
 	status: number
-	createdAt: string
+	createdAt: number // 创建时间(秒级时间戳)
 }
 
 export interface ChatMessageListReq {
 	page?: number
 	pageSize?: number
-	roomId?: string
-	userId?: number
+	chatId?: number // 聊天ID（关联chat表）
 }
 
 export interface ChatMessageListResp {
@@ -133,24 +161,13 @@ export interface ChatMessageListResp {
 }
 
 export interface ChatMessageSendReq {
-	toUserId: number // 接收用户 ID（0表示群聊）
-	roomId: string // 聊天室 ID
+	chatId: number // 聊天ID（关联chat表）
 	content: string // 消息内容
 	messageType?: number // 消息类型：1文本，2图片，3文件
 }
 
 export interface ChatMessageSendResp {
 	id: number
-}
-
-export interface ChatOnlineUserItem {
-	userId: number
-	userName: string
-	avatar?: string
-}
-
-export interface ChatOnlineUserResp {
-	list: Array<ChatOnlineUserItem>
 }
 
 export interface ConfigCreateReq {
@@ -180,7 +197,7 @@ export interface ConfigItem {
 	value: string
 	type: string
 	description: string
-	createdAt: string
+	createdAt: number // 创建时间(秒级时间戳)
 }
 
 export interface ConfigListReq {
@@ -214,7 +231,7 @@ export interface DemoItem {
 	id: number
 	name: string
 	status: number
-	createdAt: string
+	createdAt: number // 创建时间(秒级时间戳)
 }
 
 export interface DemoListReq {
@@ -297,7 +314,7 @@ export interface DictItemItem {
 	sort: number
 	status: number
 	remark: string
-	createdAt: string
+	createdAt: number // 创建时间(秒级时间戳)
 }
 
 export interface DictItemListReq {
@@ -338,7 +355,7 @@ export interface DictTypeItem {
 	code: string
 	description: string
 	status: number
-	createdAt: string
+	createdAt: number // 创建时间(秒级时间戳)
 }
 
 export interface DictTypeListReq {
@@ -376,6 +393,10 @@ export interface FileDeleteReq {
 	id: number
 }
 
+export interface FileDownloadReq {
+	id: number
+}
+
 export interface FileDownloadResp {
 	url: string
 }
@@ -384,7 +405,7 @@ export interface FileItem {
 	id: number
 	name: string
 	status: number
-	createdAt: string
+	createdAt: number // 创建时间(秒级时间戳)
 }
 
 export interface FileListReq {
@@ -408,11 +429,16 @@ export interface FileUploadResp {
 	id: number
 	name: string
 	originalName: string
-	path: string
-	url: string
+	path: string // 文件访问路径（相对路径，如 /uploads/xxx）
+	baseUrl: string // 基础URL（如 http://localhost:8888）
+	url: string // 完整URL（兼容字段，等于 baseUrl + path）
 	size: number
 	mimeType: string
 	ext: string
+}
+
+export interface LoginLogDetailReq {
+	id: number
 }
 
 export interface LoginLogDetailResp {
@@ -574,6 +600,89 @@ export interface NetworkInfo {
 	packetsRecv: number // 接收包数
 }
 
+export interface NoticeCreateReq {
+	title: string
+	content: string
+	type?: number // 公告类型：1 普通公告，2 重要公告，3 紧急公告
+	status?: number // 状态：1 草稿，2 已发布
+	publishTime?: number // 发布时间(秒级时间戳)，0表示立即发布
+}
+
+export interface NoticeDeleteReq {
+	id: number
+}
+
+export interface NoticeItem {
+	id: number
+	title: string
+	content: string
+	type: number // 公告类型：1 普通公告，2 重要公告，3 紧急公告
+	status: number // 状态：1 草稿，2 已发布
+	publishTime: number // 发布时间(秒级时间戳)
+	createdBy: number // 创建人ID
+	createdAt: number // 创建时间(秒级时间戳)
+	updatedAt: number // 更新时间(秒级时间戳)
+}
+
+export interface NoticeListReq {
+	page?: number
+	pageSize?: number
+	title?: string
+	type?: number // 0表示未传入，>0表示传入的类型
+	status?: number // -1表示未传入，1表示草稿，2表示已发布
+}
+
+export interface NoticeListResp {
+	total: number
+	list: Array<NoticeItem>
+}
+
+export interface NoticeUpdateReq {
+	id: number
+	title?: string
+	content?: string
+	type?: number
+	status?: number
+	publishTime?: number
+}
+
+export interface NotificationDeleteReq {
+	id: number
+}
+
+export interface NotificationItem {
+	id: number
+	userId: number
+	sourceType: string // 消息来源类型（chat、notice、system等）
+	sourceId: number // 来源ID（如公告ID、聊天消息ID等）
+	title: string
+	content: string
+	readStatus: number // 已读状态：1 已读，0 未读
+	readAt: number // 已读时间(秒级时间戳)
+	createdAt: number // 创建时间(秒级时间戳)
+	updatedAt: number // 更新时间(秒级时间戳)
+}
+
+export interface NotificationListReq {
+	page?: number
+	pageSize?: number
+	sourceType?: string
+	readStatus?: number
+}
+
+export interface NotificationListResp {
+	total: number
+	list: Array<NotificationItem>
+}
+
+export interface NotificationReadReq {
+	id: number
+}
+
+export interface OperationLogDetailReq {
+	id: number
+}
+
 export interface OperationLogDetailResp {
 	operationLog: OperationLogItem
 }
@@ -606,7 +715,7 @@ export interface OperationLogItem {
 	ipAddress: string
 	userAgent?: string
 	duration: number
-	createdAt: string
+	createdAt: number // 创建时间(秒级时间戳)
 }
 
 export interface OperationLogListReq {
@@ -736,18 +845,25 @@ export interface PingResp {
 export interface ProfileResp {
 	id: number
 	username: string
+	nickname?: string
 	avatar?: string
 	signature?: string
 	permissions?: Array<string>
 }
 
 export interface ProfileUpdateReq {
+	nickname?: string
 	avatar?: string
 	signature?: string
 }
 
 export interface RefreshReq {
 	refreshToken: string
+}
+
+export interface Response {
+	code: number
+	message: string
 }
 
 export interface RoleCreateReq {
@@ -807,6 +923,7 @@ export interface TokenPair {
 
 export interface UserCreateReq {
 	username: string
+	nickname?: string
 	password: string
 	avatar?: string
 	signature?: string
@@ -821,11 +938,12 @@ export interface UserDeleteReq {
 export interface UserItem {
 	id: number
 	username: string
+	nickname?: string
 	avatar?: string
 	signature?: string
 	departmentId: number
 	status: number
-	createdAt: string
+	createdAt: number // 创建时间(秒级时间戳)
 }
 
 export interface UserListReq {
@@ -855,6 +973,7 @@ export interface UserRoleUpdateReq {
 export interface UserUpdateReq {
 	id: number
 	username?: string
+	nickname?: string
 	password?: string
 	avatar?: string
 	signature?: string

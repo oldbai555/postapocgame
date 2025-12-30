@@ -5,7 +5,6 @@ package file
 
 import (
 	"context"
-	"time"
 
 	"postapocgame/admin-server/internal/repository"
 	"postapocgame/admin-server/internal/svc"
@@ -46,7 +45,7 @@ func (l *FileListLogic) FileList(req *types.FileListReq) (resp *types.FileListRe
 			Id:        f.Id,
 			Name:      f.Name,
 			Status:    f.Status,
-			CreatedAt: time.Unix(f.CreatedAt, 0).Format("2006-01-02 15:04:05"),
+			CreatedAt: f.CreatedAt,
 		})
 	}
 

@@ -25,9 +25,8 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 		return nil, err
 	}
 
-	// 初始化 ChatHub（传入在线用户 Repository）
-	onlineUserRepo := repository.NewChatOnlineUserRepository(repo)
-	chatHub := hub.NewChatHub(onlineUserRepo)
+	// 初始化 ChatHub
+	chatHub := hub.NewChatHub()
 	go chatHub.Run()
 
 	return &ServiceContext{

@@ -81,6 +81,7 @@ func (l *ProfileLogic) Profile() (resp *types.ProfileResp, err error) {
 	return &types.ProfileResp{
 		Id:          user.UserID,
 		Username:    user.Username,
+		Nickname:    userInfo.Nickname,
 		Avatar:      userInfo.Avatar,
 		Signature:   userInfo.Signature,
 		Permissions: codes,

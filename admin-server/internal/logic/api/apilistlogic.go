@@ -5,7 +5,6 @@ package api
 
 import (
 	"context"
-	"strconv"
 
 	"postapocgame/admin-server/internal/repository"
 	"postapocgame/admin-server/internal/svc"
@@ -42,10 +41,6 @@ func (l *ApiListLogic) ApiList(req *types.ApiListReq) (resp *types.ApiListResp, 
 
 	items := make([]types.ApiItem, 0, len(list))
 	for _, a := range list {
-		createdAtStr := ""
-		if a.CreatedAt > 0 {
-			createdAtStr = strconv.FormatInt(int64(a.CreatedAt), 10)
-		}
 		description := ""
 		if a.Description.Valid {
 			description = a.Description.String
@@ -57,7 +52,7 @@ func (l *ApiListLogic) ApiList(req *types.ApiListReq) (resp *types.ApiListResp, 
 			Path:        a.Path,
 			Description: description,
 			Status:      a.Status,
-			CreatedAt:   createdAtStr,
+			CreatedAt:   int64(a.CreatedAt),
 		})
 	}
 

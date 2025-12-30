@@ -5,7 +5,6 @@ package operation_log
 
 import (
 	"context"
-	"time"
 
 	"postapocgame/admin-server/internal/repository"
 	"postapocgame/admin-server/internal/svc"
@@ -83,7 +82,7 @@ func (l *OperationLogListLogic) OperationLogList(req *types.OperationLogListReq)
 			IpAddress:       log.IpAddress,
 			UserAgent:       log.UserAgent,
 			Duration:        int(log.Duration),
-			CreatedAt:       time.Unix(log.CreatedAt, 0).Format("2006-01-02 15:04:05"),
+			CreatedAt:       log.CreatedAt,
 		})
 	}
 

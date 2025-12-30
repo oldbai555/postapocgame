@@ -12,15 +12,6 @@
         <el-form-item>
           <el-button type="primary" :loading="loading" @click="loadData">{{ t('common.search') }}</el-button>
           <el-button @click="handleReset">{{ t('common.reset') }}</el-button>
-          <el-button
-            type="warning"
-            :loading="refreshLoading"
-            @click="handleRefreshCache"
-            icon="Refresh"
-            v-permission="'dict_type:update'"
-          >
-            刷新缓存
-          </el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -60,7 +51,8 @@
 <script setup lang="ts">
 import {reactive, ref, onMounted, computed} from 'vue';
 import {ElMessage, ElMessageBox} from 'element-plus';
-import {dictTypeList, dictTypeCreate, dictTypeUpdate, dictTypeDelete, cacheRefresh} from '@/api/generated/admin';
+import {Refresh} from '@element-plus/icons-vue';
+import {dictTypeList, dictTypeCreate, dictTypeUpdate, dictTypeDelete} from '@/api/generated/admin';
 import type {DictTypeItem, DictTypeCreateReq, DictTypeUpdateReq} from '@/api/generated/admin';
 import {useI18n} from 'vue-i18n';
 import D2Table from '@/components/common/D2Table.vue';
@@ -77,7 +69,6 @@ const query = reactive({
 const list = ref<DictTypeItem[]>([]);
 const total = ref(0);
 const loading = ref(false);
-const refreshLoading = ref(false);
 
 // 表格列配置
 const columns = computed<TableColumn[]>(() => [
@@ -183,19 +174,6 @@ const handleDelete = (index: number, row: DictTypeItem) => {
     .catch(() => {});
 };
 
-// 刷新缓存
-const handleRefreshCache = async () => {
-  try {
-    refreshLoading.value = true;
-    await cacheRefresh();
-    ElMessage.success('缓存刷新成功');
-  } catch (error: any) {
-    ElMessage.error(error.message || '缓存刷新失败');
-  } finally {
-    refreshLoading.value = false;
-  }
-};
-
 onMounted(loadData);
 </script>
 
@@ -207,6 +185,17 @@ onMounted(loadData);
 }
 .mb-12 {
   margin-bottom: 12px;
+}
+
+/* 修复刷新缓存按钮样式 */
+:deep(.el-button--warning) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+:deep(.el-button--warning .el-icon) {
+  margin-right: 4px;
 }
 </style>
 

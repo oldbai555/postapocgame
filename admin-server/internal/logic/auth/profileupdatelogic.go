@@ -48,7 +48,10 @@ func (l *ProfileUpdateLogic) ProfileUpdate(req *types.ProfileUpdateReq) error {
 		return errs.Wrap(errs.CodeInternalError, "获取用户信息失败", err)
 	}
 
-	// 更新头像和个性签名
+	// 更新昵称、头像和个性签名
+	if req.Nickname != "" {
+		userInfo.Nickname = req.Nickname
+	}
 	if req.Avatar != "" {
 		userInfo.Avatar = req.Avatar
 	}

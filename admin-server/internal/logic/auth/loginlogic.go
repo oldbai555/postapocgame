@@ -100,6 +100,9 @@ func (l *LoginLogic) Login(req *types.LoginReq, httpReq *http.Request) (resp *ty
 	// 记录登录成功日志
 	l.recordLoginLog(user.Id, user.Username, httpReq, "登录成功", true)
 
+	// 异步处理：为新用户创建未读公告通知
+	go l.createUnreadNoticeNotifications(user.Id)
+
 	return &types.TokenPair{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
@@ -165,6 +168,68 @@ func (l *LoginLogic) recordLoginLog(userId uint64, username string, httpReq *htt
 			l.Infof("成功记录登录日志: userId=%d, username=%s, status=%d, message=%s", userId, username, status, message)
 		}
 	}()
+}
+
+// createUnreadNoticeNotifications 为新用户创建未读公告通知
+func (l *LoginLogic) createUnreadNoticeNotifications(userID uint64) {
+	defer func() {
+		if r := recover(); r != nil {
+			l.Errorf("创建未读公告通知时发生 panic: %v, userId=%d", r, userID)
+		}
+	}()
+
+	noticeRepo := repository.NewNoticeRepository(l.svcCtx.Repository)
+	notificationRepo := repository.NewNotificationRepository(l.svcCtx.Repository)
+
+	// 查找已发布且用户未读的公告
+	notices, err := noticeRepo.FindPublishedNotReadByUser(context.Background(), userID)
+	if err != nil {
+		l.Errorf("查询未读公告失败: userId=%d, error: %v", userID, err)
+		return
+	}
+
+	if len(notices) == 0 {
+		return
+	}
+
+	now := time.Now().Unix()
+	for _, notice := range notices {
+		// 检查是否已存在通知（避免重复创建）
+		notifications, _, err := notificationRepo.FindPage(context.Background(), 1, 100, userID, "notice", -1)
+		if err == nil {
+			// 检查是否已有该公告的通知
+			hasNotification := false
+			for _, notif := range notifications {
+				if notif.SourceId == notice.Id && notif.SourceType == "notice" && notif.DeletedAt == 0 {
+					hasNotification = true
+					break
+				}
+			}
+			if hasNotification {
+				continue
+			}
+		}
+
+		// 创建通知
+		notification := &model.AdminNotification{
+			UserId:     userID,
+			SourceType: "notice",
+			SourceId:   notice.Id,
+			Title:      notice.Title,
+			Content:    notice.Content,
+			ReadStatus: 0, // 未读
+			ReadAt:     0,
+			CreatedAt:  now,
+			UpdatedAt:  now,
+			DeletedAt:  0,
+		}
+
+		if err := notificationRepo.Create(context.Background(), notification); err != nil {
+			l.Errorf("创建公告通知失败: userId=%d, noticeId=%d, error: %v", userID, notice.Id, err)
+		} else {
+			l.Infof("成功创建公告通知: userId=%d, noticeId=%d", userID, notice.Id)
+		}
+	}
 }
 
 // getClientIP 获取客户端 IP 地址

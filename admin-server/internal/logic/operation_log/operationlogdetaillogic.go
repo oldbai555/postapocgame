@@ -5,8 +5,6 @@ package operation_log
 
 import (
 	"context"
-	"fmt"
-	"time"
 
 	"postapocgame/admin-server/internal/repository"
 	"postapocgame/admin-server/internal/svc"
@@ -30,15 +28,12 @@ func NewOperationLogDetailLogic(ctx context.Context, svcCtx *svc.ServiceContext)
 	}
 }
 
-func (l *OperationLogDetailLogic) OperationLogDetail(idStr string) (resp *types.OperationLogDetailResp, err error) {
-	if idStr == "" {
+func (l *OperationLogDetailLogic) OperationLogDetail(req *types.OperationLogDetailReq) (resp *types.OperationLogDetailResp, err error) {
+	if req == nil || req.Id == 0 {
 		return nil, errs.New(errs.CodeBadRequest, "操作日志ID不能为空")
 	}
 
-	var id uint64
-	if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil {
-		return nil, errs.New(errs.CodeBadRequest, "操作日志ID格式错误")
-	}
+	id := req.Id
 
 	operationLogRepo := repository.NewOperationLogRepository(l.svcCtx.Repository)
 	log, err := operationLogRepo.FindByID(l.ctx, id)
@@ -65,7 +60,7 @@ func (l *OperationLogDetailLogic) OperationLogDetail(idStr string) (resp *types.
 		IpAddress:       log.IpAddress,
 		UserAgent:       log.UserAgent,
 		Duration:        int(log.Duration),
-		CreatedAt:       time.Unix(log.CreatedAt, 0).Format("2006-01-02 15:04:05"),
+		CreatedAt:       log.CreatedAt,
 	}
 
 	return &types.OperationLogDetailResp{

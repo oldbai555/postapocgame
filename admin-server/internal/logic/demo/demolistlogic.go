@@ -5,7 +5,6 @@ package demo
 
 import (
 	"context"
-	"time"
 
 	"postapocgame/admin-server/internal/repository"
 	"postapocgame/admin-server/internal/svc"
@@ -46,7 +45,7 @@ func (l *DemoListLogic) DemoList(req *types.DemoListReq) (resp *types.DemoListRe
 			Id:        d.Id,
 			Name:      d.Name,
 			Status:    d.Status,
-			CreatedAt: time.Unix(d.CreatedAt, 0).Format("2006-01-02 15:04:05"),
+			CreatedAt: d.CreatedAt,
 		})
 	}
 

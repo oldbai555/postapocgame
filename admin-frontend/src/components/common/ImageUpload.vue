@@ -51,6 +51,7 @@ import {Picture, Plus} from '@element-plus/icons-vue';
 import {useUserStore} from '@/stores/user';
 import {fileUpload} from '@/api/generated/admin';
 import type {FileUploadResp} from '@/api/generated/admin';
+import {buildFileUrlFromResponse} from '@/utils/file';
 
 interface Props {
   modelValue?: string; // 图片URL
@@ -84,7 +85,7 @@ const uploadHeaders = computed(() => ({
   Authorization: `Bearer ${userStore.token}`
 }));
 
-// 图片URL（如果是相对路径，需要拼接baseUrl）
+// 图片URL（优先使用 baseUrl + path，否则使用 url 兼容字段）
 const imageUrl = computed(() => {
   if (!props.modelValue) return '';
   // 如果已经是完整URL，直接返回
@@ -116,10 +117,17 @@ const beforeUpload = (file: File) => {
 
 // 上传成功
 const handleUploadSuccess = (response: FileUploadResp) => {
-  if (response && response.url) {
-    emit('update:modelValue', response.url);
-    emit('change', response.url);
-    ElMessage.success('上传成功');
+  if (response) {
+    // 使用工具函数构建完整 URL
+    const fullUrl = buildFileUrlFromResponse(response);
+    
+    if (fullUrl) {
+      emit('update:modelValue', fullUrl);
+      emit('change', fullUrl);
+      ElMessage.success('上传成功');
+    } else {
+      ElMessage.error('上传失败：服务器返回数据格式错误');
+    }
   } else {
     ElMessage.error('上传失败：服务器返回数据格式错误');
   }

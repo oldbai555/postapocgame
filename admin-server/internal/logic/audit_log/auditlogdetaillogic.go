@@ -28,13 +28,13 @@ func NewAuditLogDetailLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Au
 	}
 }
 
-func (l *AuditLogDetailLogic) AuditLogDetail(id uint64) (resp *types.AuditLogDetailResp, err error) {
-	if id == 0 {
+func (l *AuditLogDetailLogic) AuditLogDetail(req *types.AuditLogDetailReq) (resp *types.AuditLogDetailResp, err error) {
+	if req == nil || req.Id == 0 {
 		return nil, errs.New(errs.CodeBadRequest, "审计日志ID不能为空")
 	}
 
 	auditLogRepo := repository.NewAuditLogRepository(l.svcCtx.Repository)
-	log, err := auditLogRepo.FindByID(l.ctx, id)
+	log, err := auditLogRepo.FindByID(l.ctx, req.Id)
 	if err != nil {
 		return nil, errs.Wrap(errs.CodeInternalError, "查询审计日志详情失败", err)
 	}

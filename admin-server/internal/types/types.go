@@ -22,7 +22,7 @@ type ApiItem struct {
 	Path        string `json:"path"`
 	Description string `json:"description"`
 	Status      int64  `json:"status"`
-	CreatedAt   string `json:"createdAt"`
+	CreatedAt   int64  `json:"createdAt"` // 创建时间(秒级时间戳)
 }
 
 type ApiListReq struct {
@@ -43,6 +43,10 @@ type ApiUpdateReq struct {
 	Path        string `json:"path,optional"`
 	Description string `json:"description,optional"`
 	Status      int64  `json:"status,optional"`
+}
+
+type AuditLogDetailReq struct {
+	Id uint64 `json:"id" form:"id"`
 }
 
 type AuditLogDetailResp struct {
@@ -101,24 +105,48 @@ type CacheRefreshResp struct {
 	Message string `json:"message"`
 }
 
+type ChatItem struct {
+	ChatId         uint64   `json:"chatId"`
+	Name           string   `json:"name"`                    // 聊天名称（群组名称，私聊显示对方昵称或用户名）
+	ChatType       int64    `json:"type"`                    // 聊天类型：1私聊，2群组
+	Avatar         string   `json:"avatar,optional"`         // 头像URL
+	Description    string   `json:"description,optional"`    // 描述（群组描述）
+	UserId         uint64   `json:"userId,optional"`         // 私聊时的对方用户ID（群组为0）
+	Username       string   `json:"username,optional"`       // 私聊时的对方用户名
+	Nickname       string   `json:"nickname,optional"`       // 私聊时的对方昵称
+	DepartmentName string   `json:"departmentName,optional"` // 私聊时的对方部门名称
+	RoleNames      []string `json:"roleNames,optional"`      // 私聊时的对方角色名称列表
+	UnreadCount    int64    `json:"unreadCount,optional"`    // 未读消息数
+	LastMessage    string   `json:"lastMessage,optional"`    // 最后一条消息内容
+	LastMessageAt  int64    `json:"lastMessageAt,optional"`  // 最后一条消息时间(秒级时间戳)
+}
+
+type ChatListReq struct {
+}
+
+type ChatListResp struct {
+	List []ChatItem `json:"list"`
+}
+
+type ChatMessageDeleteReq struct {
+	Id uint64 `json:"id"`
+}
+
 type ChatMessageItem struct {
 	Id           uint64 `json:"id"`
+	ChatId       uint64 `json:"chatId"` // 聊天ID（关联chat表）
 	FromUserId   uint64 `json:"fromUserId"`
 	FromUserName string `json:"fromUserName"`
-	ToUserId     uint64 `json:"toUserId"`
-	ToUserName   string `json:"toUserName"`
-	RoomId       string `json:"roomId"`
 	Content      string `json:"content"`
 	MessageType  int64  `json:"messageType"`
 	Status       int64  `json:"status"`
-	CreatedAt    string `json:"createdAt"`
+	CreatedAt    int64  `json:"createdAt"` // 创建时间(秒级时间戳)
 }
 
 type ChatMessageListReq struct {
 	Page     int64  `json:"page,optional" form:"page,optional"`
 	PageSize int64  `json:"pageSize,optional" form:"pageSize,optional"`
-	RoomId   string `json:"roomId,optional" form:"roomId,optional"`
-	UserId   uint64 `json:"userId,optional" form:"userId,optional"`
+	ChatId   uint64 `json:"chatId,optional" form:"chatId,optional"` // 聊天ID（关联chat表）
 }
 
 type ChatMessageListResp struct {
@@ -127,24 +155,13 @@ type ChatMessageListResp struct {
 }
 
 type ChatMessageSendReq struct {
-	ToUserId    uint64 `json:"toUserId"`             // 接收用户 ID（0表示群聊）
-	RoomId      string `json:"roomId"`               // 聊天室 ID
+	ChatId      uint64 `json:"chatId"`               // 聊天ID（关联chat表）
 	Content     string `json:"content"`              // 消息内容
 	MessageType int64  `json:"messageType,optional"` // 消息类型：1文本，2图片，3文件
 }
 
 type ChatMessageSendResp struct {
 	Id uint64 `json:"id"`
-}
-
-type ChatOnlineUserItem struct {
-	UserId   uint64 `json:"userId"`
-	UserName string `json:"userName"`
-	Avatar   string `json:"avatar,optional"`
-}
-
-type ChatOnlineUserResp struct {
-	List []ChatOnlineUserItem `json:"list"`
 }
 
 type ConfigCreateReq struct {
@@ -174,7 +191,7 @@ type ConfigItem struct {
 	Value       string `json:"value"`
 	ConfigType  string `json:"type"`
 	Description string `json:"description"`
-	CreatedAt   string `json:"createdAt"`
+	CreatedAt   int64  `json:"createdAt"` // 创建时间(秒级时间戳)
 }
 
 type ConfigListReq struct {
@@ -208,7 +225,7 @@ type DemoItem struct {
 	Id        uint64 `json:"id"`
 	Name      string `json:"name"`
 	Status    int64  `json:"status"`
-	CreatedAt string `json:"createdAt"`
+	CreatedAt int64  `json:"createdAt"` // 创建时间(秒级时间戳)
 }
 
 type DemoListReq struct {
@@ -290,7 +307,7 @@ type DictItemItem struct {
 	Sort      int64  `json:"sort"`
 	Status    int64  `json:"status"`
 	Remark    string `json:"remark"`
-	CreatedAt string `json:"createdAt"`
+	CreatedAt int64  `json:"createdAt"` // 创建时间(秒级时间戳)
 }
 
 type DictItemListReq struct {
@@ -331,7 +348,7 @@ type DictTypeItem struct {
 	Code        string `json:"code"`
 	Description string `json:"description"`
 	Status      int64  `json:"status"`
-	CreatedAt   string `json:"createdAt"`
+	CreatedAt   int64  `json:"createdAt"` // 创建时间(秒级时间戳)
 }
 
 type DictTypeListReq struct {
@@ -369,6 +386,10 @@ type FileDeleteReq struct {
 	Id uint64 `json:"id"`
 }
 
+type FileDownloadReq struct {
+	Id uint64 `json:"id" form:"id"`
+}
+
 type FileDownloadResp struct {
 	Url string `json:"url"`
 }
@@ -377,7 +398,7 @@ type FileItem struct {
 	Id        uint64 `json:"id"`
 	Name      string `json:"name"`
 	Status    int64  `json:"status"`
-	CreatedAt string `json:"createdAt"`
+	CreatedAt int64  `json:"createdAt"` // 创建时间(秒级时间戳)
 }
 
 type FileListReq struct {
@@ -401,11 +422,16 @@ type FileUploadResp struct {
 	Id           uint64 `json:"id"`
 	Name         string `json:"name"`
 	OriginalName string `json:"originalName"`
-	Path         string `json:"path"`
-	Url          string `json:"url"`
+	Path         string `json:"path"`    // 文件访问路径（相对路径，如 /uploads/xxx）
+	BaseUrl      string `json:"baseUrl"` // 基础URL（如 http://localhost:8888）
+	Url          string `json:"url"`     // 完整URL（兼容字段，等于 baseUrl + path）
 	Size         uint64 `json:"size"`
 	MimeType     string `json:"mimeType"`
 	Ext          string `json:"ext"`
+}
+
+type LoginLogDetailReq struct {
+	Id uint64 `json:"id" form:"id"`
 }
 
 type LoginLogDetailResp struct {
@@ -555,6 +581,89 @@ type NetworkInfo struct {
 	PacketsRecv uint64 `json:"packetsRecv"` // 接收包数
 }
 
+type NoticeCreateReq struct {
+	Title       string `json:"title"`
+	Content     string `json:"content"`
+	NoticeType  int64  `json:"type,optional"`        // 公告类型：1 普通公告，2 重要公告，3 紧急公告
+	Status      int64  `json:"status,optional"`      // 状态：1 草稿，2 已发布
+	PublishTime int64  `json:"publishTime,optional"` // 发布时间(秒级时间戳)，0表示立即发布
+}
+
+type NoticeDeleteReq struct {
+	Id uint64 `json:"id"`
+}
+
+type NoticeItem struct {
+	Id          uint64 `json:"id"`
+	Title       string `json:"title"`
+	Content     string `json:"content"`
+	NoticeType  int64  `json:"type"`        // 公告类型：1 普通公告，2 重要公告，3 紧急公告
+	Status      int64  `json:"status"`      // 状态：1 草稿，2 已发布
+	PublishTime int64  `json:"publishTime"` // 发布时间(秒级时间戳)
+	CreatedBy   uint64 `json:"createdBy"`   // 创建人ID
+	CreatedAt   int64  `json:"createdAt"`   // 创建时间(秒级时间戳)
+	UpdatedAt   int64  `json:"updatedAt"`   // 更新时间(秒级时间戳)
+}
+
+type NoticeListReq struct {
+	Page       int64  `json:"page,optional" form:"page,optional"`
+	PageSize   int64  `json:"pageSize,optional" form:"pageSize,optional"`
+	Title      string `json:"title,optional" form:"title,optional"`
+	NoticeType int64  `json:"type,optional" form:"type,optional"`     // 0表示未传入，>0表示传入的类型
+	Status     int64  `json:"status,optional" form:"status,optional"` // -1表示未传入，1表示草稿，2表示已发布
+}
+
+type NoticeListResp struct {
+	Total int64        `json:"total"`
+	List  []NoticeItem `json:"list"`
+}
+
+type NoticeUpdateReq struct {
+	Id          uint64 `json:"id"`
+	Title       string `json:"title,optional"`
+	Content     string `json:"content,optional"`
+	NoticeType  int64  `json:"type,optional"`
+	Status      int64  `json:"status,optional"`
+	PublishTime int64  `json:"publishTime,optional"`
+}
+
+type NotificationDeleteReq struct {
+	Id uint64 `json:"id"`
+}
+
+type NotificationItem struct {
+	Id         uint64 `json:"id"`
+	UserId     uint64 `json:"userId"`
+	SourceType string `json:"sourceType"` // 消息来源类型（chat、notice、system等）
+	SourceId   uint64 `json:"sourceId"`   // 来源ID（如公告ID、聊天消息ID等）
+	Title      string `json:"title"`
+	Content    string `json:"content"`
+	ReadStatus int64  `json:"readStatus"` // 已读状态：1 已读，0 未读
+	ReadAt     int64  `json:"readAt"`     // 已读时间(秒级时间戳)
+	CreatedAt  int64  `json:"createdAt"`  // 创建时间(秒级时间戳)
+	UpdatedAt  int64  `json:"updatedAt"`  // 更新时间(秒级时间戳)
+}
+
+type NotificationListReq struct {
+	Page       int64  `json:"page,optional" form:"page,optional"`
+	PageSize   int64  `json:"pageSize,optional" form:"pageSize,optional"`
+	SourceType string `json:"sourceType,optional" form:"sourceType,optional"`
+	ReadStatus int64  `json:"readStatus,optional" form:"readStatus,optional"`
+}
+
+type NotificationListResp struct {
+	Total int64              `json:"total"`
+	List  []NotificationItem `json:"list"`
+}
+
+type NotificationReadReq struct {
+	Id uint64 `json:"id"`
+}
+
+type OperationLogDetailReq struct {
+	Id uint64 `json:"id" form:"id"`
+}
+
 type OperationLogDetailResp struct {
 	OperationLog OperationLogItem `json:"operationLog"`
 }
@@ -587,7 +696,7 @@ type OperationLogItem struct {
 	IpAddress       string `json:"ipAddress"`
 	UserAgent       string `json:"userAgent,optional"`
 	Duration        int    `json:"duration"`
-	CreatedAt       string `json:"createdAt"`
+	CreatedAt       int64  `json:"createdAt"` // 创建时间(秒级时间戳)
 }
 
 type OperationLogListReq struct {
@@ -717,18 +826,25 @@ type PingResp struct {
 type ProfileResp struct {
 	Id          uint64   `json:"id"`
 	Username    string   `json:"username"`
+	Nickname    string   `json:"nickname,optional"`
 	Avatar      string   `json:"avatar,optional"`
 	Signature   string   `json:"signature,optional"`
 	Permissions []string `json:"permissions,optional"`
 }
 
 type ProfileUpdateReq struct {
+	Nickname  string `json:"nickname,optional"`
 	Avatar    string `json:"avatar,optional"`
 	Signature string `json:"signature,optional"`
 }
 
 type RefreshReq struct {
 	RefreshToken string `json:"refreshToken"`
+}
+
+type Response struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
 }
 
 type RoleCreateReq struct {
@@ -788,6 +904,7 @@ type TokenPair struct {
 
 type UserCreateReq struct {
 	Username     string `json:"username"`
+	Nickname     string `json:"nickname,optional"`
 	Password     string `json:"password"`
 	Avatar       string `json:"avatar,optional"`
 	Signature    string `json:"signature,optional"`
@@ -802,11 +919,12 @@ type UserDeleteReq struct {
 type UserItem struct {
 	Id           uint64 `json:"id"`
 	Username     string `json:"username"`
+	Nickname     string `json:"nickname,optional"`
 	Avatar       string `json:"avatar,optional"`
 	Signature    string `json:"signature,optional"`
 	DepartmentId uint64 `json:"departmentId"`
 	Status       int64  `json:"status"`
-	CreatedAt    string `json:"createdAt"`
+	CreatedAt    int64  `json:"createdAt"` // 创建时间(秒级时间戳)
 }
 
 type UserListReq struct {
@@ -836,6 +954,7 @@ type UserRoleUpdateReq struct {
 type UserUpdateReq struct {
 	Id           uint64 `json:"id"`
 	Username     string `json:"username,optional"`
+	Nickname     string `json:"nickname,optional"`
 	Password     string `json:"password,optional"`
 	Avatar       string `json:"avatar,optional"`
 	Signature    string `json:"signature,optional"`

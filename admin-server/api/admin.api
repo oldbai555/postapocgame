@@ -17,6 +17,11 @@ type (
 		startTime int64  `json:"startTime"` // 启动时间（秒级时间戳）
 		uptime    int64  `json:"uptime"` // 运行时长（秒）
 	}
+	// 通用响应（用于删除等操作）
+	Response {
+		code    int    `json:"code"`
+		message string `json:"message"`
+	}
 	// 系统监控
 	MonitorStatusResp {
 		cpu     CPUInfo     `json:"cpu"` // CPU信息
@@ -74,11 +79,13 @@ type (
 	ProfileResp {
 		id          uint64   `json:"id"`
 		username    string   `json:"username"`
+		nickname    string   `json:"nickname,optional"`
 		avatar      string   `json:"avatar,optional"`
 		signature   string   `json:"signature,optional"`
 		permissions []string `json:"permissions,optional"`
 	}
 	ProfileUpdateReq {
+		nickname  string `json:"nickname,optional"`
 		avatar    string `json:"avatar,optional"`
 		signature string `json:"signature,optional"`
 	}
@@ -90,11 +97,12 @@ type (
 	UserItem {
 		id           uint64 `json:"id"`
 		username     string `json:"username"`
+		nickname     string `json:"nickname,optional"`
 		avatar       string `json:"avatar,optional"`
 		signature    string `json:"signature,optional"`
 		departmentId uint64 `json:"departmentId"`
 		status       int64  `json:"status"`
-		createdAt    string `json:"createdAt"`
+		createdAt    int64  `json:"createdAt"` // 创建时间(秒级时间戳)
 	}
 	UserListReq {
 		page     int64  `json:"page,optional" form:"page,optional"`
@@ -107,6 +115,7 @@ type (
 	}
 	UserCreateReq {
 		username     string `json:"username"`
+		nickname     string `json:"nickname,optional"`
 		password     string `json:"password"`
 		avatar       string `json:"avatar,optional"`
 		signature    string `json:"signature,optional"`
@@ -116,6 +125,7 @@ type (
 	UserUpdateReq {
 		id           uint64 `json:"id"`
 		username     string `json:"username,optional"`
+		nickname     string `json:"nickname,optional"`
 		password     string `json:"password,optional"`
 		avatar       string `json:"avatar,optional"`
 		signature    string `json:"signature,optional"`
@@ -265,7 +275,7 @@ type (
 		path        string `json:"path"`
 		description string `json:"description"`
 		status      int64  `json:"status"`
-		createdAt   string `json:"createdAt"`
+		createdAt   int64  `json:"createdAt"` // 创建时间(秒级时间戳)
 	}
 	ApiListReq {
 		page     int64  `json:"page,optional" form:"page,optional"`
@@ -343,7 +353,7 @@ type (
 		id        uint64 `json:"id"`
 		name      string `json:"name"`
 		status    int64  `json:"status"`
-		createdAt string `json:"createdAt"`
+		createdAt int64  `json:"createdAt"` // 创建时间(秒级时间戳)
 	}
 	FileListReq {
 		page     int64  `json:"page,optional" form:"page,optional"`
@@ -370,11 +380,15 @@ type (
 		id           uint64 `json:"id"`
 		name         string `json:"name"`
 		originalName string `json:"originalName"`
-		path         string `json:"path"`
-		url          string `json:"url"`
+		path         string `json:"path"` // 文件访问路径（相对路径，如 /uploads/xxx）
+		baseUrl      string `json:"baseUrl"` // 基础URL（如 http://localhost:8888）
+		url          string `json:"url"` // 完整URL（兼容字段，等于 baseUrl + path）
 		size         uint64 `json:"size"`
 		mimeType     string `json:"mimeType"`
 		ext          string `json:"ext"`
+	}
+	FileDownloadReq {
+		id uint64 `json:"id" form:"id"`
 	}
 	FileDownloadResp {
 		url string `json:"url"`
@@ -387,7 +401,7 @@ type (
 		value       string `json:"value"`
 		configType  string `json:"type"`
 		description string `json:"description"`
-		createdAt   string `json:"createdAt"`
+		createdAt   int64  `json:"createdAt"` // 创建时间(秒级时间戳)
 	}
 	ConfigListReq {
 		page     int64  `json:"page,optional" form:"page,optional"`
@@ -427,7 +441,7 @@ type (
 		code        string `json:"code"`
 		description string `json:"description"`
 		status      int64  `json:"status"`
-		createdAt   string `json:"createdAt"`
+		createdAt   int64  `json:"createdAt"` // 创建时间(秒级时间戳)
 	}
 	DictTypeListReq {
 		page     int64  `json:"page,optional" form:"page,optional"`
@@ -463,7 +477,7 @@ type (
 		sort      int64  `json:"sort"`
 		status    int64  `json:"status"`
 		remark    string `json:"remark"`
-		createdAt string `json:"createdAt"`
+		createdAt int64  `json:"createdAt"` // 创建时间(秒级时间戳)
 	}
 	DictItemListReq {
 		page     int64  `json:"page,optional" form:"page,optional"`
@@ -517,7 +531,7 @@ type (
 		ipAddress       string `json:"ipAddress"`
 		userAgent       string `json:"userAgent,optional"`
 		duration        int    `json:"duration"`
-		createdAt       string `json:"createdAt"`
+		createdAt       int64  `json:"createdAt"` // 创建时间(秒级时间戳)
 	}
 	// 操作日志列表请求
 	OperationLogListReq {
@@ -535,6 +549,10 @@ type (
 	OperationLogListResp {
 		total int64              `json:"total"`
 		list  []OperationLogItem `json:"list"`
+	}
+	// 操作日志详情请求
+	OperationLogDetailReq {
+		id uint64 `json:"id" form:"id"`
 	}
 	// 操作日志详情响应
 	OperationLogDetailResp {
@@ -593,7 +611,7 @@ service admin-api {
 @server (
 	group:      auth
 	prefix:     /api/v1
-	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware
 )
 service admin-api {
 	@handler Logout
@@ -694,9 +712,6 @@ service admin-api {
 	@handler MenuTree
 	get /menus/tree returns (MenuTreeResp)
 
-	@handler MenuMyTree
-	get /menus/my-tree returns (MenuTreeResp)
-
 	@handler MenuCreate
 	post /menus (MenuCreateReq)
 
@@ -705,6 +720,16 @@ service admin-api {
 
 	@handler MenuDelete
 	delete /menus (MenuDeleteReq)
+}
+
+@server (
+	group:      menu
+	prefix:     /api/v1
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware
+)
+service admin-api {
+	@handler MenuMyTree
+	get /menus/my-tree returns (MenuTreeResp)
 }
 
 @server (
@@ -795,12 +820,19 @@ service admin-api {
 
 	@handler FileDelete
 	delete /files (FileDeleteReq)
+}
 
+@server (
+	group:      file
+	prefix:     /api/v1
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware
+)
+service admin-api {
 	@handler FileUpload
 	post /files/upload returns (FileUploadResp)
 
 	@handler FileDownload
-	get /files/:id/download returns (FileDownloadResp)
+	get /files/download (FileDownloadReq) returns (FileDownloadResp)
 }
 
 @server (
@@ -872,16 +904,6 @@ service admin-api {
 	get /dict (DictGetReq) returns (DictGetResp)
 }
 
-@server (
-	group:      cache
-	prefix:     /api/v1
-	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
-)
-service admin-api {
-	@handler CacheRefresh
-	post /cache/refresh returns (CacheRefreshResp)
-}
-
 type (
 	CacheRefreshResp {
 		message string `json:"message"`
@@ -891,7 +913,7 @@ type (
 		id        uint64 `json:"id"`
 		name      string `json:"name"`
 		status    int64  `json:"status"`
-		createdAt string `json:"createdAt"`
+		createdAt int64  `json:"createdAt"` // 创建时间(秒级时间戳)
 	}
 	DemoListReq {
 		// 注意：GET 请求的查询参数需要同时包含 json 和 form 标签
@@ -942,22 +964,19 @@ type (
 	// 聊天消息
 	ChatMessageItem {
 		id           uint64 `json:"id"`
+		chatId       uint64 `json:"chatId"` // 聊天ID（关联chat表）
 		fromUserId   uint64 `json:"fromUserId"`
 		fromUserName string `json:"fromUserName"`
-		toUserId     uint64 `json:"toUserId"`
-		toUserName   string `json:"toUserName"`
-		roomId       string `json:"roomId"`
 		content      string `json:"content"`
 		messageType  int64  `json:"messageType"`
 		status       int64  `json:"status"`
-		createdAt    string `json:"createdAt"`
+		createdAt    int64  `json:"createdAt"` // 创建时间(秒级时间戳)
 	}
 	// 消息列表请求
 	ChatMessageListReq {
 		page     int64  `json:"page,optional" form:"page,optional"`
 		pageSize int64  `json:"pageSize,optional" form:"pageSize,optional"`
-		roomId   string `json:"roomId,optional" form:"roomId,optional"`
-		userId   uint64 `json:"userId,optional" form:"userId,optional"`
+		chatId   uint64 `json:"chatId,optional" form:"chatId,optional"` // 聊天ID（关联chat表）
 	}
 	// 消息列表响应
 	ChatMessageListResp {
@@ -966,8 +985,7 @@ type (
 	}
 	// 发送消息请求
 	ChatMessageSendReq {
-		toUserId    uint64 `json:"toUserId"` // 接收用户 ID（0表示群聊）
-		roomId      string `json:"roomId"` // 聊天室 ID
+		chatId      uint64 `json:"chatId"` // 聊天ID（关联chat表）
 		content     string `json:"content"` // 消息内容
 		messageType int64  `json:"messageType,optional"` // 消息类型：1文本，2图片，3文件
 	}
@@ -975,31 +993,60 @@ type (
 	ChatMessageSendResp {
 		id uint64 `json:"id"`
 	}
-	// 在线用户列表响应
-	ChatOnlineUserResp {
-		list []ChatOnlineUserItem `json:"list"`
+	// 删除聊天消息请求
+	ChatMessageDeleteReq {
+		id uint64 `json:"id"`
 	}
-	ChatOnlineUserItem {
-		userId   uint64 `json:"userId"`
-		userName string `json:"userName"`
-		avatar   string `json:"avatar,optional"`
+	// 聊天列表请求
+	ChatListReq  {}
+	// 聊天列表响应
+	ChatItem {
+		chatId         uint64   `json:"chatId"`
+		name           string   `json:"name"` // 聊天名称（群组名称，私聊显示对方昵称或用户名）
+		chatType       int64    `json:"type"` // 聊天类型：1私聊，2群组
+		avatar         string   `json:"avatar,optional"` // 头像URL
+		description    string   `json:"description,optional"` // 描述（群组描述）
+		userId         uint64   `json:"userId,optional"` // 私聊时的对方用户ID（群组为0）
+		username       string   `json:"username,optional"` // 私聊时的对方用户名
+		nickname       string   `json:"nickname,optional"` // 私聊时的对方昵称
+		departmentName string   `json:"departmentName,optional"` // 私聊时的对方部门名称
+		roleNames      []string `json:"roleNames,optional"` // 私聊时的对方角色名称列表
+		unreadCount    int64    `json:"unreadCount,optional"` // 未读消息数
+		lastMessage    string   `json:"lastMessage,optional"` // 最后一条消息内容
+		lastMessageAt  int64    `json:"lastMessageAt,optional"` // 最后一条消息时间(秒级时间戳)
+	}
+	ChatListResp {
+		list []ChatItem `json:"list"`
 	}
 )
 
 @server (
 	group:      chat
 	prefix:     /api/v1
-	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware
 )
 service admin-api {
-	@handler ChatMessageList
-	get /chats/messages (ChatMessageListReq) returns (ChatMessageListResp)
-
 	@handler ChatMessageSend
 	post /chats/messages (ChatMessageSendReq) returns (ChatMessageSendResp)
 
-	@handler ChatOnlineUsers
-	get /chats/online-users returns (ChatOnlineUserResp)
+	@handler ChatList
+	get /chats returns (ChatListResp)
+
+	@handler ChatMessageList
+	get /chats/messages/list (ChatMessageListReq) returns (ChatMessageListResp)
+}
+
+@server (
+	group:      chat_message
+	prefix:     /api/v1
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
+)
+service admin-api {
+	@handler ChatMessageListAdmin
+	get /chats/messages (ChatMessageListReq) returns (ChatMessageListResp)
+
+	@handler ChatMessageDelete
+	delete /chats/messages (ChatMessageDeleteReq) returns (Response)
 }
 
 @server (
@@ -1012,7 +1059,7 @@ service admin-api {
 	get /operation-logs (OperationLogListReq) returns (OperationLogListResp)
 
 	@handler OperationLogDetail
-	get /operation-logs/:id returns (OperationLogDetailResp)
+	get /operation-logs/detail (OperationLogDetailReq) returns (OperationLogDetailResp)
 
 	@handler OperationLogExport
 	get /operation-logs/export (OperationLogExportReq) returns (OperationLogExportResp)
@@ -1052,6 +1099,10 @@ type (
 		total    int64          `json:"total"`
 		page     int            `json:"page"`
 		pageSize int            `json:"pageSize"`
+	}
+	// 登录日志详情请求
+	LoginLogDetailReq {
+		id uint64 `json:"id" form:"id"`
 	}
 	// 登录日志详情响应
 	LoginLogDetailResp {
@@ -1121,7 +1172,7 @@ service admin-api {
 	get /login-logs (LoginLogListReq) returns (LoginLogListResp)
 
 	@handler LoginLogDetail
-	get /login-logs/:id returns (LoginLogDetailResp)
+	get /login-logs/detail (LoginLogDetailReq) returns (LoginLogDetailResp)
 
 	@handler LoginLogExport
 	get /login-logs/export (LoginLogExportReq) returns (LoginLogExportResp)
@@ -1162,6 +1213,10 @@ type (
 		page     int            `json:"page"`
 		pageSize int            `json:"pageSize"`
 	}
+	// 审计日志详情请求
+	AuditLogDetailReq {
+		id uint64 `json:"id" form:"id"`
+	}
 	// 审计日志详情响应
 	AuditLogDetailResp {
 		AuditLogItem
@@ -1191,7 +1246,7 @@ service admin-api {
 	get /audit-logs (AuditLogListReq) returns (AuditLogListResp)
 
 	@handler AuditLogDetail
-	get /audit-logs/:id returns (AuditLogDetailResp)
+	get /audit-logs/detail (AuditLogDetailReq) returns (AuditLogDetailResp)
 
 	@handler AuditLogExport
 	get /audit-logs/export (AuditLogExportReq) returns (AuditLogExportResp)
@@ -1205,5 +1260,119 @@ service admin-api {
 service admin-api {
 	@handler PerformanceLogList
 	get /performance-logs (PerformanceLogListReq) returns (PerformanceLogListResp)
+}
+
+type (
+	// 公告管理
+	NoticeItem {
+		id          uint64 `json:"id"`
+		title       string `json:"title"`
+		content     string `json:"content"`
+		noticeType  int64  `json:"type"` // 公告类型：1 普通公告，2 重要公告，3 紧急公告
+		status      int64  `json:"status"` // 状态：1 草稿，2 已发布
+		publishTime int64  `json:"publishTime"` // 发布时间(秒级时间戳)
+		createdBy   uint64 `json:"createdBy"` // 创建人ID
+		createdAt   int64  `json:"createdAt"` // 创建时间(秒级时间戳)
+		updatedAt   int64  `json:"updatedAt"` // 更新时间(秒级时间戳)
+	}
+	NoticeListReq {
+		page       int64  `json:"page,optional" form:"page,optional"`
+		pageSize   int64  `json:"pageSize,optional" form:"pageSize,optional"`
+		title      string `json:"title,optional" form:"title,optional"`
+		noticeType int64  `json:"type,optional" form:"type,optional"` // 0表示未传入，>0表示传入的类型
+		status     int64  `json:"status,optional" form:"status,optional"` // -1表示未传入，1表示草稿，2表示已发布
+	}
+	NoticeListResp {
+		total int64        `json:"total"`
+		list  []NoticeItem `json:"list"`
+	}
+	NoticeCreateReq {
+		title       string `json:"title"`
+		content     string `json:"content"`
+		noticeType  int64  `json:"type,optional"` // 公告类型：1 普通公告，2 重要公告，3 紧急公告
+		status      int64  `json:"status,optional"` // 状态：1 草稿，2 已发布
+		publishTime int64  `json:"publishTime,optional"` // 发布时间(秒级时间戳)，0表示立即发布
+	}
+	NoticeUpdateReq {
+		id          uint64 `json:"id"`
+		title       string `json:"title,optional"`
+		content     string `json:"content,optional"`
+		noticeType  int64  `json:"type,optional"`
+		status      int64  `json:"status,optional"`
+		publishTime int64  `json:"publishTime,optional"`
+	}
+	NoticeDeleteReq {
+		id uint64 `json:"id"`
+	}
+	// 消息通知管理
+	NotificationItem {
+		id         uint64 `json:"id"`
+		userId     uint64 `json:"userId"`
+		sourceType string `json:"sourceType"` // 消息来源类型（chat、notice、system等）
+		sourceId   uint64 `json:"sourceId"` // 来源ID（如公告ID、聊天消息ID等）
+		title      string `json:"title"`
+		content    string `json:"content"`
+		readStatus int64  `json:"readStatus"` // 已读状态：1 已读，0 未读
+		readAt     int64  `json:"readAt"` // 已读时间(秒级时间戳)
+		createdAt  int64  `json:"createdAt"` // 创建时间(秒级时间戳)
+		updatedAt  int64  `json:"updatedAt"` // 更新时间(秒级时间戳)
+	}
+	NotificationListReq {
+		page       int64  `json:"page,optional" form:"page,optional"`
+		pageSize   int64  `json:"pageSize,optional" form:"pageSize,optional"`
+		sourceType string `json:"sourceType,optional" form:"sourceType,optional"`
+		readStatus int64  `json:"readStatus,optional" form:"readStatus,optional"`
+	}
+	NotificationListResp {
+		total int64              `json:"total"`
+		list  []NotificationItem `json:"list"`
+	}
+	NotificationDeleteReq {
+		id uint64 `json:"id"`
+	}
+	NotificationReadReq {
+		id uint64 `json:"id"`
+	}
+)
+
+@server (
+	group:      notice
+	prefix:     /api/v1
+	middleware: PerformanceMiddleware,RateLimitMiddleware,AuthMiddleware,PermissionMiddleware,OperationLogMiddleware
+)
+service admin-api {
+	@handler NoticeList
+	get /notices (NoticeListReq) returns (NoticeListResp)
+
+	@handler NoticeCreate
+	post /notices (NoticeCreateReq) returns (Response)
+
+	@handler NoticeUpdate
+	put /notices (NoticeUpdateReq) returns (Response)
+
+	@handler NoticeDelete
+	delete /notices (NoticeDeleteReq) returns (Response)
+}
+
+@server (
+	group:      notification
+	prefix:     /api/v1
+	middleware: AuthMiddleware
+)
+service admin-api {
+	@handler NotificationList
+	get /notifications (NotificationListReq) returns (NotificationListResp)
+
+	@handler NotificationReadAll
+	put /notifications/read-all returns (Response)
+
+	@handler NotificationRead
+	put /notifications/read (NotificationReadReq) returns (Response)
+
+	@handler NotificationClearRead
+	delete /notifications/read returns (Response)
+
+	@handler NotificationDelete
+	delete /notifications (NotificationDeleteReq) returns (Response)
 }
 

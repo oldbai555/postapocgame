@@ -46,8 +46,8 @@ type (
 		Id           uint64         `db:"id"`            // 文件ID
 		Name         string         `db:"name"`          // 文件名称
 		OriginalName string         `db:"original_name"` // 原始文件名称
-		Path         string         `db:"path"`          // 文件存储路径（相对路径）
-		Url          string         `db:"url"`           // 文件访问URL
+		Path         string         `db:"path"`          // 文件访问路径（相对路径，如 /uploads/xxx）
+		BaseUrl      string         `db:"base_url"`      // 基础URL（如 http://localhost:8888），用于拼接完整访问URL
 		Size         uint64         `db:"size"`          // 文件大小（字节）
 		MimeType     sql.NullString `db:"mime_type"`     // MIME类型
 		Ext          sql.NullString `db:"ext"`           // 文件扩展名
@@ -125,7 +125,7 @@ func (m *defaultAdminFileModel) Insert(ctx context.Context, data *AdminFile) (sq
 		// 手动构建包含 created_at、updated_at 的插入语句
 		// 如果表有 deleted_at 字段，它已经在 RowsExpectAutoSet 中，不需要重复添加
 		query := fmt.Sprintf("insert into %s (%s, `created_at`, `updated_at`) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", m.table, adminFileRowsExpectAutoSet)
-		return conn.ExecCtx(ctx, query, data.Name, data.OriginalName, data.Path, data.Url, data.Size, data.MimeType, data.Ext, data.StorageType, data.Status, data.DeletedAt, data.CreatedAt, data.UpdatedAt)
+		return conn.ExecCtx(ctx, query, data.Name, data.OriginalName, data.Path, data.BaseUrl, data.Size, data.MimeType, data.Ext, data.StorageType, data.Status, data.DeletedAt, data.CreatedAt, data.UpdatedAt)
 	}, adminFileIdKey)
 	return ret, err
 }
@@ -143,7 +143,7 @@ func (m *defaultAdminFileModel) Update(ctx context.Context, data *AdminFile) err
 			whereClause += " and deleted_at = 0"
 		}
 		query := fmt.Sprintf("update %s set %s, `updated_at` = %d %s", m.table, adminFileRowsWithPlaceHolder, data.UpdatedAt, whereClause)
-		return conn.ExecCtx(ctx, query, data.Name, data.OriginalName, data.Path, data.Url, data.Size, data.MimeType, data.Ext, data.StorageType, data.Status, data.DeletedAt, data.Id)
+		return conn.ExecCtx(ctx, query, data.Name, data.OriginalName, data.Path, data.BaseUrl, data.Size, data.MimeType, data.Ext, data.StorageType, data.Status, data.DeletedAt, data.Id)
 	}, adminFileIdKey)
 	return err
 }

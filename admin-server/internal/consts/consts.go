@@ -45,3 +45,11 @@ const (
 	// WebSocket 路径
 	PathChatWS = "/api/v1/chats/ws"
 )
+
+// 公告状态常量
+const (
+	// NoticeStatusDraft 草稿
+	NoticeStatusDraft int64 = 1
+	// NoticeStatusPublished 已发布
+	NoticeStatusPublished int64 = 2
+)

@@ -5,7 +5,6 @@ package dict_item
 
 import (
 	"context"
-	"time"
 
 	"postapocgame/admin-server/internal/repository"
 	"postapocgame/admin-server/internal/svc"
@@ -54,7 +53,7 @@ func (l *DictItemListLogic) DictItemList(req *types.DictItemListReq) (resp *type
 			Sort:      di.Sort,
 			Status:    di.Status,
 			Remark:    remark,
-			CreatedAt: time.Unix(di.CreatedAt, 0).Format("2006-01-02 15:04:05"),
+			CreatedAt: di.CreatedAt,
 		})
 	}
 

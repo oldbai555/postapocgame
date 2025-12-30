@@ -5,7 +5,6 @@ package dict
 
 import (
 	"context"
-	"time"
 
 	"postapocgame/admin-server/internal/repository"
 	"postapocgame/admin-server/internal/svc"
@@ -73,7 +72,7 @@ func (l *DictGetLogic) DictGet(req *types.DictGetReq) (resp *types.DictGetResp, 
 			Sort:      di.Sort,
 			Status:    di.Status,
 			Remark:    remark,
-			CreatedAt: time.Unix(di.CreatedAt, 0).Format("2006-01-02 15:04:05"),
+			CreatedAt: di.CreatedAt,
 		})
 	}
 

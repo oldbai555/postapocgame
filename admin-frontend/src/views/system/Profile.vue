@@ -12,6 +12,15 @@
           <el-input v-model="profileForm.username" disabled />
         </el-form-item>
 
+        <el-form-item label="昵称">
+          <el-input
+            v-model="profileForm.nickname"
+            placeholder="请输入昵称"
+            maxlength="64"
+            show-word-limit
+          />
+        </el-form-item>
+
         <el-form-item label="头像">
           <ImageUpload v-model="profileForm.avatar" />
         </el-form-item>
@@ -93,10 +102,12 @@ const userStore = useUserStore();
 // 个人信息表单
 const profileForm = reactive<{
   username: string;
+  nickname: string;
   avatar: string;
   signature: string;
 }>({
   username: '',
+  nickname: '',
   avatar: '',
   signature: ''
 });
@@ -144,6 +155,7 @@ const loadProfile = async () => {
   try {
     const data = await profile();
     profileForm.username = data.username || '';
+    profileForm.nickname = data.nickname || '';
     profileForm.avatar = data.avatar || '';
     profileForm.signature = data.signature || '';
   } catch (err: any) {
@@ -156,6 +168,7 @@ const handleSaveProfile = async () => {
   saving.value = true;
   try {
     const req: ProfileUpdateReq = {
+      nickname: profileForm.nickname,
       avatar: profileForm.avatar,
       signature: profileForm.signature
     };
