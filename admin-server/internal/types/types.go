@@ -105,6 +105,88 @@ type CacheRefreshResp struct {
 	Message string `json:"message"`
 }
 
+type ChatGroupCreateReq struct {
+	Name        string   `json:"name"`                 // 群组名称
+	Avatar      string   `json:"avatar,optional"`      // 群组头像
+	Description string   `json:"description,optional"` // 群组描述
+	UserIds     []uint64 `json:"userIds,optional"`     // 初始成员用户ID列表（不包括创建人）
+}
+
+type ChatGroupDeleteReq struct {
+	Id uint64 `json:"id"` // 群组ID
+}
+
+type ChatGroupDetailReq struct {
+	Id uint64 `path:"id"` // 群组ID
+}
+
+type ChatGroupDetailResp struct {
+	Id          uint64                `json:"id"`
+	Name        string                `json:"name"`
+	Avatar      string                `json:"avatar,optional"`
+	Description string                `json:"description,optional"`
+	CreatedBy   uint64                `json:"createdBy"`
+	CreatedAt   int64                 `json:"createdAt"`
+	MemberCount int64                 `json:"memberCount"`      // 成员数量
+	Members     []ChatGroupMemberItem `json:"members,optional"` // 成员列表
+}
+
+type ChatGroupItem struct {
+	Id          uint64 `json:"id"`                   // 群组ID
+	Name        string `json:"name"`                 // 群组名称
+	Avatar      string `json:"avatar,optional"`      // 群组头像
+	Description string `json:"description,optional"` // 群组描述
+	CreatedBy   uint64 `json:"createdBy"`            // 创建人ID
+	CreatedAt   int64  `json:"createdAt"`            // 创建时间(秒级时间戳)
+	MemberCount int64  `json:"memberCount"`          // 成员数量
+}
+
+type ChatGroupListReq struct {
+	Page     int64  `form:"page,optional"`     // 页码
+	PageSize int64  `form:"pageSize,optional"` // 每页数量
+	Name     string `form:"name,optional"`     // 群组名称（模糊搜索）
+}
+
+type ChatGroupListResp struct {
+	Total int64           `json:"total"` // 总数
+	List  []ChatGroupItem `json:"list"`  // 群组列表
+}
+
+type ChatGroupMemberAddReq struct {
+	ChatId  uint64   `json:"chatId"`  // 群组ID
+	UserIds []uint64 `json:"userIds"` // 要添加的用户ID列表
+}
+
+type ChatGroupMemberItem struct {
+	UserId         uint64   `json:"userId"`
+	Username       string   `json:"username"`
+	Nickname       string   `json:"nickname,optional"`
+	Avatar         string   `json:"avatar,optional"`
+	DepartmentName string   `json:"departmentName,optional"`
+	RoleNames      []string `json:"roleNames,optional"`
+	JoinedAt       int64    `json:"joinedAt"` // 加入时间
+}
+
+type ChatGroupMemberListReq struct {
+	Id uint64 `path:"id"` // 群组ID
+}
+
+type ChatGroupMemberListResp struct {
+	List []ChatGroupMemberItem `json:"list"`
+}
+
+type ChatGroupMemberRemoveReq struct {
+	ChatId uint64 `json:"chatId"` // 群组ID
+	UserId uint64 `json:"userId"` // 要移除的用户ID
+}
+
+type ChatGroupUpdateReq struct {
+	Id          uint64 `json:"id"`                   // 群组ID
+	Name        string `json:"name,optional"`        // 群组名称
+	Avatar      string `json:"avatar,optional"`      // 群组头像
+	Description string `json:"description,optional"` // 群组描述
+}
+
 type ChatItem struct {
 	ChatId         uint64   `json:"chatId"`
 	Name           string   `json:"name"`                    // 聊天名称（群组名称，私聊显示对方昵称或用户名）
@@ -387,7 +469,7 @@ type FileDeleteReq struct {
 }
 
 type FileDownloadReq struct {
-	Id uint64 `json:"id" form:"id"`
+	Id uint64 `json:"id,optional" form:"id,optional"` // 文件ID（查询参数）
 }
 
 type FileDownloadResp struct {

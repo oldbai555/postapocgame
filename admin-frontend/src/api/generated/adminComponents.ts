@@ -111,6 +111,92 @@ export interface CacheRefreshResp {
 	message: string
 }
 
+export interface ChatGroupCreateReq {
+	name: string // 群组名称
+	avatar?: string // 群组头像
+	description?: string // 群组描述
+	userIds?: Array<number> // 初始成员用户ID列表（不包括创建人）
+}
+
+export interface ChatGroupDeleteReq {
+	id: number // 群组ID
+}
+
+export interface ChatGroupDetailReq {
+}
+export interface ChatGroupDetailReqParams {
+}
+
+export interface ChatGroupDetailResp {
+	id: number
+	name: string
+	avatar?: string
+	description?: string
+	createdBy: number
+	createdAt: number
+	memberCount: number // 成员数量
+	members?: Array<ChatGroupMemberItem> // 成员列表
+}
+
+export interface ChatGroupItem {
+	id: number // 群组ID
+	name: string // 群组名称
+	avatar?: string // 群组头像
+	description?: string // 群组描述
+	createdBy: number // 创建人ID
+	createdAt: number // 创建时间(秒级时间戳)
+	memberCount: number // 成员数量
+}
+
+export interface ChatGroupListReq {
+}
+export interface ChatGroupListReqParams {
+	page?: number // 页码
+	pageSize?: number // 每页数量
+	name?: string // 群组名称（模糊搜索）
+}
+
+export interface ChatGroupListResp {
+	total: number // 总数
+	list: Array<ChatGroupItem> // 群组列表
+}
+
+export interface ChatGroupMemberAddReq {
+	chatId: number // 群组ID
+	userIds: Array<number> // 要添加的用户ID列表
+}
+
+export interface ChatGroupMemberItem {
+	userId: number
+	username: string
+	nickname?: string
+	avatar?: string
+	departmentName?: string
+	roleNames?: Array<string>
+	joinedAt: number // 加入时间
+}
+
+export interface ChatGroupMemberListReq {
+}
+export interface ChatGroupMemberListReqParams {
+}
+
+export interface ChatGroupMemberListResp {
+	list: Array<ChatGroupMemberItem>
+}
+
+export interface ChatGroupMemberRemoveReq {
+	chatId: number // 群组ID
+	userId: number // 要移除的用户ID
+}
+
+export interface ChatGroupUpdateReq {
+	id: number // 群组ID
+	name?: string // 群组名称
+	avatar?: string // 群组头像
+	description?: string // 群组描述
+}
+
 export interface ChatItem {
 	chatId: number
 	name: string // 聊天名称（群组名称，私聊显示对方昵称或用户名）
@@ -394,7 +480,7 @@ export interface FileDeleteReq {
 }
 
 export interface FileDownloadReq {
-	id: number
+	id?: number // 文件ID（查询参数）
 }
 
 export interface FileDownloadResp {

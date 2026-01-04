@@ -10,6 +10,7 @@ import (
 	audit_log "postapocgame/admin-server/internal/handler/audit_log"
 	auth "postapocgame/admin-server/internal/handler/auth"
 	chat "postapocgame/admin-server/internal/handler/chat"
+	chat_group "postapocgame/admin-server/internal/handler/chat_group"
 	chat_message "postapocgame/admin-server/internal/handler/chat_message"
 	config "postapocgame/admin-server/internal/handler/config"
 	demo "postapocgame/admin-server/internal/handler/demo"
@@ -155,6 +156,55 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 					Method:  http.MethodGet,
 					Path:    "/chats/messages/list",
 					Handler: chat.ChatMessageListHandler(serverCtx),
+				},
+			}...,
+		),
+		rest.WithPrefix("/api/v1"),
+	)
+
+	server.AddRoutes(
+		rest.WithMiddlewares(
+			[]rest.Middleware{serverCtx.PerformanceMiddleware, serverCtx.RateLimitMiddleware, serverCtx.AuthMiddleware, serverCtx.PermissionMiddleware, serverCtx.OperationLogMiddleware},
+			[]rest.Route{
+				{
+					Method:  http.MethodGet,
+					Path:    "/chats/groups",
+					Handler: chat_group.ChatGroupListHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/chats/groups",
+					Handler: chat_group.ChatGroupCreateHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPut,
+					Path:    "/chats/groups",
+					Handler: chat_group.ChatGroupUpdateHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodDelete,
+					Path:    "/chats/groups",
+					Handler: chat_group.ChatGroupDeleteHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/chats/groups/:id",
+					Handler: chat_group.ChatGroupDetailHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodGet,
+					Path:    "/chats/groups/:id/members",
+					Handler: chat_group.ChatGroupMemberListHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodPost,
+					Path:    "/chats/groups/members",
+					Handler: chat_group.ChatGroupMemberAddHandler(serverCtx),
+				},
+				{
+					Method:  http.MethodDelete,
+					Path:    "/chats/groups/members",
+					Handler: chat_group.ChatGroupMemberRemoveHandler(serverCtx),
 				},
 			}...,
 		),

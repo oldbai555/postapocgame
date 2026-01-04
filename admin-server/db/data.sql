@@ -100,15 +100,12 @@ VALUES
   (39, '文件新增', 'file:create', '新增文件', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
   (40, '文件编辑', 'file:update', '编辑文件', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
   (41, '文件删除', 'file:delete', '删除文件', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-  -- 通用权限（以下权限已移除，对应接口只需登录即可访问）
-  -- (42, '个人信息', 'common:profile', '查看个人信息', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-  -- (43, '退出登录', 'common:logout', '退出登录接口权限', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-  -- (44, '字典查询', 'common:dict', '公共字典查询接口权限', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-  (45, '刷新缓存', 'common:cache_refresh', '刷新配置/字典缓存', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
-  -- (46, '我的菜单树', 'menu:my_tree', '获取当前用户的菜单树', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-  -- 个人信息相关权限（以下权限已移除，对应接口只需登录即可访问）
-  -- (47, '个人信息更新', 'common:profile_update', '更新个人信息（头像、个性签名）', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-  -- (48, '修改密码', 'common:password_change', '修改登录密码', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+  -- 群组管理权限（需要权限控制）
+  (42, '群组创建', 'chat:group:create', '创建群组', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (43, '群组编辑', 'chat:group:update', '编辑群组信息', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (44, '群组删除', 'chat:group:delete', '删除群组', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (45, '群组详情', 'chat:group:detail', '查看群组详情', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (46, '群组成员管理', 'chat:group:member', '管理群组成员（添加/移除）', UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
 ON DUPLICATE KEY UPDATE 
   `name`=VALUES(`name`), 
   `code`=VALUES(`code`), 
@@ -125,12 +122,8 @@ ON DUPLICATE KEY UPDATE `updated_at`=UNIX_TIMESTAMP();
 
 -- 关联：角色-权限
 INSERT INTO `admin_role_permission` (`id`, `role_id`, `permission_id`, `created_at`, `updated_at`)
-VALUES 
+VALUES
   (1, 1, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
-  -- 以下权限已移除，对应接口只需登录即可访问
-  -- (2, 1, 42, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- 超级管理员 -> common:profile
-  -- (3, 1, 47, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- 超级管理员 -> common:profile_update
-  -- (4, 1, 48, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())   -- 超级管理员 -> common:password_change
 ON DUPLICATE KEY UPDATE `updated_at`=UNIX_TIMESTAMP();
 
 -- 菜单列表（ID从1开始连续）
@@ -252,6 +245,7 @@ VALUES
   (38, 39, 41, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- file:create(id=39) -> 文件管理新增按钮(id=41)
   (39, 40, 42, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- file:update(id=40) -> 文件管理编辑按钮(id=42)
   (40, 41, 43, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())  -- file:delete(id=41) -> 文件管理删除按钮(id=43)
+  -- 群组管理菜单和按钮的权限关联在聊天室模块初始化数据部分使用变量动态关联（见第4节）
 ON DUPLICATE KEY UPDATE `updated_at`=UNIX_TIMESTAMP();
 
 -- 接口列表（所有业务接口，ID从1开始连续）
@@ -324,23 +318,23 @@ VALUES
   (53, '文件删除', 'DELETE', '/api/v1/files', '删除文件', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
   (54, '文件上传', 'POST', '/api/v1/files/upload', '上传文件', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
   (55, '文件下载', 'GET', '/api/v1/files/:id/download', '下载文件', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-  -- 缓存刷新接口
-  (56, '刷新缓存', 'POST', '/api/v1/cache/refresh', '刷新配置与字典缓存', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-  -- 个人信息相关接口
+  -- 个人信息相关接口（只需登录即可访问，不需要权限关联）
   (57, '个人信息更新', 'PUT', '/api/v1/profile', '更新当前用户个人信息（头像、个性签名）', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
-  (58, '修改密码', 'POST', '/api/v1/profile/password', '修改当前用户登录密码', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+  (58, '修改密码', 'POST', '/api/v1/profile/password', '修改当前用户登录密码', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  -- 群组管理接口（需要权限控制）
+  (59, '群组列表', 'GET', '/api/v1/chats/groups', '获取群组列表', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (60, '群组创建', 'POST', '/api/v1/chats/groups', '创建群组', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (61, '群组更新', 'PUT', '/api/v1/chats/groups', '更新群组信息', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (62, '群组删除', 'DELETE', '/api/v1/chats/groups', '删除群组', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (63, '群组详情', 'GET', '/api/v1/chats/groups/:id', '获取群组详情', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (64, '群组成员列表', 'GET', '/api/v1/chats/groups/:id/members', '获取群组成员列表', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (65, '群组成员添加', 'POST', '/api/v1/chats/groups/members', '添加群组成员', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (66, '群组成员移除', 'DELETE', '/api/v1/chats/groups/members', '移除群组成员', 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
 ON DUPLICATE KEY UPDATE `deleted_at`=0;
 
 -- 权限-接口关联（所有权限与接口的关联，ID从1开始连续）
 INSERT INTO `admin_permission_api` (`id`, `permission_id`, `api_id`, `created_at`, `updated_at`)
 VALUES
-  -- 通用接口权限（以下权限已移除，对应接口只需登录即可访问）
-  -- (53, 42, 2, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),   -- common:profile(id=42) -> 个人信息(api_id=2)
-  -- (54, 43, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),   -- common:logout(id=43) -> 登出(api_id=1)
-  -- (55, 44, 49, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- common:dict(id=44) -> 字典查询(api_id=49)
-  (56, 45, 56, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- common:cache_refresh(id=45) -> 刷新缓存(api_id=56)
-  -- (57, 47, 57, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- common:profile_update(id=47) -> 个人信息更新(api_id=57)
-  -- (58, 48, 58, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- common:password_change(id=48) -> 修改密码(api_id=58)
   -- 用户管理权限
   (1, 18, 3, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- user:list(id=18) -> 用户列表(api_id=3)
   (2, 19, 4, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),  -- user:create(id=19) -> 用户新增(api_id=4)
@@ -371,8 +365,7 @@ VALUES
   (24, 13, 26, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- department:delete(id=13) -> 部门删除(api_id=26)
   -- 菜单管理权限
   (25, 14, 27, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- menu:list(id=14) -> 菜单树(api_id=27)
-  -- (26, 46, 28, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- menu:my_tree(id=46) -> 我的菜单树(api_id=28) (已移除，只需登录即可访问)
-  (27, 15, 29, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- menu:create(id=15) -> 菜单新增(api_id=29)
+  (26, 15, 29, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- menu:create(id=15) -> 菜单新增(api_id=29)
   (28, 16, 30, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- menu:update(id=16) -> 菜单编辑(api_id=30)
   (29, 17, 31, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- menu:delete(id=17) -> 菜单删除(api_id=31)
   -- 接口管理权限
@@ -400,10 +393,16 @@ VALUES
   (47, 38, 50, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- file:list(id=38) -> 文件列表(api_id=50)
   (48, 39, 51, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- file:create(id=39) -> 文件新增(api_id=51)
   (49, 40, 52, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- file:update(id=40) -> 文件编辑(api_id=52)
-  (50, 41, 53, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())  -- file:delete(id=41) -> 文件删除(api_id=53)
-  -- 以下接口只需登录即可访问，不需要权限关联
-  -- (51, 39, 54, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- file:create(id=39) -> 文件上传(api_id=54)
-  -- (52, 38, 55, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())  -- file:list(id=38) -> 文件下载(api_id=55)
+  (50, 41, 53, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- file:delete(id=41) -> 文件删除(api_id=53)
+  -- 群组管理权限
+  (51, 45, 59, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- chat:group:detail(id=45) -> 群组列表(api_id=59)
+  (52, 42, 60, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- chat:group:create(id=42) -> 群组创建(api_id=60)
+  (53, 43, 61, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- chat:group:update(id=43) -> 群组更新(api_id=61)
+  (54, 44, 62, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- chat:group:delete(id=44) -> 群组删除(api_id=62)
+  (55, 45, 63, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- chat:group:detail(id=45) -> 群组详情(api_id=63)
+  (56, 46, 64, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- chat:group:member(id=46) -> 群组成员列表(api_id=64)
+  (57, 46, 65, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()), -- chat:group:member(id=46) -> 群组成员添加(api_id=65)
+  (58, 46, 66, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())  -- chat:group:member(id=46) -> 群组成员移除(api_id=66)
 ON DUPLICATE KEY UPDATE `updated_at`=UNIX_TIMESTAMP();
 
 -- ============================================
@@ -1300,6 +1299,36 @@ INSERT INTO `admin_permission_menu` (`permission_id`, `menu_id`, `created_at`, `
 VALUES 
   (@chat_message_list_permission_id, @chat_message_menu_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
   (@chat_message_delete_permission_id, @chat_message_delete_button_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
+ON DUPLICATE KEY UPDATE `updated_at` = UNIX_TIMESTAMP();
+
+-- 群组管理菜单（在聊天室目录下）
+INSERT INTO `admin_menu` (`parent_id`, `name`, `path`, `component`, `icon`, `type`, `order_num`, `visible`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES (@chatroom_dir_id, '群组管理', '/chatroom/chat-group', 'chatroom/ChatGroupList', 'ele-ChatDotRound', 2, 3, 1, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE `parent_id`=VALUES(`parent_id`), `name`=VALUES(`name`), `path`=VALUES(`path`), `component`=VALUES(`component`), `icon`=VALUES(`icon`), `type`=VALUES(`type`), `order_num`=VALUES(`order_num`), `visible`=VALUES(`visible`), `status`=VALUES(`status`), `updated_at`=UNIX_TIMESTAMP(), `deleted_at`=0;
+SET @chat_group_menu_id = (SELECT `id` FROM `admin_menu` WHERE `path` = '/chatroom/chat-group' AND `deleted_at` = 0 LIMIT 1);
+
+-- 群组管理按钮
+INSERT INTO `admin_menu` (`parent_id`, `name`, `path`, `component`, `icon`, `type`, `order_num`, `visible`, `status`, `created_at`, `updated_at`, `deleted_at`)
+VALUES 
+  (@chat_group_menu_id, '群组管理 新增按钮', '', '', '', 3, 1, 0, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (@chat_group_menu_id, '群组管理 编辑按钮', '', '', '', 3, 2, 0, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0),
+  (@chat_group_menu_id, '群组管理 删除按钮', '', '', '', 3, 3, 0, 1, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), 0)
+ON DUPLICATE KEY UPDATE `parent_id`=VALUES(`parent_id`), `name`=VALUES(`name`), `type`=VALUES(`type`), `order_num`=VALUES(`order_num`), `visible`=VALUES(`visible`), `status`=VALUES(`status`), `updated_at`=UNIX_TIMESTAMP(), `deleted_at`=0;
+SET @chat_group_create_button_id = (SELECT `id` FROM `admin_menu` WHERE `parent_id` = @chat_group_menu_id AND `name` = '群组管理 新增按钮' AND `deleted_at` = 0 LIMIT 1);
+SET @chat_group_update_button_id = (SELECT `id` FROM `admin_menu` WHERE `parent_id` = @chat_group_menu_id AND `name` = '群组管理 编辑按钮' AND `deleted_at` = 0 LIMIT 1);
+SET @chat_group_delete_button_id = (SELECT `id` FROM `admin_menu` WHERE `parent_id` = @chat_group_menu_id AND `name` = '群组管理 删除按钮' AND `deleted_at` = 0 LIMIT 1);
+
+-- 群组管理 权限-菜单 关联
+SET @chat_group_detail_permission_id = (SELECT `id` FROM `admin_permission` WHERE `code` = 'chat:group:detail' AND `deleted_at` = 0 LIMIT 1);
+SET @chat_group_create_permission_id = (SELECT `id` FROM `admin_permission` WHERE `code` = 'chat:group:create' AND `deleted_at` = 0 LIMIT 1);
+SET @chat_group_update_permission_id = (SELECT `id` FROM `admin_permission` WHERE `code` = 'chat:group:update' AND `deleted_at` = 0 LIMIT 1);
+SET @chat_group_delete_permission_id = (SELECT `id` FROM `admin_permission` WHERE `code` = 'chat:group:delete' AND `deleted_at` = 0 LIMIT 1);
+INSERT INTO `admin_permission_menu` (`permission_id`, `menu_id`, `created_at`, `updated_at`)
+VALUES 
+  (@chat_group_detail_permission_id, @chat_group_menu_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (@chat_group_create_permission_id, @chat_group_create_button_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (@chat_group_update_permission_id, @chat_group_update_button_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP()),
+  (@chat_group_delete_permission_id, @chat_group_delete_button_id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP())
 ON DUPLICATE KEY UPDATE `updated_at` = UNIX_TIMESTAMP();
 
 -- 聊天记录管理 权限-接口 关联

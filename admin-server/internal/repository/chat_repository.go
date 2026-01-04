@@ -2,8 +2,10 @@ package repository
 
 import (
 	"context"
-	"github.com/zeromicro/go-zero/core/stores/sqlx"
 	"postapocgame/admin-server/internal/model"
+	"strings"
+
+	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
 
 type ChatRepository interface {
@@ -14,6 +16,8 @@ type ChatRepository interface {
 	Update(ctx context.Context, chat *model.Chat) error
 	DeleteByID(ctx context.Context, id uint64) error
 	FindPrivateChatByUserIDs(ctx context.Context, userID1, userID2 uint64) (*model.Chat, error)
+	FindGroups(ctx context.Context, page, pageSize int64, name string) ([]model.Chat, int64, error)
+	CountMembersByChatID(ctx context.Context, chatID uint64) (int64, error)
 }
 
 type chatRepository struct {
@@ -104,4 +108,55 @@ func (r *chatRepository) FindPrivateChatByUserIDs(ctx context.Context, userID1, 
 		return nil, err
 	}
 	return &chat, nil
+}
+
+// FindGroups 查询群组列表（分页、搜索）
+func (r *chatRepository) FindGroups(ctx context.Context, page, pageSize int64, name string) ([]model.Chat, int64, error) {
+	// 构建查询条件
+	var conditions []string
+	var args []interface{}
+
+	// 只查询群组（type=2）
+	conditions = append(conditions, "type = 2")
+	conditions = append(conditions, "deleted_at = 0")
+
+	// 名称搜索
+	if name != "" {
+		conditions = append(conditions, "name LIKE ?")
+		args = append(args, "%"+name+"%")
+	}
+
+	whereClause := "WHERE " + strings.Join(conditions, " AND ")
+
+	// 查询总数
+	var total int64
+	countQuery := "SELECT COUNT(*) FROM `chat` " + whereClause
+	err := r.conn.QueryRowCtx(ctx, &total, countQuery, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// 查询列表
+	offset := (page - 1) * pageSize
+	query := "SELECT * FROM `chat` " + whereClause + " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+	args = append(args, pageSize, offset)
+
+	var list []model.Chat
+	err = r.conn.QueryRowsCtx(ctx, &list, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return list, total, nil
+}
+
+// CountMembersByChatID 统计群组成员数量
+func (r *chatRepository) CountMembersByChatID(ctx context.Context, chatID uint64) (int64, error) {
+	query := "SELECT COUNT(*) FROM `chat_user` WHERE chat_id = ?"
+	var count int64
+	err := r.conn.QueryRowCtx(ctx, &count, query, chatID)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
 }

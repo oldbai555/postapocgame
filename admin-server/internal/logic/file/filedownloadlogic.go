@@ -6,9 +6,7 @@ package file
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
-	"strconv"
 	"strings"
 
 	"postapocgame/admin-server/internal/repository"
@@ -33,19 +31,18 @@ func NewFileDownloadLogic(ctx context.Context, svcCtx *svc.ServiceContext) *File
 	}
 }
 
-func (l *FileDownloadLogic) FileDownload(w http.ResponseWriter, r *http.Request, req *types.FileDownloadReq) error {
+func (l *FileDownloadLogic) FileDownload(req *types.FileDownloadReq) (resp *types.FileDownloadResp, err error) {
 	if req == nil || req.Id == 0 {
-		return errs.New(errs.CodeBadRequest, "文件ID不能为空")
+		return nil, errs.New(errs.CodeBadRequest, "文件ID不能为空")
 	}
 
 	fileRepo := repository.NewFileRepository(l.svcCtx.Repository)
 	file, err := fileRepo.FindByID(l.ctx, req.Id)
 	if err != nil {
-		return errs.Wrap(errs.CodeInternalError, "查询文件失败", err)
+		return nil, errs.Wrap(errs.CodeNotFound, "文件不存在", err)
 	}
 
-	// 将访问路径转换为文件系统路径
-	// path 格式：/uploads/xxx -> 文件系统路径：./uploads/xxx
+	// 检查文件是否存在
 	fileSystemPath := file.Path
 	if strings.HasPrefix(file.Path, "/uploads/") {
 		fileSystemPath = "." + file.Path
@@ -53,21 +50,22 @@ func (l *FileDownloadLogic) FileDownload(w http.ResponseWriter, r *http.Request,
 		fileSystemPath = "./" + file.Path
 	}
 
-	// 检查文件是否存在
 	if _, err := os.Stat(fileSystemPath); os.IsNotExist(err) {
-		return errs.New(errs.CodeNotFound, "文件不存在")
+		return nil, errs.New(errs.CodeNotFound, "文件不存在")
 	}
 
-	// 设置响应头，直接下载文件
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", file.OriginalName))
-	if file.MimeType.Valid && file.MimeType.String != "" {
-		w.Header().Set("Content-Type", file.MimeType.String)
-	} else {
-		w.Header().Set("Content-Type", "application/octet-stream")
+	// 构建文件访问URL（使用 /api/v1/uploads/xxx 格式，前端可以通过代理访问）
+	// file.Path 格式：/uploads/xxx 或 /api/v1/uploads/xxx
+	accessPath := file.Path
+	if strings.HasPrefix(file.Path, "/uploads/") {
+		// 如果是 /uploads/xxx，转换为 /api/v1/uploads/xxx
+		accessPath = fmt.Sprintf("/api/v1%s", file.Path)
+	} else if !strings.HasPrefix(file.Path, "/api/v1/") {
+		// 如果既不是 /uploads/ 也不是 /api/v1/，添加 /api/v1/uploads/ 前缀
+		accessPath = fmt.Sprintf("/api/v1/uploads/%s", strings.TrimPrefix(file.Path, "/"))
 	}
-	w.Header().Set("Content-Length", strconv.FormatUint(file.Size, 10))
 
-	// 直接返回文件内容
-	http.ServeFile(w, r, fileSystemPath)
-	return nil
+	return &types.FileDownloadResp{
+		Url: accessPath,
+	}, nil
 }

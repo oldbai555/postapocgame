@@ -72,12 +72,11 @@
 <script setup lang="ts">
 import {reactive, ref, onMounted, computed} from 'vue';
 import {ElMessage, ElMessageBox} from 'element-plus';
-import {fileList, fileCreate, fileUpdate, fileDelete} from '@/api/generated/admin';
+import {fileList, fileCreate, fileUpdate, fileDelete, fileDownload} from '@/api/generated/admin';
 import type {FileItem, FileCreateReq, FileUpdateReq} from '@/api/generated/admin';
 import {useI18n} from 'vue-i18n';
 import D2Table from '@/components/common/D2Table.vue';
 import {D2TableElemType, type TableColumn, type DrawerColumn} from '@/types/table';
-import request from '@/utils/request';
 import {useUserStore} from '@/stores/user';
 
 const {t} = useI18n();
@@ -225,22 +224,32 @@ const handleUploadError = (error: any) => {
 // 文件下载
 const handleDownload = async (row: FileItem) => {
   try {
-    // 使用 request 下载文件，设置 responseType 为 blob
-    const resp = await request.get(`/v1/files/${row.id}/download`, {
-      responseType: 'blob'
-    });
+    // 调用下载接口获取文件URL
+    const resp = await fileDownload({id: row.id});
     
-    // 创建 Blob URL
-    const blob = new Blob([resp], {type: resp.type || 'application/octet-stream'});
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = row.name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    // 释放 Blob URL
-    window.URL.revokeObjectURL(url);
+    if (resp.url) {
+      // 构建完整URL（如果返回的是相对路径，需要拼接baseUrl）
+      let downloadUrl = resp.url;
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
+      if (baseUrl && !resp.url.startsWith('http://') && !resp.url.startsWith('https://')) {
+        // 如果是相对路径，拼接baseUrl
+        downloadUrl = `${baseUrl}${resp.url.startsWith('/') ? resp.url : `/${resp.url}`}`;
+      } else if (!baseUrl && !resp.url.startsWith('http://') && !resp.url.startsWith('https://')) {
+        // 如果没有baseUrl，使用相对路径（通过代理）
+        downloadUrl = resp.url.startsWith('/') ? resp.url : `/${resp.url}`;
+      }
+      
+      // 创建下载链接
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = row.name;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      ElMessage.error('下载失败：服务器未返回文件URL');
+    }
   } catch (err: any) {
     ElMessage.error('下载失败：' + (err.message || '未知错误'));
   }

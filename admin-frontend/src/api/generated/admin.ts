@@ -130,6 +130,70 @@ export function chatMessageList(req: components.ChatMessageListReq) {
 
 /**
  * @description 
+ * @param params
+ */
+export function chatGroupList(params: components.ChatGroupListReqParams) {
+	return webapi.get<components.ChatGroupListResp>(`/api/v1/chats/groups`, params)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function chatGroupCreate(req: components.ChatGroupCreateReq) {
+	return webapi.post<components.Response>(`/api/v1/chats/groups`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function chatGroupUpdate(req: components.ChatGroupUpdateReq) {
+	return webapi.put<components.Response>(`/api/v1/chats/groups`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function chatGroupDelete(req: components.ChatGroupDeleteReq) {
+	return webapi.delete<components.Response>(`/api/v1/chats/groups`, req)
+}
+
+/**
+ * @description 
+ * @param params
+ */
+export function chatGroupDetail(params: components.ChatGroupDetailReqParams, id: number) {
+	return webapi.get<components.ChatGroupDetailResp>(`/api/v1/chats/groups/${id}`, params)
+}
+
+/**
+ * @description 
+ * @param params
+ */
+export function chatGroupMemberList(params: components.ChatGroupMemberListReqParams, id: number) {
+	return webapi.get<components.ChatGroupMemberListResp>(`/api/v1/chats/groups/${id}/members`, params)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function chatGroupMemberAdd(req: components.ChatGroupMemberAddReq) {
+	return webapi.post<components.Response>(`/api/v1/chats/groups/members`, req)
+}
+
+/**
+ * @description 
+ * @param req
+ */
+export function chatGroupMemberRemove(req: components.ChatGroupMemberRemoveReq) {
+	return webapi.delete<components.Response>(`/api/v1/chats/groups/members`, req)
+}
+
+/**
+ * @description 
  * @param req
  */
 export function chatMessageListAdmin(req: components.ChatMessageListReq) {
